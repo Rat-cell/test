@@ -5,9 +5,10 @@ from app.application.services import (
     process_pickup, 
     verify_admin_credentials, 
     log_audit_event, # Add log_audit_event
-    set_locker_status # Add set_locker_status
+    set_locker_status, # Add set_locker_status
+    mark_parcel_missing_by_admin # Add this
 )
-from app.persistence.models import Locker, AuditLog, AdminUser # Add AdminUser
+from app.persistence.models import Locker, AuditLog, AdminUser, Parcel # Add AdminUser and Parcel
 from .decorators import admin_required # Add admin_required decorator
 from app import db # Add db for session.get
 
@@ -113,7 +114,51 @@ def audit_logs_view():
 @admin_required
 def manage_lockers():
     lockers = Locker.query.order_by(Locker.id).all()
-    return render_template('admin/manage_lockers.html', lockers=lockers)
+    lockers_with_parcels = []
+    for locker in lockers:
+        parcel_in_locker = None
+        # Relevant parcel statuses that might be in an 'occupied' or 'disputed_contents' locker
+        relevant_parcel_statuses = ['deposited', 'pickup_disputed', 'missing'] 
+        if locker.status in ['occupied', 'disputed_contents', 'out_of_service']: 
+            # Query for parcels in relevant states for this locker
+            parcel_in_locker = Parcel.query.filter(
+                Parcel.locker_id == locker.id,
+                Parcel.status.in_(relevant_parcel_statuses)
+            ).order_by(Parcel.id.desc()).first() # Get the latest relevant parcel
+        lockers_with_parcels.append({'locker': locker, 'parcel': parcel_in_locker})
+    return render_template('admin/manage_lockers.html', lockers_with_parcels=lockers_with_parcels)
+
+@main_bp.route('/admin/parcel/<int:parcel_id>/view', methods=['GET'])
+@admin_required
+def view_parcel_admin(parcel_id):
+    parcel = db.session.get(Parcel, parcel_id)
+    if not parcel:
+        flash(f"Parcel ID {parcel_id} not found.", "error")
+        return redirect(url_for('main.manage_lockers'))
+    locker = db.session.get(Locker, parcel.locker_id) if parcel.locker_id else None
+    return render_template('admin/view_parcel.html', parcel=parcel, locker=locker)
+
+@main_bp.route('/admin/parcel/<int:parcel_id>/mark-missing', methods=['POST'])
+@admin_required
+def mark_parcel_missing_admin_action(parcel_id):
+    admin_id = session.get('admin_id')
+    admin_user = db.session.get(AdminUser, admin_id)
+    admin_username = admin_user.username if admin_user else "UnknownAdmin"
+
+    parcel, error = mark_parcel_missing_by_admin(
+        admin_id=admin_id,
+        admin_username=admin_username,
+        parcel_id=parcel_id
+    )
+    if error:
+        flash(f"Error marking parcel {parcel_id} as missing: {error}", "error")
+    else:
+        flash(f"Parcel {parcel_id} successfully marked as missing.", "success")
+    
+    # Redirect to the parcel view page if parcel exists, otherwise to lockers list
+    if parcel: 
+        return redirect(url_for('main.view_parcel_admin', parcel_id=parcel_id))
+    return redirect(url_for('main.manage_lockers'))
 
 @main_bp.route('/admin/locker/<int:locker_id>/set-status', methods=['POST'])
 @admin_required

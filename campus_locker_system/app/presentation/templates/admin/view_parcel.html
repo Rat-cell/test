@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin - View Parcel {{ parcel.id }}</title>
+</head>
+<body>
+    <h1>Parcel Details: ID {{ parcel.id }}</h1>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class=flashes>
+        {% for category, message in messages %}
+          <li class="{{ category }}">{{ message }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <p><strong>Status:</strong> {{ parcel.status }}</p>
+    <p><strong>Recipient Email:</strong> {{ parcel.recipient_email }}</p>
+    <p><strong>Locker ID:</strong> {{ parcel.locker_id if parcel.locker_id else 'N/A' }}</p>
+    {% if locker %}
+        <p><strong>Locker Status:</strong> {{ locker.status }}</p>
+    {% endif %}
+    <p><strong>PIN Hash:</strong> {{ parcel.pin_hash }} (Masked/Partial display recommended for actual UI)</p>
+    <p><strong>OTP Expiry:</strong> {{ parcel.otp_expiry.strftime('%Y-%m-%d %H:%M:%S') if parcel.otp_expiry else 'N/A' }} UTC</p>
+    
+    {% if parcel.status in ['deposited', 'pickup_disputed'] %}
+    <form method="POST" action="{{ url_for('main.mark_parcel_missing_admin_action', parcel_id=parcel.id) }}" style="margin-top: 20px;">
+        <button type="submit" onclick="return confirm('Are you sure you want to mark this parcel as MISSING? This action implies the parcel is not physically in the locker.');">Mark Parcel as Missing</button>
+    </form>
+    {% elif parcel.status == 'missing' %}
+    <p><em>This parcel is already marked as missing.</em></p>
+    {% endif %}
+
+    <p style="margin-top: 30px;">
+        <a href="{{ url_for('main.manage_lockers') }}">Back to Lockers List</a>
+    </p>
+</body>
+</html>

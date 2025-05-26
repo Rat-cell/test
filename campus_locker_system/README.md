@@ -109,6 +109,7 @@ The project code is organized into several main parts within the `campus_locker_
 *   **Audit Trail:** Records key system events like parcel deposits, pickups (successful and failed attempts), admin logins/logouts, and email notification status. These logs are viewable by administrators.
 *   **Locker Status Management (Admin):** Administrators can view all lockers and change their status (e.g., mark as 'out_of_service' or return to 'free' if empty). This helps manage faulty or reserved lockers.
 *   **Parcel Interaction Confirmation (Backend Logic):** Supports backend logic for a locker client to allow senders to retract a mistaken deposit or recipients to dispute a pickup within a short window. This introduces new parcel statuses ('retracted_by_sender', 'pickup_disputed') and a locker status ('disputed_contents'). These new states currently require administrative follow-up for full resolution.
+*   **Report Missing Item (FR-06):** Allows administrators to mark a parcel as 'missing'. Also provides an API endpoint for a locker client to signal a recipient reporting a parcel as missing immediately after a pickup attempt. This sets the parcel status to 'missing' and typically takes the associated locker out of service for investigation.
 *   **Automated Tests:** Basic tests ensure core features are working as expected.
 
 ### 4.1. Viewing Audit Logs
@@ -139,8 +140,19 @@ The system now includes a set of API endpoints under the `/api/v1/` prefix, inte
 
 *   **`POST /api/v1/deposit/<parcel_id>/retract`**: Called by the locker client if a sender indicates they made a mistake immediately after depositing a parcel. This marks the parcel as 'retracted_by_sender' and frees the locker (if it was not 'out_of_service').
 *   **`POST /api/v1/pickup/<parcel_id>/dispute`**: Called by the locker client if a recipient indicates an issue (e.g., wrong item, empty locker) immediately after a pickup attempt. This marks the parcel as 'pickup_disputed' and the locker as 'disputed_contents', requiring admin attention.
+*   **`POST /api/v1/parcel/<int:parcel_id>/report-missing`**: Called by the locker client if a recipient, immediately after opening a locker with a valid PIN, reports that the parcel is not there or is incorrect. This sets the parcel status to 'missing' and may take the locker out of service.
 
 These endpoints are designed for machine-to-machine communication and do not have a direct user interface in this web application. Authentication for these endpoints would be required in a production system.
+
+### 4.4. Managing and Reporting Missing Parcels (FR-06)
+
+Administrators can manage parcels that are reported or suspected to be missing. This complements the API endpoint that allows a locker client to report a missing parcel on behalf of a recipient.
+
+*   **Viewing Parcel Details:** Admins can view detailed information for any parcel by navigating to `/admin/parcel/<parcel_id>/view`. This page can be accessed via links from the main `/admin/lockers` page if a parcel is associated with a locker.
+*   **Marking a Parcel as Missing:** From the parcel detail page, if a parcel is in a state like 'deposited' or 'pickup_disputed', an admin can mark it as 'missing'. 
+    *   This action changes the parcel's status to 'missing'.
+    *   If the parcel was 'deposited' in a locker, or its pickup was disputed, the associated locker will typically be set to 'out_of_service' to allow for inspection.
+    *   This administrative action is recorded in the audit log.
 
 ## 5. Architectural Choices (Why things are built this way)
 

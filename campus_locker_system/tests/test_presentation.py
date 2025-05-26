@@ -322,3 +322,117 @@ def test_api_dispute_pickup_fail_conditions(client, init_database, app):
         response_wrong_state = client.post(f'/api/v1/pickup/{parcel.id}/dispute')
         assert response_wrong_state.status_code == 409 # Conflict
         assert "not in 'picked_up' state" in json.loads(response_wrong_state.data)['message']
+
+# Tests for Report Missing Item (FR-06) API and Admin UI
+
+# API Tests for /api/v1/parcel/<parcel_id>/report-missing
+def test_api_report_missing_success(client, init_database, app):
+    with app.app_context():
+        # 1. Setup: Deposit a parcel
+        parcel, _, _ = assign_locker_and_create_parcel('small', 'api_report_missing_success@example.com')
+        assert parcel is not None
+        original_locker_id = parcel.locker_id
+
+        # 2. Action: POST to the report-missing endpoint
+        response = client.post(f'/api/v1/parcel/{parcel.id}/report-missing')
+        
+        # 3. Assert: HTTP 200, JSON response, DB state, Audit log
+        assert response.status_code == 200
+        response_data = json.loads(response.data)
+        assert response_data['status'] == 'success'
+        assert response_data['parcel_id'] == parcel.id
+        assert response_data['new_parcel_status'] == 'missing'
+        assert response_data['locker_id'] == original_locker_id
+        # 'new_locker_status' is not returned by current API implementation, so not asserted here
+
+        assert db.session.get(Parcel, parcel.id).status == 'missing'
+        assert db.session.get(Locker, original_locker_id).status == 'out_of_service'
+
+        log_entry = AuditLog.query.filter_by(action="PARCEL_REPORTED_MISSING_BY_RECIPIENT", details__contains=str(parcel.id)).order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+        details = json.loads(log_entry.details)
+        assert details['original_parcel_status'] == 'deposited'
+
+def test_api_report_missing_fail_conditions(client, init_database, app):
+    with app.app_context():
+        # Parcel not found
+        response_not_found = client.post('/api/v1/parcel/99999/report-missing')
+        assert response_not_found.status_code == 404
+        assert json.loads(response_not_found.data)['message'] == "Parcel not found."
+
+        # Parcel not in 'deposited' or 'pickup_disputed' state (e.g., 'picked_up')
+        parcel, plain_pin, _ = assign_locker_and_create_parcel('small', 'api_report_missing_fail@example.com')
+        assert parcel is not None
+        from app.application.services import process_pickup # Import for setup
+        process_pickup(plain_pin) # Change status to 'picked_up'
+        assert db.session.get(Parcel, parcel.id).status == 'picked_up'
+        
+        response_wrong_state = client.post(f'/api/v1/parcel/{parcel.id}/report-missing')
+        assert response_wrong_state.status_code == 409 # Conflict
+        assert "cannot be reported missing by recipient from its current state: 'picked_up'" in json.loads(response_wrong_state.data)['message']
+
+# Admin UI Tests for FR-06
+def test_admin_view_parcel_page(logged_in_admin_client, init_database, app):
+    with app.app_context():
+        # 1. Setup: Deposit a parcel
+        parcel_to_view, _, _ = assign_locker_and_create_parcel('small', 'admin_view_parcel@example.com')
+        assert parcel_to_view is not None
+
+        # 2. Action: GET the parcel view page
+        response = logged_in_admin_client.get(f'/admin/parcel/{parcel_to_view.id}/view')
+        
+        # 3. Assert: HTTP 200, content
+        assert response.status_code == 200
+        assert f"Parcel Details: ID {parcel_to_view.id}".encode() in response.data
+        assert parcel_to_view.recipient_email.encode() in response.data
+        assert parcel_to_view.status.encode() in response.data
+        # Check for "Mark Parcel as Missing" button (since status is 'deposited')
+        assert b"Mark Parcel as Missing" in response.data
+
+        # Test with a non-existent parcel ID
+        response_not_found = logged_in_admin_client.get('/admin/parcel/99999/view', follow_redirects=True)
+        assert response_not_found.status_code == 200 # Redirects to manage_lockers
+        assert b"Parcel ID 99999 not found." in response_not_found.data
+
+def test_admin_mark_parcel_missing_ui_flow(logged_in_admin_client, init_database, app):
+    with app.app_context():
+        # Test with a 'deposited' parcel
+        parcel_dep, _, _ = assign_locker_and_create_parcel('small', 'admin_mark_missing_dep@example.com')
+        assert parcel_dep is not None
+        original_locker_id_dep = parcel_dep.locker_id
+
+        response_dep = logged_in_admin_client.post(f'/admin/parcel/{parcel_dep.id}/mark-missing', follow_redirects=True)
+        assert response_dep.status_code == 200
+        assert f"Parcel {parcel_dep.id} successfully marked as missing.".encode() in response_dep.data
+        assert db.session.get(Parcel, parcel_dep.id).status == 'missing'
+        assert db.session.get(Locker, original_locker_id_dep).status == 'out_of_service'
+        
+        log_dep = AuditLog.query.filter(
+            AuditLog.action == "ADMIN_MARKED_PARCEL_MISSING", 
+            AuditLog.details.like(f'%"parcel_id": {parcel_dep.id}%'),
+            AuditLog.details.like(f'%"original_parcel_status": "deposited"%')
+        ).order_by(AuditLog.timestamp.desc()).first()
+        assert log_dep is not None
+
+        # Test with a 'pickup_disputed' parcel
+        parcel_dis, plain_pin_dis, _ = assign_locker_and_create_parcel('medium', 'admin_mark_missing_dis@example.com') # Use different locker
+        assert parcel_dis is not None
+        original_locker_id_dis = parcel_dis.locker_id
+        from app.application.services import process_pickup, dispute_pickup # Imports for setup
+        process_pickup(plain_pin_dis)
+        dispute_pickup(parcel_dis.id)
+        assert db.session.get(Parcel, parcel_dis.id).status == 'pickup_disputed'
+        assert db.session.get(Locker, original_locker_id_dis).status == 'disputed_contents'
+
+        response_dis = logged_in_admin_client.post(f'/admin/parcel/{parcel_dis.id}/mark-missing', follow_redirects=True)
+        assert response_dis.status_code == 200
+        assert f"Parcel {parcel_dis.id} successfully marked as missing.".encode() in response_dis.data
+        assert db.session.get(Parcel, parcel_dis.id).status == 'missing'
+        assert db.session.get(Locker, original_locker_id_dis).status == 'out_of_service'
+
+        log_dis = AuditLog.query.filter(
+            AuditLog.action == "ADMIN_MARKED_PARCEL_MISSING", 
+            AuditLog.details.like(f'%"parcel_id": {parcel_dis.id}%'),
+            AuditLog.details.like(f'%"original_parcel_status": "pickup_disputed"%')
+        ).order_by(AuditLog.timestamp.desc()).first()
+        assert log_dis is not None

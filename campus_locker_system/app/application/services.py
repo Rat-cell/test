@@ -376,3 +376,84 @@ def dispute_pickup(parcel_id: int) -> tuple[Parcel | None, str | None]:
         db.session.rollback()
         current_app.logger.error(f"Error in dispute_pickup for parcel {parcel_id}: {e}")
         return None, "A database error occurred while disputing pickup."
+
+def report_parcel_missing_by_recipient(parcel_id: int) -> tuple[Parcel | None, str | None]:
+    try:
+        parcel = db.session.get(Parcel, parcel_id)
+        if not parcel:
+            return None, "Parcel not found."
+
+        # Validate current parcel status - typically should be 'deposited' 
+        # if a recipient is at the locker having just opened it.
+        # Could also allow for 'pickup_disputed' to be escalated to 'missing'.
+        if parcel.status not in ['deposited', 'pickup_disputed']:
+            return None, f"Parcel cannot be reported missing by recipient from its current state: '{parcel.status}'."
+
+        original_parcel_status = parcel.status
+        parcel.status = 'missing'
+        
+        locker = db.session.get(Locker, parcel.locker_id)
+        if not locker:
+            current_app.logger.error(f"Data inconsistency: Locker ID {parcel.locker_id} not found for parcel {parcel.id} during recipient missing report.")
+            # Proceed to mark parcel missing, but log locker issue.
+        else:
+            # If locker was 'occupied' (by this parcel) or 'disputed_contents' (due to this parcel),
+            # it should now be taken out of service for admin check.
+            if locker.status in ['occupied', 'disputed_contents']:
+                 locker.status = 'out_of_service'
+                 db.session.add(locker)
+
+        db.session.add(parcel)
+        db.session.commit()
+
+        log_audit_event("PARCEL_REPORTED_MISSING_BY_RECIPIENT", details={
+            "parcel_id": parcel.id,
+            "locker_id": parcel.locker_id,
+            "original_parcel_status": original_parcel_status,
+            "reported_via": "API/LockerClient" 
+        })
+        return parcel, None
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error in report_parcel_missing_by_recipient for parcel {parcel_id}: {e}")
+        return None, "A database error occurred while reporting parcel missing."
+
+def mark_parcel_missing_by_admin(admin_id: int, admin_username: str, parcel_id: int) -> tuple[Parcel | None, str | None]:
+    try:
+        parcel = db.session.get(Parcel, parcel_id)
+        if not parcel:
+            return None, "Parcel not found."
+
+        if parcel.status == 'missing':
+            return parcel, "Parcel is already marked as missing." # No error, but no change
+
+        original_parcel_status = parcel.status
+        parcel.status = 'missing'
+        db.session.add(parcel)
+
+        # If the parcel was 'deposited' or 'pickup_disputed', its locker might need attention.
+        if original_parcel_status in ['deposited', 'pickup_disputed']:
+            locker = db.session.get(Locker, parcel.locker_id)
+            if locker:
+                # If locker was 'occupied' by this parcel or 'disputed_contents' because of it,
+                # take it out of service.
+                if locker.status in ['occupied', 'disputed_contents']:
+                    locker.status = 'out_of_service'
+                    db.session.add(locker)
+            else:
+                current_app.logger.warning(f"Locker ID {parcel.locker_id} not found for parcel {parcel.id} being marked missing by admin.")
+        
+        db.session.commit()
+
+        log_audit_event("ADMIN_MARKED_PARCEL_MISSING", details={
+            "admin_id": admin_id,
+            "admin_username": admin_username,
+            "parcel_id": parcel.id,
+            "locker_id": parcel.locker_id, # Log current locker_id, even if it might be None for some old parcels
+            "original_parcel_status": original_parcel_status
+        })
+        return parcel, None
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error in mark_parcel_missing_by_admin for parcel {parcel_id}: {e}")
+        return None, "A database error occurred while marking parcel missing."

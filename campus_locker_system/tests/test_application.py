@@ -5,8 +5,10 @@ from app.application.services import (
     process_pickup, 
     log_audit_event, 
     set_locker_status,
-    retract_deposit, # Add this
-    dispute_pickup # Add this
+    retract_deposit, 
+    dispute_pickup,
+    report_parcel_missing_by_recipient, # Add this
+    mark_parcel_missing_by_admin # Add this
 )
 from app.persistence.models import Locker, Parcel, AuditLog, AdminUser # Add AuditLog
 from app import db # Import db for direct session manipulation if needed
@@ -710,3 +712,177 @@ def test_set_locker_status_free_fails_for_disputed_locker(init_database, app, te
         # The error message from set_locker_status now specifically checks for 'pickup_disputed'
         assert "associated with this locker has a 'pickup_disputed' status" in error
         assert db.session.get(Locker, original_locker_id).status == 'disputed_contents' # Should remain disputed
+
+
+# Tests for report_parcel_missing_by_recipient service function
+def test_report_missing_by_recipient_success(init_database, app):
+    with app.app_context():
+        # 1. Setup: Deposit a parcel
+        parcel, _, _ = assign_locker_and_create_parcel('small', 'missing_recipient_success@example.com')
+        assert parcel is not None
+        assert parcel.status == 'deposited'
+        original_locker_id = parcel.locker_id
+        assert db.session.get(Locker, original_locker_id).status == 'occupied'
+
+        # 2. Action: Call report_parcel_missing_by_recipient
+        reported_parcel, error = report_parcel_missing_by_recipient(parcel.id)
+
+        # 3. Assert
+        assert error is None
+        assert reported_parcel is not None
+        assert reported_parcel.status == 'missing'
+        assert db.session.get(Locker, original_locker_id).status == 'out_of_service'
+
+        log_entry = AuditLog.query.filter_by(action="PARCEL_REPORTED_MISSING_BY_RECIPIENT").order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+        details = json.loads(log_entry.details)
+        assert details['parcel_id'] == parcel.id
+        assert details['locker_id'] == original_locker_id
+        assert details['original_parcel_status'] == 'deposited'
+
+def test_report_missing_by_recipient_from_disputed(init_database, app):
+    with app.app_context():
+        # 1. Setup: Deposit, pickup, then dispute a parcel
+        parcel, plain_pin, _ = assign_locker_and_create_parcel('small', 'missing_disputed_recipient@example.com')
+        assert parcel is not None
+        original_locker_id = parcel.locker_id
+        process_pickup(plain_pin) # Pickup
+        dispute_pickup(parcel.id) # Dispute
+        assert db.session.get(Parcel, parcel.id).status == 'pickup_disputed'
+        assert db.session.get(Locker, original_locker_id).status == 'disputed_contents'
+
+        # 2. Action
+        reported_parcel, error = report_parcel_missing_by_recipient(parcel.id)
+
+        # 3. Assert
+        assert error is None
+        assert reported_parcel is not None
+        assert reported_parcel.status == 'missing'
+        assert db.session.get(Locker, original_locker_id).status == 'out_of_service' # Changed from 'disputed_contents'
+
+        log_entry = AuditLog.query.filter_by(action="PARCEL_REPORTED_MISSING_BY_RECIPIENT").order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+        details = json.loads(log_entry.details)
+        assert details['parcel_id'] == parcel.id
+        assert details['original_parcel_status'] == 'pickup_disputed'
+
+def test_report_missing_by_recipient_fail_not_found(init_database, app):
+    with app.app_context():
+        _, error = report_parcel_missing_by_recipient(99999)
+        assert error is not None
+        assert "Parcel not found" in error
+
+def test_report_missing_by_recipient_fail_wrong_state(init_database, app):
+    with app.app_context():
+        # Parcel 'picked_up'
+        parcel_picked_up, plain_pin, _ = assign_locker_and_create_parcel('small', 'missing_wrong_state1@example.com')
+        assert parcel_picked_up is not None
+        process_pickup(plain_pin)
+        assert db.session.get(Parcel, parcel_picked_up.id).status == 'picked_up'
+        _, error_picked_up = report_parcel_missing_by_recipient(parcel_picked_up.id)
+        assert error_picked_up is not None
+        assert "cannot be reported missing by recipient from its current state: 'picked_up'" in error_picked_up
+
+        # Parcel 'expired'
+        parcel_expired, _, _ = assign_locker_and_create_parcel('small', 'missing_wrong_state2@example.com')
+        assert parcel_expired is not None
+        parcel_expired.otp_expiry = datetime.utcnow() - timedelta(days=1)
+        db.session.commit()
+        # Manually calling process_pickup to trigger expiry status change
+        process_pickup(parcel_expired.pin_hash) # This will fail pickup and mark expired
+        assert db.session.get(Parcel, parcel_expired.id).status == 'expired'
+        _, error_expired = report_parcel_missing_by_recipient(parcel_expired.id)
+        assert error_expired is not None
+        assert "cannot be reported missing by recipient from its current state: 'expired'" in error_expired
+
+# Tests for mark_parcel_missing_by_admin service function
+def test_mark_missing_by_admin_success_deposited_parcel(init_database, app, test_admin_user):
+    with app.app_context():
+        parcel, _, _ = assign_locker_and_create_parcel('small', 'admin_missing_deposited@example.com')
+        assert parcel is not None
+        original_locker_id = parcel.locker_id
+        assert db.session.get(Locker, original_locker_id).status == 'occupied'
+
+        marked_parcel, error = mark_parcel_missing_by_admin(test_admin_user.id, test_admin_user.username, parcel.id)
+        assert error is None
+        assert marked_parcel is not None
+        assert marked_parcel.status == 'missing'
+        assert db.session.get(Locker, original_locker_id).status == 'out_of_service'
+
+        log_entry = AuditLog.query.filter_by(action="ADMIN_MARKED_PARCEL_MISSING").order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+        details = json.loads(log_entry.details)
+        assert details['parcel_id'] == parcel.id
+        assert details['admin_id'] == test_admin_user.id
+        assert details['original_parcel_status'] == 'deposited'
+
+def test_mark_missing_by_admin_success_disputed_parcel(init_database, app, test_admin_user):
+    with app.app_context():
+        parcel, plain_pin, _ = assign_locker_and_create_parcel('small', 'admin_missing_disputed@example.com')
+        assert parcel is not None
+        original_locker_id = parcel.locker_id
+        process_pickup(plain_pin)
+        dispute_pickup(parcel.id)
+        assert db.session.get(Parcel, parcel.id).status == 'pickup_disputed'
+        assert db.session.get(Locker, original_locker_id).status == 'disputed_contents'
+
+        marked_parcel, error = mark_parcel_missing_by_admin(test_admin_user.id, test_admin_user.username, parcel.id)
+        assert error is None
+        assert marked_parcel.status == 'missing'
+        assert db.session.get(Locker, original_locker_id).status == 'out_of_service'
+
+        log_entry = AuditLog.query.filter_by(action="ADMIN_MARKED_PARCEL_MISSING").order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+        details = json.loads(log_entry.details)
+        assert details['original_parcel_status'] == 'pickup_disputed'
+
+def test_mark_missing_by_admin_success_other_parcel_states(init_database, app, test_admin_user):
+    with app.app_context():
+        # Case 1: Parcel 'picked_up'
+        parcel_picked_up, plain_pin, _ = assign_locker_and_create_parcel('small', 'admin_missing_other1@example.com')
+        assert parcel_picked_up is not None
+        original_locker_id = parcel_picked_up.locker_id
+        process_pickup(plain_pin)
+        assert db.session.get(Parcel, parcel_picked_up.id).status == 'picked_up'
+        locker_before_admin_action = db.session.get(Locker, original_locker_id)
+        assert locker_before_admin_action.status == 'free' # Locker is free after pickup
+
+        marked_parcel, error = mark_parcel_missing_by_admin(test_admin_user.id, test_admin_user.username, parcel_picked_up.id)
+        assert error is None
+        assert marked_parcel.status == 'missing'
+        assert db.session.get(Locker, original_locker_id).status == 'free' # Locker status should not change
+
+        # Case 2: Parcel 'expired'
+        parcel_expired, _, _ = assign_locker_and_create_parcel('medium', 'admin_missing_other2@example.com') # Use a different locker
+        assert parcel_expired is not None
+        original_locker_id_expired = parcel_expired.locker_id
+        parcel_expired.otp_expiry = datetime.utcnow() - timedelta(days=1)
+        db.session.commit()
+        process_pickup(parcel_expired.pin_hash) # Attempt pickup to mark as expired
+        assert db.session.get(Parcel, parcel_expired.id).status == 'expired'
+        locker_expired_before = db.session.get(Locker, original_locker_id_expired)
+        assert locker_expired_before.status == 'free' # Locker is free after expired attempt
+
+        marked_parcel_expired, error_expired = mark_parcel_missing_by_admin(test_admin_user.id, test_admin_user.username, parcel_expired.id)
+        assert error_expired is None
+        assert marked_parcel_expired.status == 'missing'
+        assert db.session.get(Locker, original_locker_id_expired).status == 'free' # Locker status should not change
+
+def test_mark_missing_by_admin_fail_not_found(init_database, app, test_admin_user):
+    with app.app_context():
+        _, error = mark_parcel_missing_by_admin(test_admin_user.id, test_admin_user.username, 99999)
+        assert error is not None
+        assert "Parcel not found" in error
+
+def test_mark_missing_by_admin_already_missing(init_database, app, test_admin_user):
+    with app.app_context():
+        parcel, _, _ = assign_locker_and_create_parcel('small', 'admin_already_missing@example.com')
+        assert parcel is not None
+        # Mark as missing first
+        mark_parcel_missing_by_admin(test_admin_user.id, test_admin_user.username, parcel.id)
+        assert db.session.get(Parcel, parcel.id).status == 'missing'
+
+        # Try to mark as missing again
+        updated_parcel, message = mark_parcel_missing_by_admin(test_admin_user.id, test_admin_user.username, parcel.id)
+        assert message == "Parcel is already marked as missing."
+        assert updated_parcel.status == 'missing'

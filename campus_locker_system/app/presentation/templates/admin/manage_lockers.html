@@ -27,38 +27,57 @@
       {% endif %}
     {% endwith %}
 
-    {% if lockers %}
+    {% if lockers_with_parcels %}
     <table>
         <thead>
             <tr>
                 <th>ID</th>
                 <th>Size</th>
                 <th>Current Status</th>
+                <th>Current Parcel ID</th>
+                <th>Parcel Status</th>
                 <th>Actions</th>
             </tr>
         </thead>
         <tbody>
-            {% for locker in lockers %}
+            {% for item in lockers_with_parcels %}
             <tr>
-                <td>{{ locker.id }}</td>
-                <td>{{ locker.size }}</td>
-                <td>{{ locker.status }}</td>
+                <td>{{ item.locker.id }}</td>
+                <td>{{ item.locker.size }}</td>
+                <td>{{ item.locker.status }}</td>
                 <td>
-                    {% if locker.status != 'out_of_service' %}
-                    <form class="action-form" method="POST" action="{{ url_for('main.update_locker_status', locker_id=locker.id) }}">
+                    {% if item.parcel %}
+                        {{ item.parcel.id }}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+                <td>
+                    {% if item.parcel %}
+                        {{ item.parcel.status }}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+                <td>
+                    {# Locker status actions #}
+                    {% if item.locker.status != 'out_of_service' %}
+                    <form class="action-form" method="POST" action="{{ url_for('main.update_locker_status', locker_id=item.locker.id) }}">
                         <input type="hidden" name="new_status" value="out_of_service">
                         <button type="submit">Mark Out of Service</button>
                     </form>
                     {% endif %}
 
-                    {% if locker.status == 'out_of_service' %}
-                    {# Add check here if locker is empty before allowing 'Mark Free' #}
-                    {# This check is primarily handled by the service layer, but UI can be indicative #}
-                    {# For now, always show if OOS, service layer will reject if occupied #}
-                    <form class="action-form" method="POST" action="{{ url_for('main.update_locker_status', locker_id=locker.id) }}">
+                    {% if item.locker.status == 'out_of_service' %}
+                    <form class="action-form" method="POST" action="{{ url_for('main.update_locker_status', locker_id=item.locker.id) }}">
                         <input type="hidden" name="new_status" value="free">
                         <button type="submit">Mark Free</button>
                     </form>
+                    {% endif %}
+                    
+                    {# Parcel actions #}
+                    {% if item.parcel %}
+                        <a href="{{ url_for('main.view_parcel_admin', parcel_id=item.parcel.id) }}">View/Manage Parcel</a>
                     {% endif %}
                 </td>
             </tr>
