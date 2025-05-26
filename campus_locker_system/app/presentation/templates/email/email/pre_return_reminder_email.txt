@@ -1,0 +1,16 @@
+Subject: Important: Action Required - Your Parcel Pickup Deadline is Approaching
+
+Hello {{ recipient_email }},
+
+This is an important notification regarding your parcel in Locker ID: {{ locker_id }}.
+The deadline to pick up your parcel is approaching. It will be processed for return if not picked up by {{ max_pickup_deadline_formatted }}.
+
+Your PIN was sent to you in a previous email. Please refer to that email for your PIN.
+This PIN is valid until: {{ otp_expiry_formatted }} (This is also your final pickup deadline)
+
+Please ensure you pick up your parcel before this deadline to avoid its return.
+
+If you have already picked up your parcel, please disregard this message.
+
+Thank you,
+Campus Locker System
