@@ -102,7 +102,8 @@ The project code is organized into several main parts within the `campus_locker_
 ## 4. Key Features Implemented
 
 *   **Parcel Deposit:** Senders can specify parcel size and recipient email. The system assigns a locker and generates a unique 6-digit PIN.
-*   **PIN Display & Email:** The PIN is shown on-screen to the sender and also emailed to the recipient (via MailHog for local viewing).
+*   **PIN Display & Email Notifications (FR-03):** The PIN is shown on-screen to the sender and emailed to the recipient upon parcel deposit. Email notifications are also sent when PINs are reissued or regenerated.
+*   **Recipient PIN Management (FR-05):** The system supports recipient-initiated PIN regeneration and administrator-driven PIN reissuing. These processes include email notifications (covered by FR-03).
 *   **Parcel Pickup:** Recipients use the 6-digit PIN to pick up their parcel. PINs expire after 24 hours.
 *   **Secure PIN Storage:** PINs are not stored directly. Instead, a secure hash (salted SHA-256) of the PIN is stored, making it very difficult to reverse.
 *   **Admin Login:** A basic login system for administrators. Admin passwords are also securely hashed (using bcrypt).
@@ -187,11 +188,10 @@ This initial version covers the core requirements. Based on the original project
 
 *   **Full Audit Trail (FR-07):** Logging every deposit, pickup, and admin action (currently partially implemented).
 *   **Advanced Admin Functions:**
-    *   Re-issuing PINs (FR-05).
     *   Flagging lockers as "out_of_service" (FR-08 - basic version implemented).
     *   Reporting missing items (FR-06).
     *   Admin resolution workflows for new parcel/locker states (e.g., 'retracted_by_sender', 'pickup_disputed', 'disputed_contents').
-*   **Web-Push Notifications (FR-03):** Real-time notifications in the browser, in addition to email.
+*   **Web-Push Notifications (enhancement for FR-03):** Real-time notifications in the browser as an addition to existing email notifications.
 *   **Reminder Notifications (FR-04):** Automatic reminders after 24 hours of occupancy.
 *   **Nightly Backups:** Regular backups of the SQLite database.
 *   **Enhanced UI/UX:** Improving the user interface and experience, including keyboard-only navigation.
