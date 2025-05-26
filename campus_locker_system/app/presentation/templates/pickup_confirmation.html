@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pickup Confirmation</title>
+</head>
+<body>
+    <h1>Pickup Successful!</h1>
+    <p>Parcel picked up from Locker ID: {{ locker_id }}.</p>
+    <p>Locker {{ locker_id }} is now free.</p>
+    <p><a href="{{ url_for('main.deposit_parcel') }}">Deposit another parcel</a></p>
+    <p><a href="{{ url_for('main.pickup_parcel') }}">Pick up another parcel</a></p>
+</body>
+</html>
