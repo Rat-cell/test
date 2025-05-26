@@ -575,22 +575,24 @@ def process_overdue_parcels():
                 old_parcel_status = parcel.status
                 old_locker_status = locker.status
 
-                parcel.status = 'expired'
-                # If the locker was occupied or out_of_service, set to free (expired means parcel is gone)
+                parcel.status = 'return_to_sender'
+                # If the locker was occupied or out_of_service, set to awaiting_collection
                 if locker.status in ['occupied', 'out_of_service']:
+                    locker.status = 'awaiting_collection'
+                else:
                     locker.status = 'free'
 
                 items_to_update_in_session.append(parcel)
-                if old_locker_status != 'free':
+                if old_locker_status != locker.status:
                     items_to_update_in_session.append(locker)
                 
-                log_audit_event("PARCEL_MARKED_EXPIRED", {
+                log_audit_event("PARCEL_MARKED_RETURN_TO_SENDER", {
                     "parcel_id": parcel.id,
                     "locker_id": locker.id,
                     "old_parcel_status": old_parcel_status,
-                    "new_parcel_status": parcel.status, # 'expired'
+                    "new_parcel_status": parcel.status, # 'return_to_sender'
                     "old_locker_status": old_locker_status,
-                    "new_locker_status": locker.status, # 'free'
+                    "new_locker_status": locker.status,
                     "max_pickup_days_configured": max_pickup_days
                 })
                 processed_count += 1

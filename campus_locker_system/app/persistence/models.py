@@ -18,7 +18,7 @@ class Parcel(db.Model):
     pin_hash = db.Column(db.String(128), nullable=False)  # SHA-256 hash
     otp_expiry = db.Column(db.DateTime, nullable=False)
     recipient_email = db.Column(db.String(120), nullable=False)
-    # Possible statuses: 'deposited', 'picked_up', 'missing', 'expired', 'retracted_by_sender', 'pickup_disputed', 'awaiting_return'
+    # Possible statuses: 'deposited', 'picked_up', 'missing', 'expired', 'retracted_by_sender', 'pickup_disputed', 'awaiting_return', 'return_to_sender'
     status = db.Column(db.String(50), nullable=False, default='deposited')
     deposited_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow) # New field
 

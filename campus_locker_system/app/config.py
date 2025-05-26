@@ -8,14 +8,14 @@ class Config:
     # Main database configuration
     MAIN_DB_FILENAME = 'campus_locker.db'
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, '..', MAIN_DB_FILENAME) # In project root
+        'sqlite:///' + os.path.join(basedir, '..', 'databases', MAIN_DB_FILENAME) # In databases folder
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Audit database configuration
     AUDIT_DB_FILENAME = 'campus_locker_audit.db'
     AUDIT_SQLALCHEMY_DATABASE_URI = os.environ.get('AUDIT_DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, '..', AUDIT_DB_FILENAME) # In project root
+        'sqlite:///' + os.path.join(basedir, '..', 'databases', AUDIT_DB_FILENAME) # In databases folder
 
     SQLALCHEMY_BINDS = {
         'audit': AUDIT_SQLALCHEMY_DATABASE_URI
@@ -44,3 +44,5 @@ class Config:
     PARCEL_MAX_PICKUP_DAYS = 7
     PARCEL_MAX_PIN_REISSUE_DAYS = 7
     PARCEL_DEFAULT_PIN_VALIDITY_DAYS = 7 # Default validity of a PIN in days
+
+    LOG_DIR = os.environ.get('LOG_DIR') or os.path.abspath(os.path.join(basedir, '..', 'logs'))
