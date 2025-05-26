@@ -726,6 +726,24 @@ def test_request_new_pin_form_post_generic_message_security(mock_service_call, c
         # Crucially, the message is generic and does not reveal if the details were valid or not
         assert b"If your details matched an active parcel eligible for a new PIN, an email with the new PIN has been sent" in response.data
         mock_service_call.assert_called_once_with('any_email@example.com', '99')
+
+
+# Part B: Test Admin UI Route for Sending Reminders
+@patch('app.presentation.routes.send_scheduled_reminder_notifications')
+def test_admin_send_reminders_route(mock_send_reminders_service, logged_in_admin_client, app):
+    with app.app_context():
+        # Configure the mock to return specific counts and a message
+        mock_send_reminders_service.return_value = (1, 1, "Mocked: 1 scheduled, 1 pre-return.")
+
+        response = logged_in_admin_client.post(url_for('main.admin_send_reminders_action'), follow_redirects=True)
+
+        assert response.status_code == 200 # After redirect, lands on manage_lockers
+        # Check if the flashed message is present and contains parts of the mocked return
+        # The exact message format is: f"Reminder processing complete. {sent_scheduled_count} scheduled reminders sent, {sent_pre_return_count} pre-return reminders sent. {message}"
+        assert b"Reminder processing complete. 1 scheduled reminders sent, 1 pre-return reminders sent. Mocked: 1 scheduled, 1 pre-return." in response.data
+        
+        # Verify the mocked service function was called once
+        mock_send_reminders_service.assert_called_once()
             # Clean up sensor data to avoid affecting other tests if db state persists across tests
             LockerSensorData.query.filter_by(locker_id=locker_id_specific).delete()
             db.session.commit()
