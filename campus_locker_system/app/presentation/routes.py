@@ -38,6 +38,8 @@ def deposit_parcel():
 
         parcel, pin, error_message = assign_locker_and_create_parcel(parcel_size, recipient_email)
 
+        print(f"DEBUG: error_message from assign_locker_and_create_parcel: {error_message}")
+
         if error_message:
             flash(f'Error: {error_message}', 'error')
             return redirect(url_for('main.deposit_parcel'))

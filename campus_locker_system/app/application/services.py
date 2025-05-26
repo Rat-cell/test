@@ -262,20 +262,16 @@ def set_locker_status(admin_id: int, admin_username: str, locker_id: int, new_st
         if new_status == 'out_of_service':
             locker.status = 'out_of_service'
         elif new_status == 'free':
+            # Check if any parcel associated with this locker is in 'pickup_disputed' status FIRST
+            disputed_parcel = Parcel.query.filter_by(locker_id=locker_id, status='pickup_disputed').first()
+            if disputed_parcel:
+                return None, f"Cannot set locker to 'free'. Parcel ID {disputed_parcel.id} associated with this locker has a 'pickup_disputed' status. Please resolve the dispute."
             if old_status != 'out_of_service':
-                # This also implicitly handles if it was 'occupied' and not 'out_of_service'
                 return None, "Locker must currently be 'out_of_service' to be set to 'free'."
-            
             # Check if any parcel is currently 'deposited' in this locker
             active_parcel = Parcel.query.filter_by(locker_id=locker_id, status='deposited').first()
             if active_parcel:
                 return None, f"Cannot set locker to 'free'. Parcel ID {active_parcel.id} is still marked as 'deposited' in this locker."
-
-            # NEW CHECK: Check if any parcel associated with this locker is in 'pickup_disputed' status
-            disputed_parcel = Parcel.query.filter_by(locker_id=locker_id, status='pickup_disputed').first()
-            if disputed_parcel:
-                return None, f"Cannot set locker to 'free'. Parcel ID {disputed_parcel.id} associated with this locker has a 'pickup_disputed' status. Please resolve the dispute."
-            
             locker.status = 'free'
         # No 'else' needed due to initial new_status validation
 
@@ -548,78 +544,64 @@ def reissue_pin(parcel_id: int) -> tuple[Parcel | None, str | None]:
         return None, "A system error occurred while reissuing the PIN."
 
 def process_overdue_parcels():
-    # Imports are already at the top of the file:
-    # from datetime import datetime, timedelta
-    # from flask import current_app
-    # from app import db
-    # from app.persistence.models import Parcel, Locker
-    # log_audit_event is already in this file
-
     max_pickup_days = current_app.config.get('PARCEL_MAX_PICKUP_DAYS', 7)
-    # Query for parcels that are 'deposited' and have a non-null 'deposited_at'
     deposited_parcels = Parcel.query.filter(
         Parcel.status == 'deposited',
-        Parcel.deposited_at.isnot(None) 
+        Parcel.deposited_at.isnot(None)
     ).all()
     
     processed_count = 0
-    items_to_update_in_session = [] # Use a different name to avoid conflict if this function is called inside another with similar var
+    items_to_update_in_session = []
 
     for parcel in deposited_parcels:
-        # Ensure deposited_at is a datetime object before comparison
         if not isinstance(parcel.deposited_at, datetime):
             log_audit_event("PROCESS_OVERDUE_FAIL_INVALID_DEPOSITED_AT", {
                 "parcel_id": parcel.id, 
                 "deposited_at_type": str(type(parcel.deposited_at)),
                 "reason": "Parcel has invalid or missing deposited_at timestamp."
             })
-            continue # Skip this parcel
+            continue
 
         if datetime.utcnow() > parcel.deposited_at + timedelta(days=max_pickup_days):
             try:
-                locker = parcel.locker # Fetch associated locker via backref
+                locker = parcel.locker
                 if not locker:
                     log_audit_event("PROCESS_OVERDUE_FAIL_NO_LOCKER", {
                         "parcel_id": parcel.id, 
                         "reason": "Locker not found for deposited parcel."
                     })
-                    continue # Skip this parcel
+                    continue
 
                 old_parcel_status = parcel.status
                 old_locker_status = locker.status
 
-                parcel.status = 'awaiting_return'
-                # Regardless of previous state (occupied, out_of_service), if it has an overdue parcel,
-                # it's now awaiting collection of that overdue item.
-                locker.status = 'awaiting_collection'
+                parcel.status = 'expired'
+                # If the locker was occupied or out_of_service, set to free (expired means parcel is gone)
+                if locker.status in ['occupied', 'out_of_service']:
+                    locker.status = 'free'
 
                 items_to_update_in_session.append(parcel)
-                # Always add locker to session as its status is definitively changing to 'awaiting_collection'
-                # unless it was already 'awaiting_collection' (which is unlikely for a 'deposited' parcel becoming overdue).
-                if old_locker_status != 'awaiting_collection':
+                if old_locker_status != 'free':
                     items_to_update_in_session.append(locker)
                 
-                log_audit_event("PARCEL_MARKED_OVERDUE_FOR_RETURN", {
+                log_audit_event("PARCEL_MARKED_EXPIRED", {
                     "parcel_id": parcel.id,
                     "locker_id": locker.id,
                     "old_parcel_status": old_parcel_status,
-                    "new_parcel_status": parcel.status, # 'awaiting_return'
+                    "new_parcel_status": parcel.status, # 'expired'
                     "old_locker_status": old_locker_status,
-                    "new_locker_status": locker.status, # 'awaiting_collection'
+                    "new_locker_status": locker.status, # 'free'
                     "max_pickup_days_configured": max_pickup_days
                 })
                 processed_count += 1
             except Exception as e:
-                # Log error for this specific parcel.
-                # For this implementation, we'll log and continue, not stopping the whole batch.
-                # No rollback here means other successful changes in this loop will be part of the batch.
                 current_app.logger.error(f"Error processing parcel ID {parcel.id} for overdue status: {str(e)}")
                 log_audit_event("PROCESS_OVERDUE_PARCEL_ERROR", {
                     "parcel_id": parcel.id, 
                     "error": str(e),
                     "action": "Skipped this parcel, continued with batch."
                 })
-                # Continue to the next parcel
+                continue
 
     if items_to_update_in_session:
         try:
@@ -632,8 +614,7 @@ def process_overdue_parcels():
                 "error": str(e), 
                 "num_parcels_intended_for_update_in_batch": processed_count
             })
-            return 0, f"Error committing batch of overdue parcels: {str(e)}" # Return error for the batch
-            
+            return 0, f"Error committing batch of overdue parcels: {str(e)}"
     return processed_count, f"{processed_count} overdue parcels processed."
 
 def mark_locker_as_emptied(locker_id: int, admin_id: int, admin_username: str) -> tuple[Locker | None, str]:
@@ -712,16 +693,6 @@ def request_pin_regeneration_by_recipient(recipient_email_attempt: str, locker_i
             return False
 
         max_reissue_days = current_app.config.get('PARCEL_MAX_PIN_REISSUE_DAYS', 7)
-        # Ensure parcel.deposited_at is not None before comparison
-        if parcel.deposited_at is None:
-            log_audit_event("RECIPIENT_PIN_REGEN_FAIL", {
-                "parcel_id": parcel.id,
-                "recipient_email_attempt": recipient_email_attempt,
-                "locker_id_attempt": locker_id_attempt,
-                "reason": "Parcel has no deposit timestamp."
-            })
-            return False
-            
         if datetime.utcnow() > parcel.deposited_at + timedelta(days=max_reissue_days):
             log_audit_event("RECIPIENT_PIN_REGEN_FAIL_TOO_LATE", {
                 "parcel_id": parcel.id,

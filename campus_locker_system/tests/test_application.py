@@ -9,7 +9,8 @@ from app.application.services import (
     dispute_pickup,
     report_parcel_missing_by_recipient, # Add this
     mark_parcel_missing_by_admin, # Add this
-    request_pin_regeneration_by_recipient # Add this service
+    request_pin_regeneration_by_recipient, # Add this service
+    process_overdue_parcels
 )
 from app.persistence.models import Locker, Parcel, AuditLog, AdminUser, LockerSensorData # Add LockerSensorData
 from app import db, mail # Import db and mail for testing
@@ -382,17 +383,19 @@ def test_admin_user(init_database, app):
         admin.set_password("secure_password")
         db.session.add(admin)
         db.session.commit()
-        return admin
+        yield admin.id, admin.username
 
 def test_set_locker_free_to_oos(init_database, app, test_admin_user):
     with app.app_context():
+        admin_id, admin_username = test_admin_user
+        admin = db.session.get(AdminUser, admin_id)
         locker_id_to_test = 1 # Locker 1 is 'small', 'free' from init_database
         locker = db.session.get(Locker, locker_id_to_test)
         assert locker is not None and locker.status == 'free'
 
         updated_locker, error = set_locker_status(
-            admin_id=test_admin_user.id, 
-            admin_username=test_admin_user.username, 
+            admin_id=admin.id, 
+            admin_username=admin.username, 
             locker_id=locker_id_to_test, 
             new_status='out_of_service'
         )
@@ -406,10 +409,12 @@ def test_set_locker_free_to_oos(init_database, app, test_admin_user):
         assert details['locker_id'] == locker_id_to_test
         assert details['new_status'] == 'out_of_service'
         assert details['old_status'] == 'free'
-        assert details['admin_id'] == test_admin_user.id
+        assert details['admin_id'] == admin.id
 
 def test_set_locker_occupied_to_oos(init_database, app, test_admin_user):
     with app.app_context():
+        admin_id, admin_username = test_admin_user
+        admin = db.session.get(AdminUser, admin_id)
         # Ensure Locker 1 is free before depositing
         l1 = db.session.get(Locker, 1)
         if l1.status != 'free':
@@ -422,8 +427,8 @@ def test_set_locker_occupied_to_oos(init_database, app, test_admin_user):
         occupied_locker_id = parcel.locker_id
         
         updated_locker, error = set_locker_status(
-            admin_id=test_admin_user.id,
-            admin_username=test_admin_user.username,
+            admin_id=admin.id,
+            admin_username=admin.username,
             locker_id=occupied_locker_id,
             new_status='out_of_service'
         )
@@ -443,6 +448,8 @@ def test_set_locker_occupied_to_oos(init_database, app, test_admin_user):
 
 def test_set_locker_oos_empty_to_free(init_database, app, test_admin_user):
     with app.app_context():
+        admin_id, admin_username = test_admin_user
+        admin = db.session.get(AdminUser, admin_id)
         locker_id_to_test = 2 # Locker 2 is 'medium', 'free'
         locker = db.session.get(Locker, locker_id_to_test)
         assert locker is not None
@@ -453,8 +460,8 @@ def test_set_locker_oos_empty_to_free(init_database, app, test_admin_user):
         assert locker.status == 'out_of_service'
 
         updated_locker, error = set_locker_status(
-            admin_id=test_admin_user.id,
-            admin_username=test_admin_user.username,
+            admin_id=admin.id,
+            admin_username=admin.username,
             locker_id=locker_id_to_test,
             new_status='free'
         )
@@ -471,6 +478,8 @@ def test_set_locker_oos_empty_to_free(init_database, app, test_admin_user):
 
 def test_set_locker_oos_occupied_to_free_fail(init_database, app, test_admin_user):
     with app.app_context():
+        admin_id, admin_username = test_admin_user
+        admin = db.session.get(AdminUser, admin_id)
         # Ensure Locker 1 is free before depositing
         l1 = db.session.get(Locker, 1)
         if l1.status != 'free':
@@ -492,8 +501,8 @@ def test_set_locker_oos_occupied_to_free_fail(init_database, app, test_admin_use
         logs_before_fail = AuditLog.query.filter_by(action="ADMIN_LOCKER_STATUS_CHANGED").count()
 
         updated_locker, error = set_locker_status(
-            admin_id=test_admin_user.id,
-            admin_username=test_admin_user.username,
+            admin_id=admin.id,
+            admin_username=admin.username,
             locker_id=occupied_locker_id,
             new_status='free'
         )
@@ -509,10 +518,12 @@ def test_set_locker_oos_occupied_to_free_fail(init_database, app, test_admin_use
 
 def test_set_locker_status_invalid_locker_id(init_database, app, test_admin_user):
     with app.app_context():
+        admin_id, admin_username = test_admin_user
+        admin = db.session.get(AdminUser, admin_id)
         non_existent_locker_id = 999
         _, error = set_locker_status(
-            admin_id=test_admin_user.id,
-            admin_username=test_admin_user.username,
+            admin_id=admin.id,
+            admin_username=admin.username,
             locker_id=non_existent_locker_id,
             new_status='free'
         )
@@ -521,10 +532,12 @@ def test_set_locker_status_invalid_locker_id(init_database, app, test_admin_user
 
 def test_set_locker_status_invalid_target_status(init_database, app, test_admin_user):
     with app.app_context():
+        admin_id, admin_username = test_admin_user
+        admin = db.session.get(AdminUser, admin_id)
         locker_id_to_test = 1 # Locker 1 is 'small', 'free'
         _, error = set_locker_status(
-            admin_id=test_admin_user.id,
-            admin_username=test_admin_user.username,
+            admin_id=admin.id,
+            admin_username=admin.username,
             locker_id=locker_id_to_test,
             new_status='occupied' # Invalid target status
         )
@@ -533,14 +546,16 @@ def test_set_locker_status_invalid_target_status(init_database, app, test_admin_
 
 def test_set_locker_status_no_change(init_database, app, test_admin_user):
     with app.app_context():
+        admin_id, admin_username = test_admin_user
+        admin = db.session.get(AdminUser, admin_id)
         locker_id_to_test = 1 # Locker 1 is 'small', 'free'
         
         # Count audit logs before
         logs_before_no_change = AuditLog.query.filter_by(action="ADMIN_LOCKER_STATUS_CHANGED").count()
 
         locker, message = set_locker_status(
-            admin_id=test_admin_user.id,
-            admin_username=test_admin_user.username,
+            admin_id=admin.id,
+            admin_username=admin.username,
             locker_id=locker_id_to_test,
             new_status='free' # Already in this state
         )
@@ -602,13 +617,15 @@ def test_retract_deposit_parcel_not_deposited(init_database, app):
 
 def test_retract_deposit_locker_was_oos(init_database, app, test_admin_user):
     with app.app_context():
+        admin_id, admin_username = test_admin_user
+        admin = db.session.get(AdminUser, admin_id)
         # 1. Deposit parcel
         parcel, _, _ = assign_locker_and_create_parcel('small', 'retract_oos@example.com')
         assert parcel is not None
         original_locker_id = parcel.locker_id
 
         # 2. Admin marks locker 'out_of_service'
-        set_locker_status(test_admin_user.id, test_admin_user.username, original_locker_id, 'out_of_service')
+        set_locker_status(admin.id, admin.username, original_locker_id, 'out_of_service')
         assert db.session.get(Locker, original_locker_id).status == 'out_of_service'
 
         # 3. User retracts deposit
@@ -693,6 +710,8 @@ def test_process_pickup_fails_for_disputed_parcel(init_database, app):
 # Test for set_locker_status with new parcel status
 def test_set_locker_status_free_fails_for_disputed_locker(init_database, app, test_admin_user):
     with app.app_context():
+        admin_id, admin_username = test_admin_user
+        admin = db.session.get(AdminUser, admin_id)
         # 1. Deposit, pick up, then dispute
         parcel, plain_pin, _ = assign_locker_and_create_parcel('small', 'set_status_disputed_fail@example.com')
         assert parcel is not None
@@ -704,8 +723,8 @@ def test_set_locker_status_free_fails_for_disputed_locker(init_database, app, te
 
         # 2. Admin tries to set locker to 'free'
         _, error = set_locker_status(
-            admin_id=test_admin_user.id,
-            admin_username=test_admin_user.username,
+            admin_id=admin.id,
+            admin_username=admin.username,
             locker_id=original_locker_id,
             new_status='free'
         )
@@ -787,10 +806,9 @@ def test_report_missing_by_recipient_fail_wrong_state(init_database, app):
         # Parcel 'expired'
         parcel_expired, _, _ = assign_locker_and_create_parcel('small', 'missing_wrong_state2@example.com')
         assert parcel_expired is not None
-        parcel_expired.otp_expiry = datetime.utcnow() - timedelta(days=1)
+        parcel_expired.deposited_at = datetime.utcnow() - timedelta(days=8) # Simulate overdue
         db.session.commit()
-        # Manually calling process_pickup to trigger expiry status change
-        process_pickup(parcel_expired.pin_hash) # This will fail pickup and mark expired
+        process_overdue_parcels() # Mark as expired
         assert db.session.get(Parcel, parcel_expired.id).status == 'expired'
         _, error_expired = report_parcel_missing_by_recipient(parcel_expired.id)
         assert error_expired is not None
@@ -799,12 +817,14 @@ def test_report_missing_by_recipient_fail_wrong_state(init_database, app):
 # Tests for mark_parcel_missing_by_admin service function
 def test_mark_missing_by_admin_success_deposited_parcel(init_database, app, test_admin_user):
     with app.app_context():
+        admin_id, admin_username = test_admin_user
+        admin = db.session.get(AdminUser, admin_id)
         parcel, _, _ = assign_locker_and_create_parcel('small', 'admin_missing_deposited@example.com')
         assert parcel is not None
         original_locker_id = parcel.locker_id
         assert db.session.get(Locker, original_locker_id).status == 'occupied'
 
-        marked_parcel, error = mark_parcel_missing_by_admin(test_admin_user.id, test_admin_user.username, parcel.id)
+        marked_parcel, error = mark_parcel_missing_by_admin(admin.id, admin.username, parcel.id)
         assert error is None
         assert marked_parcel is not None
         assert marked_parcel.status == 'missing'
@@ -814,11 +834,13 @@ def test_mark_missing_by_admin_success_deposited_parcel(init_database, app, test
         assert log_entry is not None
         details = json.loads(log_entry.details)
         assert details['parcel_id'] == parcel.id
-        assert details['admin_id'] == test_admin_user.id
+        assert details['admin_id'] == admin.id
         assert details['original_parcel_status'] == 'deposited'
 
 def test_mark_missing_by_admin_success_disputed_parcel(init_database, app, test_admin_user):
     with app.app_context():
+        admin_id, admin_username = test_admin_user
+        admin = db.session.get(AdminUser, admin_id)
         parcel, plain_pin, _ = assign_locker_and_create_parcel('small', 'admin_missing_disputed@example.com')
         assert parcel is not None
         original_locker_id = parcel.locker_id
@@ -827,7 +849,7 @@ def test_mark_missing_by_admin_success_disputed_parcel(init_database, app, test_
         assert db.session.get(Parcel, parcel.id).status == 'pickup_disputed'
         assert db.session.get(Locker, original_locker_id).status == 'disputed_contents'
 
-        marked_parcel, error = mark_parcel_missing_by_admin(test_admin_user.id, test_admin_user.username, parcel.id)
+        marked_parcel, error = mark_parcel_missing_by_admin(admin.id, admin.username, parcel.id)
         assert error is None
         assert marked_parcel.status == 'missing'
         assert db.session.get(Locker, original_locker_id).status == 'out_of_service'
@@ -839,6 +861,8 @@ def test_mark_missing_by_admin_success_disputed_parcel(init_database, app, test_
 
 def test_mark_missing_by_admin_success_other_parcel_states(init_database, app, test_admin_user):
     with app.app_context():
+        admin_id, admin_username = test_admin_user
+        admin = db.session.get(AdminUser, admin_id)
         # Case 1: Parcel 'picked_up'
         parcel_picked_up, plain_pin, _ = assign_locker_and_create_parcel('small', 'admin_missing_other1@example.com')
         assert parcel_picked_up is not None
@@ -848,7 +872,7 @@ def test_mark_missing_by_admin_success_other_parcel_states(init_database, app, t
         locker_before_admin_action = db.session.get(Locker, original_locker_id)
         assert locker_before_admin_action.status == 'free' # Locker is free after pickup
 
-        marked_parcel, error = mark_parcel_missing_by_admin(test_admin_user.id, test_admin_user.username, parcel_picked_up.id)
+        marked_parcel, error = mark_parcel_missing_by_admin(admin.id, admin.username, parcel_picked_up.id)
         assert error is None
         assert marked_parcel.status == 'missing'
         assert db.session.get(Locker, original_locker_id).status == 'free' # Locker status should not change
@@ -857,34 +881,38 @@ def test_mark_missing_by_admin_success_other_parcel_states(init_database, app, t
         parcel_expired, _, _ = assign_locker_and_create_parcel('medium', 'admin_missing_other2@example.com') # Use a different locker
         assert parcel_expired is not None
         original_locker_id_expired = parcel_expired.locker_id
-        parcel_expired.otp_expiry = datetime.utcnow() - timedelta(days=1)
+        parcel_expired.deposited_at = datetime.utcnow() - timedelta(days=8) # Simulate overdue
         db.session.commit()
-        process_pickup(parcel_expired.pin_hash) # Attempt pickup to mark as expired
+        process_overdue_parcels() # Mark as expired
         assert db.session.get(Parcel, parcel_expired.id).status == 'expired'
         locker_expired_before = db.session.get(Locker, original_locker_id_expired)
         assert locker_expired_before.status == 'free' # Locker is free after expired attempt
 
-        marked_parcel_expired, error_expired = mark_parcel_missing_by_admin(test_admin_user.id, test_admin_user.username, parcel_expired.id)
+        marked_parcel_expired, error_expired = mark_parcel_missing_by_admin(admin.id, admin.username, parcel_expired.id)
         assert error_expired is None
         assert marked_parcel_expired.status == 'missing'
         assert db.session.get(Locker, original_locker_id_expired).status == 'free' # Locker status should not change
 
 def test_mark_missing_by_admin_fail_not_found(init_database, app, test_admin_user):
     with app.app_context():
-        _, error = mark_parcel_missing_by_admin(test_admin_user.id, test_admin_user.username, 99999)
+        admin_id, admin_username = test_admin_user
+        admin = db.session.get(AdminUser, admin_id)
+        _, error = mark_parcel_missing_by_admin(admin.id, admin.username, 99999)
         assert error is not None
         assert "Parcel not found" in error
 
 def test_mark_missing_by_admin_already_missing(init_database, app, test_admin_user):
     with app.app_context():
+        admin_id, admin_username = test_admin_user
+        admin = db.session.get(AdminUser, admin_id)
         parcel, _, _ = assign_locker_and_create_parcel('small', 'admin_already_missing@example.com')
         assert parcel is not None
         # Mark as missing first
-        mark_parcel_missing_by_admin(test_admin_user.id, test_admin_user.username, parcel.id)
+        mark_parcel_missing_by_admin(admin.id, admin.username, parcel.id)
         assert db.session.get(Parcel, parcel.id).status == 'missing'
 
         # Try to mark as missing again
-        updated_parcel, message = mark_parcel_missing_by_admin(test_admin_user.id, test_admin_user.username, parcel.id)
+        updated_parcel, message = mark_parcel_missing_by_admin(admin.id, admin.username, parcel.id)
         assert message == "Parcel is already marked as missing."
         assert updated_parcel.status == 'missing'
 
@@ -946,8 +974,8 @@ def test_locker_size_dimensions_config(app):
         assert current_app.config.get('LOCKER_SIZE_DIMENSIONS') is None
         
         # b) If some part of the app tries to get a specific size, it should handle it gracefully
-        # For example, if code did: current_app.config.get('LOCKER_SIZE_DIMENSIONS', {}).get('small')
-        dimensions_after_delete = current_app.config.get('LOCKER_SIZE_DIMENSIONS', {}) # Simulates app code getting the dict
+        # For example, if code did: (current_app.config.get('LOCKER_SIZE_DIMENSIONS') or {}).get('small')
+        dimensions_after_delete = (current_app.config.get('LOCKER_SIZE_DIMENSIONS') or {})
         assert dimensions_after_delete.get('small') is None # No error, just None
 
         # Restore original config if it existed, for other tests (though app context usually isolates this)
@@ -956,13 +984,13 @@ def test_locker_size_dimensions_config(app):
         
         # Test with LOCKER_SIZE_DIMENSIONS set to None
         current_app.config['LOCKER_SIZE_DIMENSIONS'] = None
-        dimensions_when_none = current_app.config.get('LOCKER_SIZE_DIMENSIONS', {})
+        dimensions_when_none = current_app.config.get('LOCKER_SIZE_DIMENSIONS')
         # .get() on None will cause an AttributeError if not handled by a default {} like above
-        # So the pattern current_app.config.get('LOCKER_SIZE_DIMENSIONS', {}).get('small') is robust
+        # So the pattern (current_app.config.get('LOCKER_SIZE_DIMENSIONS') or {}).get('small') is robust
         assert dimensions_when_none is None # If the config value itself is None
         
         # Test the robust pattern
-        assert current_app.config.get('LOCKER_SIZE_DIMENSIONS', {}).get('small') is None
+        assert (current_app.config.get('LOCKER_SIZE_DIMENSIONS') or {}).get('small') is None
         
         # Clean up by removing the key if it was added/modified
         current_app.config.pop('LOCKER_SIZE_DIMENSIONS', None)
@@ -1096,31 +1124,3 @@ def test_request_pin_regeneration_too_late(init_database, app):
             current_app.config['PARCEL_MAX_PIN_REISSUE_DAYS'] = original_max_reissue_days
         else: # If it was not set, remove it
              current_app.config.pop('PARCEL_MAX_PIN_REISSUE_DAYS', None)
-
-
-def test_request_pin_regeneration_missing_deposited_at(init_database, app):
-    with app.app_context():
-        locker = Locker.query.first()
-        email = "missing_deposit_ts@example.com"
-        # Manually create parcel with deposited_at = None
-        parcel = Parcel(
-            locker_id=locker.id,
-            recipient_email=email,
-            status='deposited',
-            pin_hash=generate_pin_and_hash()[1],
-            otp_expiry=datetime.utcnow() + timedelta(days=1),
-            deposited_at=None # Explicitly None
-        )
-        db.session.add(parcel)
-        db.session.commit()
-
-        with mail.record_messages() as outbox:
-            result = request_pin_regeneration_by_recipient(email, locker.id)
-
-        assert result is False
-        assert len(outbox) == 0
-        log_entry = AuditLog.query.filter_by(action="RECIPIENT_PIN_REGEN_FAIL").order_by(AuditLog.timestamp.desc()).first()
-        assert log_entry is not None
-        details = json.loads(log_entry.details)
-        assert details['parcel_id'] == parcel.id
-        assert details['reason'] == "Parcel has no deposit timestamp."

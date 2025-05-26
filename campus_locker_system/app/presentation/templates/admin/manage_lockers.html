@@ -25,6 +25,7 @@
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
+      {# DEBUG flashed messages: {{ messages }} #}
       {% if messages %}
         <ul class=flashes>
         {% for category, message in messages %}
