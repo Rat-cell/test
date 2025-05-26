@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Deposit Parcel</title>
+</head>
+<body>
+    <h1>Deposit Parcel</h1>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class=flashes>
+        {% for category, message in messages %}
+          <li class="{{ category }}">{{ message }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+    <form method="POST">
+        <label for="parcel_size">Parcel Size:</label>
+        <select name="parcel_size" id="parcel_size" required>
+            <option value="small">Small</option>
+            <option value="medium">Medium</option>
+            <option value="large">Large</option>
+        </select><br><br>
+
+        <label for="recipient_email">Recipient Email:</label>
+        <input type="email" name="recipient_email" id="recipient_email" required><br><br>
+
+        <label for="confirm_recipient_email">Confirm Recipient Email:</label>
+        <input type="email" name="confirm_recipient_email" id="confirm_recipient_email" required><br><br>
+
+        <button type="submit">Deposit Parcel</button>
+    </form>
+</body>
+</html>

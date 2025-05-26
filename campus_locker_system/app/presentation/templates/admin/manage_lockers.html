@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin - Manage Lockers</title>
+    <style>
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .action-form { display: inline-block; margin-right: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Manage Lockers</h1>
+    <p>
+        <a href="{{ url_for('main.admin_login') }}">Admin Home</a> | 
+        <a href="{{ url_for('main.audit_logs_view') }}">View Audit Logs</a>
+    </p>
+
+    {# Button for processing overdue parcels #}
+    <div style="margin-bottom: 20px;">
+        <form method="POST" action="{{ url_for('main.admin_process_overdue_parcels_action') }}" style="display: inline;">
+            <button type="submit" class="btn btn-info" onclick="return confirm('Are you sure you want to process overdue parcels? This will mark them for return and update locker statuses.');">Process All Overdue Parcels</button>
+        </form>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class=flashes>
+        {% for category, message in messages %}
+          <li class="{{ category }}">{{ message }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    {% if lockers_with_parcels %}
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Size</th>
+                <th>Current Status</th>
+                <th>Sensor Status</th>
+                <th>Current Parcel ID</th>
+                <th>Parcel Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in lockers_with_parcels %}
+            <tr>
+                <td>{{ item.locker.id }}</td>
+                <td>{{ item.locker.size }}</td>
+                <td>{{ item.locker.status }}</td>
+                <td>
+                    {% if enable_sensor_feature %}
+                        {% if item.sensor_data %}
+                            Sensor: {{ 'Present' if item.sensor_data.has_contents else 'Empty' }}
+                        {% else %}
+                            Sensor: {{ 'Present (default)' if default_sensor_state else 'Empty (default)' }}
+                        {% endif %}
+                    {% else %}
+                        Sensor: Disabled
+                    {% endif %}
+                </td>
+                <td>
+                    {% if item.parcel %}
+                        {{ item.parcel.id }}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+                <td>
+                    {% if item.parcel %}
+                        {{ item.parcel.status }}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+                <td>
+                    {# Locker status actions #}
+                    {% if item.locker.status != 'out_of_service' %}
+                    <form class="action-form" method="POST" action="{{ url_for('main.update_locker_status', locker_id=item.locker.id) }}">
+                        <input type="hidden" name="new_status" value="out_of_service">
+                        <button type="submit">Mark Out of Service</button>
+                    </form>
+                    {% endif %}
+
+                    {% if item.locker.status == 'out_of_service' %}
+                    <form class="action-form" method="POST" action="{{ url_for('main.update_locker_status', locker_id=item.locker.id) }}">
+                        <input type="hidden" name="new_status" value="free">
+                        <button type="submit">Mark Free</button>
+                    </form>
+                    {% endif %}
+                    
+                    {# Parcel actions #}
+                    {% if item.parcel %}
+                        <a href="{{ url_for('main.view_parcel_admin', parcel_id=item.parcel.id) }}">View/Manage Parcel</a>
+                    {% endif %}
+
+                    {# Mark Emptied & Free action for 'awaiting_collection' lockers #}
+                    {% if item.locker.status == 'awaiting_collection' %}
+                    <form class="action-form" method="POST" action="{{ url_for('main.admin_mark_locker_emptied_action', locker_id=item.locker.id) }}">
+                        <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Are you sure this locker has been emptied and can be marked as free?');">Mark Emptied & Free</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No lockers found in the system.</p>
+    {% endif %}
+</body>
+</html>

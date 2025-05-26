@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin - Audit Logs</title>
+    <style>
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .details-json { white-space: pre-wrap; word-break: break-all; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>Audit Logs</h1>
+    <p><a href="{{ url_for('main.admin_login') }}">Admin Home (Login Page for now)</a> | <a href="{{ url_for('main.deposit_parcel') }}">Deposit Page</a></p>
+    
+    {% if logs %}
+    <table>
+        <thead>
+            <tr>
+                <th>Timestamp (UTC)</th>
+                <th>Action</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log_entry in logs %}
+            <tr>
+                <td>{{ log_entry.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                <td>{{ log_entry.action }}</td>
+                <td><pre class="details-json">{{ log_entry.details }}</pre></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No audit logs found.</p>
+    {% endif %}
+</body>
+</html>

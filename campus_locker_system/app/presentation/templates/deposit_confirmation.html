@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Deposit Confirmation</title>
+</head>
+<body>
+    <h1>Deposit Successful!</h1>
+    <p>Parcel deposited in Locker ID: {{ locker_id }}</p>
+    <p>Recipient PIN: <strong>{{ pin }}</strong> (Please share this with the recipient)</p>
+    <p><a href="{{ url_for('main.deposit_parcel') }}">Make another deposit</a></p>
+</body>
+</html>
