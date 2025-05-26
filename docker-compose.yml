@@ -7,3 +7,15 @@ services:
       - "1025:1025"  # SMTP server
       - "8025:8025"  # Web UI
     restart: unless-stopped 
+  app:
+    build: ./campus_locker_system
+    container_name: campus_locker_app
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./campus_locker_system/campus_locker.db:/app/campus_locker.db
+      - ./campus_locker_system/campus_locker_audit.db:/app/campus_locker_audit.db
+    depends_on:
+      - mailhog
+    environment:
+      - FLASK_ENV=development 

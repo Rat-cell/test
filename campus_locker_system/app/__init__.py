@@ -18,10 +18,10 @@ def create_app():
         import logging
         from logging.handlers import RotatingFileHandler
         import os
-        # Ensure logs directory exists
-        if not os.path.exists('logs'):
-            os.mkdir('logs')
-        file_handler = RotatingFileHandler('logs/campus_locker.log', maxBytes=10240, backupCount=10)
+        log_dir = app.config.get('LOG_DIR')
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        file_handler = RotatingFileHandler(os.path.join(log_dir, 'campus_locker.log'), maxBytes=10240, backupCount=10)
         file_handler.setFormatter(logging.Formatter(
             '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'))
         file_handler.setLevel(logging.INFO)
@@ -36,6 +36,11 @@ def create_app():
     app.register_blueprint(api_bp) # Register the API blueprint
 
     with app.app_context():
+        # Ensure the databases folder exists before creating the database files
+        import os
+        databases_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'databases'))
+        if not os.path.exists(databases_dir):
+            os.makedirs(databases_dir)
         from .persistence import models # Ensure models are loaded
         db.create_all()
 

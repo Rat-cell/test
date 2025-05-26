@@ -803,16 +803,16 @@ def test_report_missing_by_recipient_fail_wrong_state(init_database, app):
         assert error_picked_up is not None
         assert "cannot be reported missing by recipient from its current state: 'picked_up'" in error_picked_up
 
-        # Parcel 'expired'
-        parcel_expired, _, _ = assign_locker_and_create_parcel('small', 'missing_wrong_state2@example.com')
-        assert parcel_expired is not None
-        parcel_expired.deposited_at = datetime.utcnow() - timedelta(days=8) # Simulate overdue
+        # Parcel 'return_to_sender'
+        parcel_return_to_sender, _, _ = assign_locker_and_create_parcel('small', 'missing_wrong_state2@example.com')
+        assert parcel_return_to_sender is not None
+        parcel_return_to_sender.deposited_at = datetime.utcnow() - timedelta(days=8) # Simulate overdue
         db.session.commit()
         process_overdue_parcels() # Mark as expired
-        assert db.session.get(Parcel, parcel_expired.id).status == 'expired'
-        _, error_expired = report_parcel_missing_by_recipient(parcel_expired.id)
-        assert error_expired is not None
-        assert "cannot be reported missing by recipient from its current state: 'expired'" in error_expired
+        assert db.session.get(Parcel, parcel_return_to_sender.id).status == 'return_to_sender'
+        _, error_return_to_sender = report_parcel_missing_by_recipient(parcel_return_to_sender.id)
+        assert error_return_to_sender is not None
+        assert "cannot be reported missing by recipient from its current state: 'return_to_sender'" in error_return_to_sender
 
 # Tests for mark_parcel_missing_by_admin service function
 def test_mark_missing_by_admin_success_deposited_parcel(init_database, app, test_admin_user):
@@ -877,21 +877,21 @@ def test_mark_missing_by_admin_success_other_parcel_states(init_database, app, t
         assert marked_parcel.status == 'missing'
         assert db.session.get(Locker, original_locker_id).status == 'free' # Locker status should not change
 
-        # Case 2: Parcel 'expired'
-        parcel_expired, _, _ = assign_locker_and_create_parcel('medium', 'admin_missing_other2@example.com') # Use a different locker
-        assert parcel_expired is not None
-        original_locker_id_expired = parcel_expired.locker_id
-        parcel_expired.deposited_at = datetime.utcnow() - timedelta(days=8) # Simulate overdue
+        # Case 2: Parcel 'return_to_sender'
+        parcel_return_to_sender, _, _ = assign_locker_and_create_parcel('medium', 'admin_missing_other2@example.com') # Use a different locker
+        assert parcel_return_to_sender is not None
+        original_locker_id_return_to_sender = parcel_return_to_sender.locker_id
+        parcel_return_to_sender.deposited_at = datetime.utcnow() - timedelta(days=8) # Simulate overdue
         db.session.commit()
         process_overdue_parcels() # Mark as expired
-        assert db.session.get(Parcel, parcel_expired.id).status == 'expired'
-        locker_expired_before = db.session.get(Locker, original_locker_id_expired)
-        assert locker_expired_before.status == 'free' # Locker is free after expired attempt
+        assert db.session.get(Parcel, parcel_return_to_sender.id).status == 'return_to_sender'
+        locker_return_to_sender_before = db.session.get(Locker, original_locker_id_return_to_sender)
+        assert locker_return_to_sender_before.status == 'awaiting_collection' # Locker is awaiting collection after return_to_sender
 
-        marked_parcel_expired, error_expired = mark_parcel_missing_by_admin(admin.id, admin.username, parcel_expired.id)
-        assert error_expired is None
-        assert marked_parcel_expired.status == 'missing'
-        assert db.session.get(Locker, original_locker_id_expired).status == 'free' # Locker status should not change
+        marked_parcel_return_to_sender, error_return_to_sender = mark_parcel_missing_by_admin(admin.id, admin.username, parcel_return_to_sender.id)
+        assert error_return_to_sender is None
+        assert marked_parcel_return_to_sender.status == 'missing'
+        assert db.session.get(Locker, original_locker_id_return_to_sender).status == 'awaiting_collection' # Locker status should not change
 
 def test_mark_missing_by_admin_fail_not_found(init_database, app, test_admin_user):
     with app.app_context():
