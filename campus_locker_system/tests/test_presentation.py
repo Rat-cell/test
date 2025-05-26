@@ -1,8 +1,11 @@
 import pytest
-from app.persistence.models import Locker, Parcel, AdminUser, AuditLog # Import models for verification
+from app.persistence.models import Locker, Parcel, AdminUser, AuditLog, LockerSensorData # Import LockerSensorData
 from app import db # Import db for direct session manipulation if needed
-from app.application.services import log_audit_event, assign_locker_and_create_parcel # Add assign_locker_and_create_parcel
+from app.application.services import log_audit_event, assign_locker_and_create_parcel, generate_pin_and_hash # Add generate_pin_and_hash
 import json # Add this
+from flask import current_app, url_for # Import current_app and url_for
+from unittest.mock import patch # For mocking
+from datetime import datetime, timedelta # Ensure datetime and timedelta are imported
 
 # Helper fixture for admin login
 @pytest.fixture
@@ -37,7 +40,8 @@ def test_deposit_action_success(client, init_database, app): # Added app fixture
 
         response = client.post('/deposit', data={
             'parcel_size': 'small',
-            'recipient_email': 'sender@example.com'
+            'recipient_email': 'sender@example.com',
+            'confirm_recipient_email': 'sender@example.com' # Added for existing test
         }, follow_redirects=True) # follow_redirects to handle the redirect to confirmation or form
         
         assert response.status_code == 200 # Should be 200 after following redirect
@@ -73,6 +77,60 @@ def test_deposit_action_no_locker_available(client, init_database, app):
 
         # Verify no new parcel was created for this email
         assert Parcel.query.filter_by(recipient_email='another@example.com').first() is None
+
+# Tests for Email Confirmation in Deposit Parcel Route
+def test_deposit_parcel_email_confirmation_success(client, init_database, app):
+    with app.app_context():
+        # Ensure a small locker is available
+        assert Locker.query.filter_by(size='small', status='free').first() is not None
+        initial_parcel_count = Parcel.query.count()
+
+        response = client.post('/deposit', data={
+            'parcel_size': 'small',
+            'recipient_email': 'test_success@example.com',
+            'confirm_recipient_email': 'test_success@example.com'
+        }, follow_redirects=True)
+
+        assert response.status_code == 200
+        assert b"Deposit Successful!" in response.data
+        assert b"Recipient PIN:" in response.data
+        assert Parcel.query.count() == initial_parcel_count + 1
+        new_parcel = Parcel.query.filter_by(recipient_email='test_success@example.com').first()
+        assert new_parcel is not None
+
+def test_deposit_parcel_email_mismatch_error(client, init_database, app):
+    with app.app_context():
+        # Ensure a small locker is available
+        assert Locker.query.filter_by(size='small', status='free').first() is not None
+        initial_parcel_count = Parcel.query.count()
+
+        response = client.post('/deposit', data={
+            'parcel_size': 'small',
+            'recipient_email': 'test_mismatch@example.com',
+            'confirm_recipient_email': 'test_mismatch_different@example.com'
+        }, follow_redirects=True)
+
+        assert response.status_code == 200 # Stays on the deposit form
+        assert b"Email addresses do not match. Please try again." in response.data
+        assert b"Deposit Successful!" not in response.data
+        assert Parcel.query.count() == initial_parcel_count # No new parcel created
+
+def test_deposit_parcel_missing_confirm_email_error(client, init_database, app):
+    with app.app_context():
+        # Ensure a small locker is available
+        assert Locker.query.filter_by(size='small', status='free').first() is not None
+        initial_parcel_count = Parcel.query.count()
+
+        response = client.post('/deposit', data={
+            'parcel_size': 'small',
+            'recipient_email': 'test_missing_confirm@example.com',
+            # 'confirm_recipient_email' is deliberately omitted
+        }, follow_redirects=True)
+
+        assert response.status_code == 200 # Stays on the deposit form
+        assert b"Please confirm the recipient email address." in response.data
+        assert b"Deposit Successful!" not in response.data
+        assert Parcel.query.count() == initial_parcel_count # No new parcel created
 
 def test_admin_login_success_logs_audit(client, init_database, app):
     with app.app_context():
@@ -436,3 +494,291 @@ def test_admin_mark_parcel_missing_ui_flow(logged_in_admin_client, init_database
             AuditLog.details.like(f'%"original_parcel_status": "pickup_disputed"%')
         ).order_by(AuditLog.timestamp.desc()).first()
         assert log_dis is not None
+
+# Tests for API Endpoint: /api/v1/lockers/<int:locker_id>/sensor_data
+def test_api_submit_locker_sensor_data_success(client, init_database, app):
+    with app.app_context():
+        # Locker 1 is created by init_database
+        locker = db.session.get(Locker, 1)
+        assert locker is not None
+
+        payload = {'has_contents': True}
+        response = client.post(f'/api/v1/lockers/{locker.id}/sensor_data', json=payload)
+
+        assert response.status_code == 201
+        response_data = json.loads(response.data)
+        assert response_data['status'] == 'success'
+        assert response_data['message'] == 'Sensor data recorded successfully.'
+        assert 'sensor_data_id' in response_data
+
+        sensor_record = db.session.get(LockerSensorData, response_data['sensor_data_id'])
+        assert sensor_record is not None
+        assert sensor_record.locker_id == locker.id
+        assert sensor_record.has_contents is True
+
+def test_api_submit_locker_sensor_data_error_handling(client, init_database, app):
+    with app.app_context():
+        # Locker 1 exists
+        locker_id_exists = 1
+        locker_id_non_existent = 999
+
+        # Invalid Payload (missing has_contents)
+        response_invalid_payload = client.post(f'/api/v1/lockers/{locker_id_exists}/sensor_data', json={})
+        assert response_invalid_payload.status_code == 400
+        assert b"'has_contents' must be a boolean and is required" in response_invalid_payload.data
+
+        # Invalid has_contents type
+        response_invalid_type = client.post(f'/api/v1/lockers/{locker_id_exists}/sensor_data', json={'has_contents': 'not_a_boolean'})
+        assert response_invalid_type.status_code == 400
+        assert b"'has_contents' must be a boolean and is required" in response_invalid_type.data
+        
+        # No JSON data provided
+        response_no_data = client.post(f'/api/v1/lockers/{locker_id_exists}/sensor_data') # No json kwarg
+        assert response_no_data.status_code == 400
+        assert b"No data provided" in response_no_data.data
+
+
+        # Locker Not Found
+        response_locker_not_found = client.post(f'/api/v1/lockers/{locker_id_non_existent}/sensor_data', json={'has_contents': False})
+        assert response_locker_not_found.status_code == 404
+        assert b"Locker not found" in response_locker_not_found.data
+
+def test_api_submit_locker_sensor_data_method_not_allowed(client, init_database, app):
+    with app.app_context():
+        locker_id = 1 # Locker 1 exists
+        response = client.get(f'/api/v1/lockers/{locker_id}/sensor_data')
+        assert response.status_code == 405
+
+# Tests for Sensor Data in Admin manage_lockers View
+def test_admin_manage_lockers_displays_sensor_data(logged_in_admin_client, init_database, app):
+    with app.app_context():
+        # Locker 1 exists from init_database
+        locker1 = db.session.get(Locker, 1)
+        assert locker1 is not None
+
+        # Add sensor data for Locker 1: Present
+        sensor_data_present = LockerSensorData(locker_id=locker1.id, has_contents=True)
+        db.session.add(sensor_data_present)
+        
+        # Locker 2 exists from init_database
+        locker2 = db.session.get(Locker, 2)
+        assert locker2 is not None
+        # Add sensor data for Locker 2: Empty
+        sensor_data_empty = LockerSensorData(locker_id=locker2.id, has_contents=False)
+        db.session.add(sensor_data_empty)
+
+        # Locker 3 exists from init_database, will have no sensor data
+        locker3 = db.session.get(Locker, 3)
+        assert locker3 is not None
+        
+        db.session.commit()
+
+        response = logged_in_admin_client.get('/admin/lockers')
+        assert response.status_code == 200
+        response_html = response.data.decode('utf-8')
+
+        # Check for Locker 1 data - Sensor: Present
+        # This is a bit fragile, depends on exact HTML structure
+        assert f"<td>{locker1.id}</td>" in response_html
+        assert "<td>Present</td>" in response_html # Assuming this is how sensor data (True) is rendered for locker1
+
+        # Check for Locker 2 data - Sensor: Empty
+        assert f"<td>{locker2.id}</td>" in response_html
+        assert "<td>Empty</td>" in response_html # Assuming this is how sensor data (False) is rendered for locker2
+
+        # Check for Locker 3 data - Sensor: N/A
+        assert f"<td>{locker3.id}</td>" in response_html
+        assert "<td>N/A</td>" in response_html # Assuming this is how no sensor data is rendered for locker3
+
+# Tests for Sensor Data Configuration in Admin manage_lockers View
+
+def test_admin_manage_lockers_sensor_feature_disabled(logged_in_admin_client, app, init_database):
+    with app.app_context():
+        original_sensor_feature = current_app.config.get('ENABLE_LOCKER_SENSOR_DATA_FEATURE')
+        try:
+            current_app.config['ENABLE_LOCKER_SENSOR_DATA_FEATURE'] = False
+            
+            # Locker 1 exists from init_database
+            locker1 = db.session.get(Locker, 1)
+            assert locker1 is not None
+
+            response = logged_in_admin_client.get('/admin/lockers')
+            assert response.status_code == 200
+            response_html = response.data.decode('utf-8')
+
+            # Check for Locker 1 data - Sensor: Disabled
+            # Ensure the table cell for sensor status contains "Sensor: Disabled"
+            # This regex is a bit more robust to slight HTML changes around the ID.
+            # It looks for the row of locker 1 and then the sensor status cell.
+            import re
+            # Pattern to find the row for Locker 1 and then check its sensor status column
+            # This assumes Sensor Status is the 4th column (index 3) after ID, Size, Current Status
+            # And that the HTML structure is <td>ID</td> ... <td>Sensor Status</td>
+            # A more robust way would be to parse HTML if this becomes too fragile.
+            # For now, let's expect a structure like: <td>1</td>...<td>Sensor: Disabled</td>
+            # We can check for a segment of the row that includes the locker ID and the expected text.
+            assert f"<td>{locker1.id}</td>" in response_html # Verify row for locker 1 exists
+            assert "<td>Sensor: Disabled</td>" in response_html # Verify "Sensor: Disabled" is present for that row
+
+        finally:
+            current_app.config['ENABLE_LOCKER_SENSOR_DATA_FEATURE'] = original_sensor_feature
+
+def test_admin_manage_lockers_sensor_feature_enabled_specific_data(logged_in_admin_client, app, init_database):
+    with app.app_context():
+        original_sensor_feature = current_app.config.get('ENABLE_LOCKER_SENSOR_DATA_FEATURE')
+        original_default_state = current_app.config.get('DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE')
+        try:
+            current_app.config['ENABLE_LOCKER_SENSOR_DATA_FEATURE'] = True
+            # Ensure default state is something known, e.g. False, so it doesn't interfere if sensor_data is None
+            current_app.config['DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE'] = False 
+
+            locker_id_specific = 1 # Use Locker 1 from init_database
+            locker = db.session.get(Locker, locker_id_specific)
+            assert locker is not None
+
+            # Add specific sensor data
+            sensor_data = LockerSensorData(locker_id=locker_id_specific, has_contents=True)
+            db.session.add(sensor_data)
+            db.session.commit()
+
+            response = logged_in_admin_client.get('/admin/lockers')
+            assert response.status_code == 200
+            response_html = response.data.decode('utf-8')
+            
+            # Check for Locker with specific data
+            assert f"<td>{locker_id_specific}</td>" in response_html
+            # The sensor data is "Present" because has_contents=True
+            assert "<td>Sensor: Present</td>" in response_html 
+
+        finally:
+            current_app.config['ENABLE_LOCKER_SENSOR_DATA_FEATURE'] = original_sensor_feature
+            current_app.config['DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE'] = original_default_state
+
+
+# Tests for /request-new-pin route
+def test_request_new_pin_form_get_request(client, init_database, app):
+    with app.app_context():
+        response = client.get(url_for('main.request_new_pin_action'))
+        assert response.status_code == 200
+        assert b"Request New PIN" in response.data
+        assert b"Your Email Address:" in response.data
+        assert b'name="recipient_email"' in response.data
+        assert b"Locker ID:" in response.data
+        assert b'name="locker_id"' in response.data
+        assert b"Request New PIN</button>" in response.data
+
+@patch('app.presentation.routes.request_pin_regeneration_by_recipient')
+def test_request_new_pin_form_post_success(mock_service_call, client, init_database, app):
+    with app.app_context():
+        # Setup: Create a locker and a deposited parcel
+        locker = Locker.query.filter_by(id=1).first() # From init_database
+        assert locker is not None
+        
+        test_email = "test_regen@example.com"
+        # No need to actually create parcel if service is mocked,
+        # but the service would normally require it.
+        # For route testing, we only care the service is called.
+
+        mock_service_call.return_value = True # Simulate service attempting regeneration
+
+        response = client.post(url_for('main.request_new_pin_action'), data={
+            'recipient_email': test_email,
+            'locker_id': str(locker.id) # Ensure locker_id is string, as it comes from form
+        }, follow_redirects=True)
+
+        assert response.status_code == 200 # After redirect, lands on the same page
+        assert b"If your details matched an active parcel eligible for a new PIN, an email with the new PIN has been sent" in response.data
+        mock_service_call.assert_called_once_with(test_email, str(locker.id))
+
+@patch('app.presentation.routes.request_pin_regeneration_by_recipient')
+def test_request_new_pin_form_post_missing_fields(mock_service_call, client, init_database, app):
+    with app.app_context():
+        # Case 1: Missing recipient_email
+        response_missing_email = client.post(url_for('main.request_new_pin_action'), data={
+            'locker_id': '1'
+        }, follow_redirects=True)
+        assert response_missing_email.status_code == 200 # Stays on form
+        assert b"Email and Locker ID are required." in response_missing_email.data
+        mock_service_call.assert_not_called() # Service should not be called
+
+        # Case 2: Missing locker_id
+        mock_service_call.reset_mock() # Reset mock for the next call
+        response_missing_locker_id = client.post(url_for('main.request_new_pin_action'), data={
+            'recipient_email': 'test@example.com'
+        }, follow_redirects=True)
+        assert response_missing_locker_id.status_code == 200 # Stays on form
+        assert b"Email and Locker ID are required." in response_missing_locker_id.data
+        mock_service_call.assert_not_called() # Service should not be called
+
+@patch('app.presentation.routes.request_pin_regeneration_by_recipient')
+def test_request_new_pin_form_post_generic_message_security(mock_service_call, client, init_database, app):
+    with app.app_context():
+        # Simulate a scenario where the service call would internally determine "no match" or "too late"
+        # The route should still flash the generic message.
+        mock_service_call.return_value = False # Simulate service indicating no action taken (e.g., no match, too late)
+        
+        response = client.post(url_for('main.request_new_pin_action'), data={
+            'recipient_email': 'any_email@example.com',
+            'locker_id': '99' # Potentially non-existent
+        }, follow_redirects=True)
+
+        assert response.status_code == 200
+        # Crucially, the message is generic and does not reveal if the details were valid or not
+        assert b"If your details matched an active parcel eligible for a new PIN, an email with the new PIN has been sent" in response.data
+        mock_service_call.assert_called_once_with('any_email@example.com', '99')
+            # Clean up sensor data to avoid affecting other tests if db state persists across tests
+            LockerSensorData.query.filter_by(locker_id=locker_id_specific).delete()
+            db.session.commit()
+
+
+def test_admin_manage_lockers_no_sensor_data_default_false(logged_in_admin_client, app, init_database):
+    with app.app_context():
+        original_sensor_feature = current_app.config.get('ENABLE_LOCKER_SENSOR_DATA_FEATURE')
+        original_default_state = current_app.config.get('DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE')
+        try:
+            current_app.config['ENABLE_LOCKER_SENSOR_DATA_FEATURE'] = True
+            current_app.config['DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE'] = False
+
+            locker_id_no_data = 2 # Use Locker 2 from init_database
+            locker = db.session.get(Locker, locker_id_no_data)
+            assert locker is not None
+            # Ensure no sensor data for this locker
+            LockerSensorData.query.filter_by(locker_id=locker_id_no_data).delete()
+            db.session.commit()
+
+            response = logged_in_admin_client.get('/admin/lockers')
+            assert response.status_code == 200
+            response_html = response.data.decode('utf-8')
+
+            assert f"<td>{locker_id_no_data}</td>" in response_html
+            assert "<td>Sensor: Empty (default)</td>" in response_html
+
+        finally:
+            current_app.config['ENABLE_LOCKER_SENSOR_DATA_FEATURE'] = original_sensor_feature
+            current_app.config['DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE'] = original_default_state
+
+def test_admin_manage_lockers_no_sensor_data_default_true(logged_in_admin_client, app, init_database):
+    with app.app_context():
+        original_sensor_feature = current_app.config.get('ENABLE_LOCKER_SENSOR_DATA_FEATURE')
+        original_default_state = current_app.config.get('DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE')
+        try:
+            current_app.config['ENABLE_LOCKER_SENSOR_DATA_FEATURE'] = True
+            current_app.config['DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE'] = True
+
+            locker_id_no_data_default_true = 3 # Use Locker 3 from init_database
+            locker = db.session.get(Locker, locker_id_no_data_default_true)
+            assert locker is not None
+             # Ensure no sensor data for this locker
+            LockerSensorData.query.filter_by(locker_id=locker_id_no_data_default_true).delete()
+            db.session.commit()
+
+            response = logged_in_admin_client.get('/admin/lockers')
+            assert response.status_code == 200
+            response_html = response.data.decode('utf-8')
+            
+            assert f"<td>{locker_id_no_data_default_true}</td>" in response_html
+            assert "<td>Sensor: Present (default)</td>" in response_html
+            
+        finally:
+            current_app.config['ENABLE_LOCKER_SENSOR_DATA_FEATURE'] = original_sensor_feature
+            current_app.config['DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE'] = original_default_state

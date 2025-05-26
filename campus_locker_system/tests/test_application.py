@@ -8,10 +8,11 @@ from app.application.services import (
     retract_deposit, 
     dispute_pickup,
     report_parcel_missing_by_recipient, # Add this
-    mark_parcel_missing_by_admin # Add this
+    mark_parcel_missing_by_admin, # Add this
+    request_pin_regeneration_by_recipient # Add this service
 )
-from app.persistence.models import Locker, Parcel, AuditLog, AdminUser # Add AuditLog
-from app import db # Import db for direct session manipulation if needed
+from app.persistence.models import Locker, Parcel, AuditLog, AdminUser, LockerSensorData # Add LockerSensorData
+from app import db, mail # Import db and mail for testing
 from flask import current_app # Add current_app for logger
 import pytest # Import pytest to use fixtures
 import json # Add this import
@@ -886,3 +887,240 @@ def test_mark_missing_by_admin_already_missing(init_database, app, test_admin_us
         updated_parcel, message = mark_parcel_missing_by_admin(test_admin_user.id, test_admin_user.username, parcel.id)
         assert message == "Parcel is already marked as missing."
         assert updated_parcel.status == 'missing'
+
+
+# Tests for LockerSensorData Model
+def test_locker_sensor_data_creation(init_database, app):
+    with app.app_context():
+        # Locker ID 1 ('small', 'free') is created by init_database
+        locker = db.session.get(Locker, 1)
+        assert locker is not None, "Locker ID 1 not found, check init_database fixture."
+
+        # Create LockerSensorData instance
+        sensor_data_entry = LockerSensorData(
+            locker_id=locker.id,
+            has_contents=True
+        )
+        db.session.add(sensor_data_entry)
+        db.session.commit()
+
+        # Retrieve and assert
+        retrieved_sensor_data = db.session.get(LockerSensorData, sensor_data_entry.id)
+        assert retrieved_sensor_data is not None
+        assert retrieved_sensor_data.locker_id == locker.id
+        assert retrieved_sensor_data.has_contents is True
+        assert retrieved_sensor_data.timestamp is not None
+
+        # Test default timestamp is set automatically
+        assert isinstance(retrieved_sensor_data.timestamp, datetime)
+
+        # Clean up (optional, as tests run in memory and init_database handles drop_all)
+        # db.session.delete(retrieved_sensor_data)
+        # db.session.commit()
+
+# Tests for LOCKER_SIZE_DIMENSIONS Configuration
+def test_locker_size_dimensions_config(app):
+    with app.app_context():
+        # 1. Test reading dimensions when set
+        sample_dimensions = {'small': {'h': 10, 'w': 10, 'd': 10}, 'medium': {'h': 20, 'w': 20, 'd': 20}}
+        current_app.config['LOCKER_SIZE_DIMENSIONS'] = sample_dimensions
+        
+        retrieved_small_dims = current_app.config.get('LOCKER_SIZE_DIMENSIONS', {}).get('small')
+        assert retrieved_small_dims is not None
+        assert retrieved_small_dims['h'] == 10
+        assert retrieved_small_dims['w'] == 10
+        assert retrieved_small_dims['d'] == 10
+
+        retrieved_medium_dims = current_app.config.get('LOCKER_SIZE_DIMENSIONS', {}).get('medium')
+        assert retrieved_medium_dims is not None
+        assert retrieved_medium_dims['h'] == 20
+
+        retrieved_large_dims = current_app.config.get('LOCKER_SIZE_DIMENSIONS', {}).get('large')
+        assert retrieved_large_dims is None # 'large' not in sample_dimensions
+
+        # 2. Test fallback/optional nature
+        # Temporarily remove the config key
+        original_dimensions = current_app.config.pop('LOCKER_SIZE_DIMENSIONS', None)
+
+        # a) Accessing a non-existent key using .get() should return None or default
+        assert current_app.config.get('LOCKER_SIZE_DIMENSIONS') is None
+        
+        # b) If some part of the app tries to get a specific size, it should handle it gracefully
+        # For example, if code did: current_app.config.get('LOCKER_SIZE_DIMENSIONS', {}).get('small')
+        dimensions_after_delete = current_app.config.get('LOCKER_SIZE_DIMENSIONS', {}) # Simulates app code getting the dict
+        assert dimensions_after_delete.get('small') is None # No error, just None
+
+        # Restore original config if it existed, for other tests (though app context usually isolates this)
+        if original_dimensions is not None:
+            current_app.config['LOCKER_SIZE_DIMENSIONS'] = original_dimensions
+        
+        # Test with LOCKER_SIZE_DIMENSIONS set to None
+        current_app.config['LOCKER_SIZE_DIMENSIONS'] = None
+        dimensions_when_none = current_app.config.get('LOCKER_SIZE_DIMENSIONS', {})
+        # .get() on None will cause an AttributeError if not handled by a default {} like above
+        # So the pattern current_app.config.get('LOCKER_SIZE_DIMENSIONS', {}).get('small') is robust
+        assert dimensions_when_none is None # If the config value itself is None
+        
+        # Test the robust pattern
+        assert current_app.config.get('LOCKER_SIZE_DIMENSIONS', {}).get('small') is None
+        
+        # Clean up by removing the key if it was added/modified
+        current_app.config.pop('LOCKER_SIZE_DIMENSIONS', None)
+
+
+# Tests for request_pin_regeneration_by_recipient service function
+
+def test_request_pin_regeneration_success(init_database, app):
+    with app.app_context():
+        # Setup: Create a locker and a deposited parcel
+        locker = Locker.query.filter_by(size='small', status='free').first()
+        if not locker: # Should be available from init_database
+            locker = Locker(size='small', status='free')
+            db.session.add(locker)
+            db.session.commit()
+        
+        original_email = "recipient_regen_success@example.com"
+        original_deposited_at = datetime.utcnow() - timedelta(days=1) # Deposited 1 day ago
+        
+        parcel = Parcel(
+            locker_id=locker.id,
+            recipient_email=original_email,
+            status='deposited',
+            pin_hash=generate_pin_and_hash()[1], # Store a valid hash
+            otp_expiry=datetime.utcnow() + timedelta(days=current_app.config.get('PARCEL_DEFAULT_PIN_VALIDITY_DAYS', 7) -1), # About to expire or recently expired but within reissue window
+            deposited_at=original_deposited_at
+        )
+        db.session.add(parcel)
+        db.session.commit()
+        original_pin_hash = parcel.pin_hash
+
+        with mail.record_messages() as outbox:
+            result = request_pin_regeneration_by_recipient(original_email, locker.id)
+
+        assert result is True
+        
+        updated_parcel = db.session.get(Parcel, parcel.id)
+        assert updated_parcel.pin_hash != original_pin_hash
+        # Check if otp_expiry is roughly now + configured days (allow a small delta for execution time)
+        expected_expiry_min = datetime.utcnow() + timedelta(days=current_app.config.get('PARCEL_DEFAULT_PIN_VALIDITY_DAYS', 7)) - timedelta(seconds=30)
+        expected_expiry_max = datetime.utcnow() + timedelta(days=current_app.config.get('PARCEL_DEFAULT_PIN_VALIDITY_DAYS', 7)) + timedelta(seconds=30)
+        assert expected_expiry_min < updated_parcel.otp_expiry < expected_expiry_max
+
+        assert len(outbox) == 1
+        assert outbox[0].subject == "Your New Campus Locker PIN (Recipient Request)"
+        assert original_email in outbox[0].recipients
+
+        success_log = AuditLog.query.filter_by(action="RECIPIENT_PIN_REGENERATION_SUCCESS").order_by(AuditLog.timestamp.desc()).first()
+        assert success_log is not None
+        details = json.loads(success_log.details)
+        assert details['parcel_id'] == parcel.id
+
+        email_log = AuditLog.query.filter_by(action="RECIPIENT_PIN_REGEN_EMAIL_SENT").order_by(AuditLog.timestamp.desc()).first()
+        assert email_log is not None
+        email_details = json.loads(email_log.details)
+        assert email_details['parcel_id'] == parcel.id
+        assert email_details['recipient_email'] == original_email
+
+def test_request_pin_regeneration_parcel_not_found(init_database, app):
+    with app.app_context():
+        with mail.record_messages() as outbox:
+            result = request_pin_regeneration_by_recipient("nonexistent@example.com", 999)
+        
+        assert result is False
+        assert len(outbox) == 0
+        log_entry = AuditLog.query.filter_by(action="RECIPIENT_PIN_REGEN_NO_MATCH").order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+        details = json.loads(log_entry.details)
+        assert details['recipient_email_attempt'] == "nonexistent@example.com"
+        assert details['locker_id_attempt'] == 999 # Service converts to int, so this should be int
+
+def test_request_pin_regeneration_parcel_not_deposited(init_database, app):
+    with app.app_context():
+        locker = Locker.query.first() # Get any locker
+        email = "not_deposited@example.com"
+        parcel = Parcel(
+            locker_id=locker.id, 
+            recipient_email=email, 
+            status='picked_up', # Not 'deposited'
+            pin_hash=generate_pin_and_hash()[1],
+            otp_expiry=datetime.utcnow() + timedelta(days=1),
+            deposited_at=datetime.utcnow() - timedelta(days=1)
+        )
+        db.session.add(parcel)
+        db.session.commit()
+
+        with mail.record_messages() as outbox:
+            result = request_pin_regeneration_by_recipient(email, locker.id)
+        
+        assert result is False
+        assert len(outbox) == 0
+        # The service logic queries for 'deposited' status, so it won't find this parcel.
+        log_entry = AuditLog.query.filter_by(action="RECIPIENT_PIN_REGEN_NO_MATCH").order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+        details = json.loads(log_entry.details)
+        assert details['recipient_email_attempt'] == email
+        assert details['locker_id_attempt'] == locker.id
+
+
+def test_request_pin_regeneration_too_late(init_database, app):
+    with app.app_context():
+        original_max_reissue_days = current_app.config.get('PARCEL_MAX_PIN_REISSUE_DAYS')
+        current_app.config['PARCEL_MAX_PIN_REISSUE_DAYS'] = 7 # Set for test predictability
+        
+        locker = Locker.query.first()
+        email = "too_late@example.com"
+        parcel = Parcel(
+            locker_id=locker.id,
+            recipient_email=email,
+            status='deposited',
+            pin_hash=generate_pin_and_hash()[1],
+            otp_expiry=datetime.utcnow() + timedelta(days=1),
+            deposited_at=datetime.utcnow() - timedelta(days=8) # Deposited 8 days ago
+        )
+        db.session.add(parcel)
+        db.session.commit()
+
+        with mail.record_messages() as outbox:
+            result = request_pin_regeneration_by_recipient(email, locker.id)
+        
+        assert result is False
+        assert len(outbox) == 0
+        log_entry = AuditLog.query.filter_by(action="RECIPIENT_PIN_REGEN_FAIL_TOO_LATE").order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+        details = json.loads(log_entry.details)
+        assert details['parcel_id'] == parcel.id
+        assert details['max_reissue_days'] == 7
+
+        # Restore original config
+        if original_max_reissue_days is not None:
+            current_app.config['PARCEL_MAX_PIN_REISSUE_DAYS'] = original_max_reissue_days
+        else: # If it was not set, remove it
+             current_app.config.pop('PARCEL_MAX_PIN_REISSUE_DAYS', None)
+
+
+def test_request_pin_regeneration_missing_deposited_at(init_database, app):
+    with app.app_context():
+        locker = Locker.query.first()
+        email = "missing_deposit_ts@example.com"
+        # Manually create parcel with deposited_at = None
+        parcel = Parcel(
+            locker_id=locker.id,
+            recipient_email=email,
+            status='deposited',
+            pin_hash=generate_pin_and_hash()[1],
+            otp_expiry=datetime.utcnow() + timedelta(days=1),
+            deposited_at=None # Explicitly None
+        )
+        db.session.add(parcel)
+        db.session.commit()
+
+        with mail.record_messages() as outbox:
+            result = request_pin_regeneration_by_recipient(email, locker.id)
+
+        assert result is False
+        assert len(outbox) == 0
+        log_entry = AuditLog.query.filter_by(action="RECIPIENT_PIN_REGEN_FAIL").order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+        details = json.loads(log_entry.details)
+        assert details['parcel_id'] == parcel.id
+        assert details['reason'] == "Parcel has no deposit timestamp."

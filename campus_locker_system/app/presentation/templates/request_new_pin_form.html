@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request New PIN</title>
+    <!-- Link to a shared CSS file if available, or basic styling -->
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        .container { max-width: 500px; margin: auto; padding: 20px; border: 1px solid #ccc; border-radius: 5px; }
+        label { display: block; margin-bottom: 5px; }
+        input[type="email"], input[type="text"], input[type="number"] { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; }
+        button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        .flashes { list-style: none; padding: 0; }
+        .flashes li { padding: 10px; margin-bottom: 10px; border-radius: 3px; }
+        .flashes .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .flashes .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .flashes .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        p { font-size: 0.9em; color: #555; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Request New PIN</h2>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <ul class="flashes">
+            {% for category, message in messages %}
+              <li class="{{ category }}">{{ message }}</li>
+            {% endfor %}
+            </ul>
+          {% endif %}
+        {% endwith %}
+
+        <form method="POST" action=""> {# Action URL will be set by Flask's url_for in the route #}
+            <div>
+                <label for="recipient_email">Your Email Address:</label>
+                <input type="email" id="recipient_email" name="recipient_email" required>
+            </div>
+            <div>
+                <label for="locker_id">Locker ID:</label>
+                <input type="text" id="locker_id" name="locker_id" required> {# Changed to text for flexibility #}
+            </div>
+            <button type="submit">Request New PIN</button>
+        </form>
+        <p style="margin-top: 15px;">
+            If your details match an active parcel eligible for a new PIN, an email with the new PIN will be sent to the registered email address. Please check your inbox (and spam folder).
+        </p>
+    </div>
+</body>
+</html>

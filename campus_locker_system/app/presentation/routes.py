@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, flash, session # Add session
+from flask import render_template, request, redirect, url_for, flash, session, current_app # Add current_app
 from . import main_bp # Assuming main_bp is defined in app/presentation/__init__.py
 from app.application.services import (
     assign_locker_and_create_parcel, 
@@ -6,9 +6,13 @@ from app.application.services import (
     verify_admin_credentials, 
     log_audit_event, # Add log_audit_event
     set_locker_status, # Add set_locker_status
-    mark_parcel_missing_by_admin # Add this
+    mark_parcel_missing_by_admin, # Add this
+    reissue_pin, # Add reissue_pin
+    process_overdue_parcels, # Add process_overdue_parcels
+    mark_locker_as_emptied, # Add mark_locker_as_emptied
+    request_pin_regeneration_by_recipient # Add request_pin_regeneration_by_recipient
 )
-from app.persistence.models import Locker, AuditLog, AdminUser, Parcel # Add AdminUser and Parcel
+from app.persistence.models import Locker, AuditLog, AdminUser, Parcel, LockerSensorData # Add LockerSensorData
 from .decorators import admin_required # Add admin_required decorator
 from app import db # Add db for session.get
 
@@ -21,6 +25,15 @@ def deposit_parcel():
 
         if not parcel_size or not recipient_email:
             flash('Parcel size and recipient email are required.', 'error')
+            return redirect(url_for('main.deposit_parcel'))
+
+        confirm_recipient_email = request.form.get('confirm_recipient_email')
+        if not confirm_recipient_email:
+            flash('Please confirm the recipient email address.', 'error')
+            return redirect(url_for('main.deposit_parcel'))
+        
+        if recipient_email != confirm_recipient_email:
+            flash('Email addresses do not match. Please try again.', 'error')
             return redirect(url_for('main.deposit_parcel'))
 
         parcel, pin, error_message = assign_locker_and_create_parcel(parcel_size, recipient_email)
@@ -113,6 +126,9 @@ def audit_logs_view():
 @main_bp.route('/admin/lockers', methods=['GET'])
 @admin_required
 def manage_lockers():
+    enable_sensor_feature = current_app.config.get('ENABLE_LOCKER_SENSOR_DATA_FEATURE', True)
+    default_sensor_state = current_app.config.get('DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE', False)
+
     lockers = Locker.query.order_by(Locker.id).all()
     lockers_with_parcels = []
     for locker in lockers:
@@ -125,8 +141,23 @@ def manage_lockers():
                 Parcel.locker_id == locker.id,
                 Parcel.status.in_(relevant_parcel_statuses)
             ).order_by(Parcel.id.desc()).first() # Get the latest relevant parcel
-        lockers_with_parcels.append({'locker': locker, 'parcel': parcel_in_locker})
-    return render_template('admin/manage_lockers.html', lockers_with_parcels=lockers_with_parcels)
+        
+        latest_sensor_reading = None
+        if enable_sensor_feature:
+            # Fetch the latest sensor data for the locker only if feature is enabled
+            latest_sensor_reading = LockerSensorData.query.filter_by(locker_id=locker.id).order_by(LockerSensorData.timestamp.desc()).first()
+        
+        lockers_with_parcels.append({
+            'locker': locker, 
+            'parcel': parcel_in_locker,
+            'sensor_data': latest_sensor_reading 
+        })
+    return render_template(
+        'admin/manage_lockers.html', 
+        lockers_with_parcels=lockers_with_parcels,
+        enable_sensor_feature=enable_sensor_feature,
+        default_sensor_state=default_sensor_state
+    )
 
 @main_bp.route('/admin/parcel/<int:parcel_id>/view', methods=['GET'])
 @admin_required
@@ -159,6 +190,85 @@ def mark_parcel_missing_admin_action(parcel_id):
     if parcel: 
         return redirect(url_for('main.view_parcel_admin', parcel_id=parcel_id))
     return redirect(url_for('main.manage_lockers'))
+
+@main_bp.route('/request-new-pin', methods=['GET', 'POST'])
+def request_new_pin_action():
+    if request.method == 'POST':
+        recipient_email = request.form.get('recipient_email')
+        locker_id = request.form.get('locker_id')
+
+        if not recipient_email or not locker_id:
+            flash('Email and Locker ID are required.', 'error')
+            return redirect(url_for('main.request_new_pin_action'))
+
+        request_pin_regeneration_by_recipient(recipient_email, locker_id) # Call the actual service
+
+        # Always flash the same generic message for security (to prevent fishing)
+        flash("If your details matched an active parcel eligible for a new PIN, an email with the new PIN has been sent to the registered email address. Please check your inbox (and spam folder).", "info")
+        return redirect(url_for('main.request_new_pin_action'))
+
+    return render_template('request_new_pin_form.html')
+
+@main_bp.route('/admin/locker/<int:locker_id>/mark-emptied', methods=['POST'])
+@admin_required
+def admin_mark_locker_emptied_action(locker_id):
+    admin_id_from_session = session.get('admin_id')
+    # It's good practice to ensure admin_id is actually in session,
+    # though @admin_required should protect this.
+    if not admin_id_from_session:
+        flash("Admin session not found. Please log in again.", "error")
+        return redirect(url_for('main.admin_login'))
+
+    admin_user = db.session.get(AdminUser, admin_id_from_session)
+    admin_username = admin_user.username if admin_user else "UnknownAdmin"
+    
+    # If admin_user is None here, it implies an issue with session or DB consistency
+    # as @admin_required should have ensured a valid session.
+    if not admin_user:
+         current_app.logger.warning(f"Admin user with ID {admin_id_from_session} not found in DB during mark-emptied action for locker {locker_id}.")
+         # Fallback, though ideally this state shouldn't be reached if @admin_required works.
+
+    updated_locker, message = mark_locker_as_emptied(
+        locker_id=locker_id,
+        admin_id=admin_id_from_session,
+        admin_username=admin_username
+    )
+
+    # The service function returns (Locker|None, message_string).
+    # If updated_locker is None, it means the locker itself wasn't found.
+    # If updated_locker is returned but message indicates an issue (e.g., "Locker is not awaiting collection."),
+    # it's an operational error but not a DB error.
+    if message == "Locker successfully marked as free.":
+        flash(f"Locker {locker_id} status updated: {message}", "success")
+    elif updated_locker is None and message == "Locker not found.": # Specific check for locker not found
+        flash(f"Error for locker {locker_id}: {message}", "error")
+    else: # Other errors or conditions like "Locker is not awaiting collection."
+        flash(f"Notice for locker {locker_id}: {message}", "warning") # Use warning for non-critical errors
+
+    return redirect(url_for('main.manage_lockers'))
+
+@main_bp.route('/admin/parcels/process-overdue', methods=['POST'])
+@admin_required
+def admin_process_overdue_parcels_action():
+    processed_count, message = process_overdue_parcels()
+    flash(f"Overdue parcel processing complete. {processed_count} parcels processed. {message}", "info")
+    return redirect(url_for('main.manage_lockers'))
+
+@main_bp.route('/admin/parcel/<int:parcel_id>/reissue-pin', methods=['POST'])
+@admin_required
+def reissue_pin_admin_action(parcel_id):
+    # Admin ID and username could be fetched from session for logging if needed by reissue_pin,
+    # but the current reissue_pin service doesn't require them as direct params.
+    # It logs events internally.
+    
+    parcel, message = reissue_pin(parcel_id)
+
+    if parcel: # Success is indicated by the parcel object being returned
+        flash(f"Successfully reissued PIN for parcel {parcel_id}. {message}", "success")
+    else: # An error occurred
+        flash(f"Error reissuing PIN for parcel {parcel_id}: {message}", "error")
+    
+    return redirect(url_for('main.view_parcel_admin', parcel_id=parcel_id))
 
 @main_bp.route('/admin/locker/<int:locker_id>/set-status', methods=['POST'])
 @admin_required

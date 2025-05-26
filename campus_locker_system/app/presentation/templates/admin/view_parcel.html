@@ -33,6 +33,12 @@
     <p><em>This parcel is already marked as missing.</em></p>
     {% endif %}
 
+    {% if parcel and parcel.status == 'deposited' %}
+        <form method="POST" action="{{ url_for('main.reissue_pin_admin_action', parcel_id=parcel.id) }}" style="display: inline; margin-top: 20px;">
+            <button type="submit" class="btn btn-warning" onclick="return confirm('Are you sure you want to reissue the PIN for this parcel? A new PIN will be generated and sent to the recipient.');">Reissue PIN</button>
+        </form>
+    {% endif %}
+
     <p style="margin-top: 30px;">
         <a href="{{ url_for('main.manage_lockers') }}">Back to Lockers List</a>
     </p>
