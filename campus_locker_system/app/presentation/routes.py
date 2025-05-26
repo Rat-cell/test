@@ -10,7 +10,8 @@ from app.application.services import (
     reissue_pin, # Add reissue_pin
     process_overdue_parcels, # Add process_overdue_parcels
     mark_locker_as_emptied, # Add mark_locker_as_emptied
-    request_pin_regeneration_by_recipient # Add request_pin_regeneration_by_recipient
+    request_pin_regeneration_by_recipient, # Add request_pin_regeneration_by_recipient
+    send_scheduled_reminder_notifications # Add send_scheduled_reminder_notifications
 )
 from app.persistence.models import Locker, AuditLog, AdminUser, Parcel, LockerSensorData # Add LockerSensorData
 from .decorators import admin_required # Add admin_required decorator
@@ -189,6 +190,13 @@ def mark_parcel_missing_admin_action(parcel_id):
     # Redirect to the parcel view page if parcel exists, otherwise to lockers list
     if parcel: 
         return redirect(url_for('main.view_parcel_admin', parcel_id=parcel_id))
+    return redirect(url_for('main.manage_lockers'))
+
+@main_bp.route('/admin/parcels/send-reminders', methods=['POST'])
+@admin_required
+def admin_send_reminders_action():
+    sent_scheduled_count, sent_pre_return_count, message = send_scheduled_reminder_notifications()
+    flash(f"Reminder processing complete. {sent_scheduled_count} scheduled reminders sent, {sent_pre_return_count} pre-return reminders sent. {message}", "info")
     return redirect(url_for('main.manage_lockers'))
 
 @main_bp.route('/request-new-pin', methods=['GET', 'POST'])
