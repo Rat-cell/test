@@ -1,5 +1,28 @@
 # Campus Locker System - Team I
 
+TO DO:
+
+All html need to be updated
+Think about how a admin is to be registered etc.
+Sms push notification needs to be implemented (look for a service like mailbag in dockers
+
+Move the databases to a database layer as well as the config file, as they need to be always safe for each client separately
+Find out how to initialise and set up the entire thing
+
+Generally move all vent thins to dockers
+
+Basically make sure all tests and can be run in dockers not the vent
+
+Also make sure the entire app is initialised set up and installed when opening the docker container
+1. Initial Dockerization and Setup
+* Helped you Dockerize the Flask-based campus locker system.
+* Set up Docker Compose to run both the app and MailHog for email testing.
+* Resolved port conflicts by changing port mappings in docker-compose.yml.
+* Ensured the app and MailHog were accessible on their respective ports.
+6. Initialization Automation
+* Ensured all initialization (including admin creation) is handled automatically when Docker is spun up.
+* Moved admin creation to run via the Dockerfile’s CMD.
+
 ## Version 1.81 (Changelog)
 
 - **Log Management Improvements:**
