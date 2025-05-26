@@ -44,3 +44,11 @@ class Config:
     PARCEL_MAX_PICKUP_DAYS = 7
     PARCEL_MAX_PIN_REISSUE_DAYS = 7
     PARCEL_DEFAULT_PIN_VALIDITY_DAYS = 7 # Default validity of a PIN in days
+
+    # Reminder Notifications Configuration
+    REMINDER_NOTIFICATION_SCHEDULE_HOURS = [24] # Hours after deposit to send reminder notifications
+    PRE_RETURN_NOTIFICATION_HOURS = 24          # Hours before max pickup time to send a pre-return notification
+
+    # APScheduler Job Intervals
+    REMINDER_JOB_INTERVAL_HOURS = 6     # Interval in hours for running the reminder notification job
+    OVERDUE_PROCESSING_JOB_INTERVAL_HOURS = 24 # Interval in hours for running the overdue parcel processing job
