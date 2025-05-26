@@ -1,8 +1,28 @@
 import pytest
 from app.persistence.models import Locker, Parcel, AdminUser, AuditLog # Import models for verification
 from app import db # Import db for direct session manipulation if needed
-from app.application.services import log_audit_event # Add this
+from app.application.services import log_audit_event, assign_locker_and_create_parcel # Add assign_locker_and_create_parcel
 import json # Add this
+
+# Helper fixture for admin login
+@pytest.fixture
+def logged_in_admin_client(client, init_database, app):
+    with app.app_context():
+        admin_username = "test_admin_fr08"
+        admin_pass = "supersecure"
+        admin = AdminUser.query.filter_by(username=admin_username).first()
+        if not admin:
+            admin = AdminUser(username=admin_username)
+            admin.set_password(admin_pass)
+            db.session.add(admin)
+            db.session.commit()
+        
+        login_response = client.post('/admin/login', data={
+            'username': admin_username,
+            'password': admin_pass
+        }, follow_redirects=True)
+        assert login_response.status_code == 200 # Ensure login is successful
+        return client # client is now logged in
 
 def test_deposit_page_loads(client, init_database): # client and init_database fixtures
     response = client.get('/deposit')
@@ -121,3 +141,95 @@ def test_admin_audit_logs_view(client, init_database, app):
         assert b"SPECIFIC_TEST_AUDIT_ACTION_PAGE" in response.data
         assert b"test_detail_page" in response.data
         assert b"visible" in response.data
+
+# Tests for Locker Status Management (FR-08) Presentation Layer
+def test_admin_manage_lockers_page_access(client, logged_in_admin_client, init_database, app):
+    # Test anonymous access
+    response_anon = client.get('/admin/lockers', follow_redirects=True)
+    assert response_anon.status_code == 200 # Redirects to login
+    assert b"Admin Login" in response_anon.data 
+    assert b"Please log in to access this page." in response_anon.data
+
+    # Test admin access
+    response_admin = logged_in_admin_client.get('/admin/lockers')
+    assert response_admin.status_code == 200
+    assert b"Manage Lockers" in response_admin.data
+    # Check for some locker data (e.g., Locker ID 1 from init_database)
+    assert b"Locker ID: 1" in response_admin.data # Assuming template shows ID like this or similar
+    assert b"small" in response_admin.data # Assuming template shows size
+
+def test_admin_update_locker_status_flow(logged_in_admin_client, init_database, app):
+    with app.app_context():
+        locker_id_to_test = 1 # Locker 1 is 'small', 'free' initially
+        locker = db.session.get(Locker, locker_id_to_test)
+        assert locker is not None and locker.status == 'free'
+
+        # Action 1: Mark 'free' locker as 'out_of_service'
+        response_to_oos = logged_in_admin_client.post(
+            f'/admin/locker/{locker_id_to_test}/set-status',
+            data={'new_status': 'out_of_service'},
+            follow_redirects=True
+        )
+        assert response_to_oos.status_code == 200
+        assert b"Locker 1 status successfully updated to 'out_of_service'." in response_to_oos.data
+        assert db.session.get(Locker, locker_id_to_test).status == 'out_of_service'
+        
+        log_oos = AuditLog.query.filter(
+            AuditLog.action == "ADMIN_LOCKER_STATUS_CHANGED",
+            AuditLog.details.like(f'%"locker_id": {locker_id_to_test}%'),
+            AuditLog.details.like(f'%"new_status": "out_of_service"%')
+        ).order_by(AuditLog.timestamp.desc()).first()
+        assert log_oos is not None
+
+        # Action 2: Mark 'out_of_service' locker back to 'free'
+        response_to_free = logged_in_admin_client.post(
+            f'/admin/locker/{locker_id_to_test}/set-status',
+            data={'new_status': 'free'},
+            follow_redirects=True
+        )
+        assert response_to_free.status_code == 200
+        assert b"Locker 1 status successfully updated to 'free'." in response_to_free.data
+        assert db.session.get(Locker, locker_id_to_test).status == 'free'
+
+        log_free = AuditLog.query.filter(
+            AuditLog.action == "ADMIN_LOCKER_STATUS_CHANGED",
+            AuditLog.details.like(f'%"locker_id": {locker_id_to_test}%'),
+            AuditLog.details.like(f'%"new_status": "free"%')
+        ).order_by(AuditLog.timestamp.desc()).first()
+        assert log_free is not None
+
+def test_admin_update_locker_status_fail_occupied_to_free(logged_in_admin_client, init_database, app):
+    with app.app_context():
+        locker_id_to_test = 2 # Use a different locker to avoid interference, e.g. Locker 2 ('medium', 'free')
+        
+        # Ensure it's free for deposit
+        locker_obj_before_deposit = db.session.get(Locker, locker_id_to_test)
+        assert locker_obj_before_deposit is not None
+        if locker_obj_before_deposit.status != 'free':
+            locker_obj_before_deposit.status = 'free'
+            Parcel.query.filter_by(locker_id=locker_id_to_test).delete()
+            db.session.commit()
+
+        # Deposit a parcel to make it 'occupied'
+        parcel, _, _ = assign_locker_and_create_parcel('medium', 'test_fr08_occupied@example.com')
+        assert parcel is not None
+        assert parcel.locker_id == locker_id_to_test # Ensure it used the intended locker
+        
+        # Admin marks it 'out_of_service' (this part is fine)
+        response_to_oos = logged_in_admin_client.post(
+            f'/admin/locker/{locker_id_to_test}/set-status',
+            data={'new_status': 'out_of_service'},
+            follow_redirects=True
+        )
+        assert response_to_oos.status_code == 200
+        assert db.session.get(Locker, locker_id_to_test).status == 'out_of_service'
+
+        # Attempt to mark 'out_of_service' (but still occupied by 'deposited' parcel) to 'free'
+        response_to_free_fail = logged_in_admin_client.post(
+            f'/admin/locker/{locker_id_to_test}/set-status',
+            data={'new_status': 'free'},
+            follow_redirects=True
+        )
+        assert response_to_free_fail.status_code == 200
+        assert f"Error updating locker {locker_id_to_test}: Cannot set locker to 'free'. Parcel ID {parcel.id} is still marked as 'deposited' in this locker.".encode() in response_to_free_fail.data
+        assert db.session.get(Locker, locker_id_to_test).status == 'out_of_service' # Should remain OOS

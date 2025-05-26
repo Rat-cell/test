@@ -107,6 +107,7 @@ The project code is organized into several main parts within the `campus_locker_
 *   **Secure PIN Storage:** PINs are not stored directly. Instead, a secure hash (salted SHA-256) of the PIN is stored, making it very difficult to reverse.
 *   **Admin Login:** A basic login system for administrators. Admin passwords are also securely hashed (using bcrypt).
 *   **Audit Trail:** Records key system events like parcel deposits, pickups (successful and failed attempts), admin logins/logouts, and email notification status. These logs are viewable by administrators.
+*   **Locker Status Management (Admin):** Administrators can view all lockers and change their status (e.g., mark as 'out_of_service' or return to 'free' if empty). This helps manage faulty or reserved lockers.
 *   **Automated Tests:** Basic tests ensure core features are working as expected.
 
 ### 4.1. Viewing Audit Logs
@@ -120,6 +121,16 @@ Logged-in administrators can view a trail of system events to monitor activity. 
 To view the audit logs, navigate to: `/admin/audit-logs`
 
 The log displays the timestamp (UTC), the type of action, and a details field (in JSON format) providing more context about the event. The page shows the latest 100 entries.
+
+### 4.2. Managing Locker Statuses (FR-08)
+
+Administrators have the ability to manage the operational status of individual lockers. This is useful for handling maintenance, reservations, or other situations requiring a locker to be temporarily unavailable.
+
+*   **Access:** Logged-in administrators can navigate to `/admin/lockers` to view a list of all lockers, their sizes, and their current operational statuses (e.g., 'free', 'occupied', 'out_of_service').
+*   **Actions Available:**
+    *   **Mark as 'Out of Service':** Any locker can be marked as 'out_of_service'. If it was 'free', it will no longer be assigned for new parcel deposits. If it was 'occupied', it remains 'out_of_service' (and the parcel can still be picked up; the locker will then be 'out_of_service' and empty).
+    *   **Mark as 'Free':** A locker currently marked 'out_of_service' can be returned to 'free' status, making it available for new deposits. This action is only permitted if the locker does not contain an active ('deposited') parcel.
+*   **Auditing:** All changes to locker statuses made by administrators are recorded in the audit log.
 
 ## 5. Architectural Choices (Why things are built this way)
 

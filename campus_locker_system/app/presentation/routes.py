@@ -4,10 +4,12 @@ from app.application.services import (
     assign_locker_and_create_parcel, 
     process_pickup, 
     verify_admin_credentials, 
-    log_audit_event # Add log_audit_event
+    log_audit_event, # Add log_audit_event
+    set_locker_status # Add set_locker_status
 )
-from app.persistence.models import Locker, AuditLog # Add AuditLog
+from app.persistence.models import Locker, AuditLog, AdminUser # Add AdminUser
 from .decorators import admin_required # Add admin_required decorator
+from app import db # Add db for session.get
 
 @main_bp.route('/', methods=['GET']) # Optional: redirect root to deposit page
 @main_bp.route('/deposit', methods=['GET', 'POST'])
@@ -106,3 +108,36 @@ def audit_logs_view():
     # Query the latest 100 audit logs, newest first
     logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(100).all()
     return render_template('admin/audit_logs.html', logs=logs)
+
+@main_bp.route('/admin/lockers', methods=['GET'])
+@admin_required
+def manage_lockers():
+    lockers = Locker.query.order_by(Locker.id).all()
+    return render_template('admin/manage_lockers.html', lockers=lockers)
+
+@main_bp.route('/admin/locker/<int:locker_id>/set-status', methods=['POST'])
+@admin_required
+def update_locker_status(locker_id):
+    new_status = request.form.get('new_status')
+    admin_id = session.get('admin_id') 
+    
+    admin_user = db.session.get(AdminUser, admin_id)
+    admin_username = admin_user.username if admin_user else "UnknownAdmin"
+
+    if not new_status:
+        flash("No new status provided.", "error")
+        return redirect(url_for('main.manage_lockers'))
+
+    locker, error = set_locker_status(
+        admin_id=admin_id, 
+        admin_username=admin_username, 
+        locker_id=locker_id, 
+        new_status=new_status
+    )
+
+    if error:
+        flash(f"Error updating locker {locker_id}: {error}", "error")
+    else:
+        flash(f"Locker {locker_id} status successfully updated to '{new_status}'.", "success")
+    
+    return redirect(url_for('main.manage_lockers'))

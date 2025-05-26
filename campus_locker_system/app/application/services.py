@@ -243,3 +243,47 @@ def log_audit_event(action: str, details: dict = None):
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"AUDIT LOGGING ERROR: Failed to save audit log for action '{action}'. Details: {json_details}. Error: {e}")
+
+def set_locker_status(admin_id: int, admin_username: str, locker_id: int, new_status: str) -> tuple[Locker | None, str | None]:
+    if new_status not in ['out_of_service', 'free']:
+        return None, "Invalid target status specified. Allowed: 'out_of_service', 'free'."
+
+    locker = db.session.get(Locker, locker_id)
+    if not locker:
+        return None, "Locker not found."
+
+    old_status = locker.status
+
+    if old_status == new_status:
+        return locker, "Locker is already in the requested state." # No error, but no change
+
+    try:
+        if new_status == 'out_of_service':
+            locker.status = 'out_of_service'
+        elif new_status == 'free':
+            if old_status != 'out_of_service':
+                # This also implicitly handles if it was 'occupied' and not 'out_of_service'
+                return None, "Locker must currently be 'out_of_service' to be set to 'free'."
+            
+            # Check if any parcel is currently 'deposited' in this locker
+            active_parcel = Parcel.query.filter_by(locker_id=locker_id, status='deposited').first()
+            if active_parcel:
+                return None, f"Cannot set locker to 'free'. Parcel ID {active_parcel.id} is still marked as 'deposited' in this locker."
+            locker.status = 'free'
+        # No 'else' needed due to initial new_status validation
+
+        db.session.add(locker) # Good practice to add, even if just modifying
+        db.session.commit()
+
+        log_audit_event("ADMIN_LOCKER_STATUS_CHANGED", details={
+            "admin_id": admin_id,
+            "admin_username": admin_username,
+            "locker_id": locker_id,
+            "old_status": old_status,
+            "new_status": new_status
+        })
+        return locker, None
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error in set_locker_status for locker {locker_id}: {e}")
+        return None, "A database error occurred while updating locker status."

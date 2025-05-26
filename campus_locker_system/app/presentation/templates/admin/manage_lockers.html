@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin - Manage Lockers</title>
+    <style>
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .action-form { display: inline-block; margin-right: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Manage Lockers</h1>
+    <p>
+        <a href="{{ url_for('main.admin_login') }}">Admin Home</a> | 
+        <a href="{{ url_for('main.audit_logs_view') }}">View Audit Logs</a>
+    </p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class=flashes>
+        {% for category, message in messages %}
+          <li class="{{ category }}">{{ message }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    {% if lockers %}
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Size</th>
+                <th>Current Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for locker in lockers %}
+            <tr>
+                <td>{{ locker.id }}</td>
+                <td>{{ locker.size }}</td>
+                <td>{{ locker.status }}</td>
+                <td>
+                    {% if locker.status != 'out_of_service' %}
+                    <form class="action-form" method="POST" action="{{ url_for('main.update_locker_status', locker_id=locker.id) }}">
+                        <input type="hidden" name="new_status" value="out_of_service">
+                        <button type="submit">Mark Out of Service</button>
+                    </form>
+                    {% endif %}
+
+                    {% if locker.status == 'out_of_service' %}
+                    {# Add check here if locker is empty before allowing 'Mark Free' #}
+                    {# This check is primarily handled by the service layer, but UI can be indicative #}
+                    {# For now, always show if OOS, service layer will reject if occupied #}
+                    <form class="action-form" method="POST" action="{{ url_for('main.update_locker_status', locker_id=locker.id) }}">
+                        <input type="hidden" name="new_status" value="free">
+                        <button type="submit">Mark Free</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No lockers found in the system.</p>
+    {% endif %}
+</body>
+</html>

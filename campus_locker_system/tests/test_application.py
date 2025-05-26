@@ -1,5 +1,5 @@
-from app.application.services import assign_locker_and_create_parcel, generate_pin_and_hash, verify_pin, process_pickup, log_audit_event
-from app.persistence.models import Locker, Parcel, AuditLog # Add AuditLog
+from app.application.services import assign_locker_and_create_parcel, generate_pin_and_hash, verify_pin, process_pickup, log_audit_event, set_locker_status
+from app.persistence.models import Locker, Parcel, AuditLog, AdminUser # Add AuditLog
 from app import db # Import db for direct session manipulation if needed
 from flask import current_app # Add current_app for logger
 import pytest # Import pytest to use fixtures
@@ -360,3 +360,183 @@ def test_pickup_fail_expired_pin_audit(init_database, app):
         assert log_entry is not None
         details = json.loads(log_entry.details)
         assert details.get("provided_pin_pattern") == plain_pin[:3] + "XXX"
+
+
+# Tests for set_locker_status service function
+@pytest.fixture
+def test_admin_user(init_database, app):
+    with app.app_context():
+        admin = AdminUser(username="test_admin_for_locker_status")
+        admin.set_password("secure_password")
+        db.session.add(admin)
+        db.session.commit()
+        return admin
+
+def test_set_locker_free_to_oos(init_database, app, test_admin_user):
+    with app.app_context():
+        locker_id_to_test = 1 # Locker 1 is 'small', 'free' from init_database
+        locker = db.session.get(Locker, locker_id_to_test)
+        assert locker is not None and locker.status == 'free'
+
+        updated_locker, error = set_locker_status(
+            admin_id=test_admin_user.id, 
+            admin_username=test_admin_user.username, 
+            locker_id=locker_id_to_test, 
+            new_status='out_of_service'
+        )
+        assert error is None
+        assert updated_locker is not None
+        assert updated_locker.status == 'out_of_service'
+
+        log_entry = AuditLog.query.filter_by(action="ADMIN_LOCKER_STATUS_CHANGED").order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+        details = json.loads(log_entry.details)
+        assert details['locker_id'] == locker_id_to_test
+        assert details['new_status'] == 'out_of_service'
+        assert details['old_status'] == 'free'
+        assert details['admin_id'] == test_admin_user.id
+
+def test_set_locker_occupied_to_oos(init_database, app, test_admin_user):
+    with app.app_context():
+        # Ensure Locker 1 is free before depositing
+        l1 = db.session.get(Locker, 1)
+        if l1.status != 'free':
+            l1.status = 'free'
+            Parcel.query.filter_by(locker_id=1).delete()
+            db.session.commit()
+
+        parcel, _, _ = assign_locker_and_create_parcel('small', 'occupy_for_oos@example.com')
+        assert parcel is not None
+        occupied_locker_id = parcel.locker_id
+        
+        updated_locker, error = set_locker_status(
+            admin_id=test_admin_user.id,
+            admin_username=test_admin_user.username,
+            locker_id=occupied_locker_id,
+            new_status='out_of_service'
+        )
+        assert error is None
+        assert updated_locker is not None
+        assert updated_locker.status == 'out_of_service'
+        
+        # Verify parcel is still 'deposited'
+        assert db.session.get(Parcel, parcel.id).status == 'deposited'
+
+        log_entry = AuditLog.query.filter_by(action="ADMIN_LOCKER_STATUS_CHANGED").order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+        details = json.loads(log_entry.details)
+        assert details['locker_id'] == occupied_locker_id
+        assert details['new_status'] == 'out_of_service'
+        assert details['old_status'] == 'occupied'
+
+def test_set_locker_oos_empty_to_free(init_database, app, test_admin_user):
+    with app.app_context():
+        locker_id_to_test = 2 # Locker 2 is 'medium', 'free'
+        locker = db.session.get(Locker, locker_id_to_test)
+        assert locker is not None
+        # Set it to OOS first (ensure it's empty)
+        locker.status = 'out_of_service'
+        Parcel.query.filter_by(locker_id=locker_id_to_test, status='deposited').delete()
+        db.session.commit()
+        assert locker.status == 'out_of_service'
+
+        updated_locker, error = set_locker_status(
+            admin_id=test_admin_user.id,
+            admin_username=test_admin_user.username,
+            locker_id=locker_id_to_test,
+            new_status='free'
+        )
+        assert error is None
+        assert updated_locker is not None
+        assert updated_locker.status == 'free'
+
+        log_entry = AuditLog.query.filter_by(action="ADMIN_LOCKER_STATUS_CHANGED").order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+        details = json.loads(log_entry.details)
+        assert details['locker_id'] == locker_id_to_test
+        assert details['new_status'] == 'free'
+        assert details['old_status'] == 'out_of_service'
+
+def test_set_locker_oos_occupied_to_free_fail(init_database, app, test_admin_user):
+    with app.app_context():
+        # Ensure Locker 1 is free before depositing
+        l1 = db.session.get(Locker, 1)
+        if l1.status != 'free':
+            l1.status = 'free'
+            Parcel.query.filter_by(locker_id=1).delete()
+            db.session.commit()
+
+        parcel, _, _ = assign_locker_and_create_parcel('small', 'oos_occupied_fail@example.com')
+        assert parcel is not None
+        occupied_locker_id = parcel.locker_id
+        
+        # Set locker to OOS while parcel is in it
+        locker_obj = db.session.get(Locker, occupied_locker_id)
+        locker_obj.status = 'out_of_service'
+        db.session.commit()
+        assert locker_obj.status == 'out_of_service'
+        
+        # Count audit logs before attempting the failing operation
+        logs_before_fail = AuditLog.query.filter_by(action="ADMIN_LOCKER_STATUS_CHANGED").count()
+
+        updated_locker, error = set_locker_status(
+            admin_id=test_admin_user.id,
+            admin_username=test_admin_user.username,
+            locker_id=occupied_locker_id,
+            new_status='free'
+        )
+        assert error is not None
+        assert "Cannot set locker to 'free'. Parcel ID" in error
+        assert updated_locker is None
+        assert db.session.get(Locker, occupied_locker_id).status == 'out_of_service' # Should remain OOS
+
+        # Verify no new ADMIN_LOCKER_STATUS_CHANGED log was created for this specific attempt
+        logs_after_fail = AuditLog.query.filter_by(action="ADMIN_LOCKER_STATUS_CHANGED").count()
+        assert logs_after_fail == logs_before_fail
+
+
+def test_set_locker_status_invalid_locker_id(init_database, app, test_admin_user):
+    with app.app_context():
+        non_existent_locker_id = 999
+        _, error = set_locker_status(
+            admin_id=test_admin_user.id,
+            admin_username=test_admin_user.username,
+            locker_id=non_existent_locker_id,
+            new_status='free'
+        )
+        assert error is not None
+        assert "Locker not found" in error
+
+def test_set_locker_status_invalid_target_status(init_database, app, test_admin_user):
+    with app.app_context():
+        locker_id_to_test = 1 # Locker 1 is 'small', 'free'
+        _, error = set_locker_status(
+            admin_id=test_admin_user.id,
+            admin_username=test_admin_user.username,
+            locker_id=locker_id_to_test,
+            new_status='occupied' # Invalid target status
+        )
+        assert error is not None
+        assert "Invalid target status specified" in error
+
+def test_set_locker_status_no_change(init_database, app, test_admin_user):
+    with app.app_context():
+        locker_id_to_test = 1 # Locker 1 is 'small', 'free'
+        
+        # Count audit logs before
+        logs_before_no_change = AuditLog.query.filter_by(action="ADMIN_LOCKER_STATUS_CHANGED").count()
+
+        locker, message = set_locker_status(
+            admin_id=test_admin_user.id,
+            admin_username=test_admin_user.username,
+            locker_id=locker_id_to_test,
+            new_status='free' # Already in this state
+        )
+        assert message is not None
+        assert "already in the requested state" in message
+        assert locker is not None
+        assert locker.status == 'free'
+
+        # Verify no new ADMIN_LOCKER_STATUS_CHANGED log was created
+        logs_after_no_change = AuditLog.query.filter_by(action="ADMIN_LOCKER_STATUS_CHANGED").count()
+        assert logs_after_no_change == logs_before_no_change
