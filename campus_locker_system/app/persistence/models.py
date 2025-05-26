@@ -5,7 +5,8 @@ import bcrypt # Added bcrypt import
 class Locker(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     size = db.Column(db.String(50), nullable=False)  # e.g., 'small', 'medium', 'large'
-    status = db.Column(db.String(50), nullable=False, default='free')  # e.g., 'free', 'occupied', 'out_of_service'
+    # Possible statuses: 'free', 'occupied', 'out_of_service', 'disputed_contents'
+    status = db.Column(db.String(50), nullable=False, default='free')
     parcels = db.relationship('Parcel', backref='locker', lazy=True)
 
     def __repr__(self):
@@ -17,7 +18,8 @@ class Parcel(db.Model):
     pin_hash = db.Column(db.String(128), nullable=False)  # SHA-256 hash
     otp_expiry = db.Column(db.DateTime, nullable=False)
     recipient_email = db.Column(db.String(120), nullable=False)
-    status = db.Column(db.String(50), nullable=False, default='deposited')  # e.g., 'deposited', 'picked_up', 'missing', 'expired'
+    # Possible statuses: 'deposited', 'picked_up', 'missing', 'expired', 'retracted_by_sender', 'pickup_disputed'
+    status = db.Column(db.String(50), nullable=False, default='deposited')
 
     def __repr__(self):
         return f'<Parcel {self.id} in Locker {self.locker_id} - Status: {self.status}>'

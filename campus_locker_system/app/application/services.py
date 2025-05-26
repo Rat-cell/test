@@ -269,6 +269,12 @@ def set_locker_status(admin_id: int, admin_username: str, locker_id: int, new_st
             active_parcel = Parcel.query.filter_by(locker_id=locker_id, status='deposited').first()
             if active_parcel:
                 return None, f"Cannot set locker to 'free'. Parcel ID {active_parcel.id} is still marked as 'deposited' in this locker."
+
+            # NEW CHECK: Check if any parcel associated with this locker is in 'pickup_disputed' status
+            disputed_parcel = Parcel.query.filter_by(locker_id=locker_id, status='pickup_disputed').first()
+            if disputed_parcel:
+                return None, f"Cannot set locker to 'free'. Parcel ID {disputed_parcel.id} associated with this locker has a 'pickup_disputed' status. Please resolve the dispute."
+            
             locker.status = 'free'
         # No 'else' needed due to initial new_status validation
 
@@ -287,3 +293,86 @@ def set_locker_status(admin_id: int, admin_username: str, locker_id: int, new_st
         db.session.rollback()
         current_app.logger.error(f"Error in set_locker_status for locker {locker_id}: {e}")
         return None, "A database error occurred while updating locker status."
+
+def retract_deposit(parcel_id: int) -> tuple[Parcel | None, str | None]:
+    try:
+        parcel = db.session.get(Parcel, parcel_id)
+        if not parcel:
+            return None, "Parcel not found."
+
+        if parcel.status != 'deposited':
+            return None, f"Parcel is not in 'deposited' state (current status: {parcel.status}). Cannot retract."
+
+        locker = db.session.get(Locker, parcel.locker_id)
+        if not locker:
+            # Should not happen if data is consistent
+            current_app.logger.error(f"Data inconsistency: Locker ID {parcel.locker_id} not found for parcel {parcel.id} during retraction.")
+            return None, "Associated locker not found. Data inconsistency."
+        
+        original_locker_status = locker.status # e.g. 'occupied' or 'out_of_service' (if admin changed it)
+
+        parcel.status = 'retracted_by_sender'
+        
+        if original_locker_status == 'occupied':
+            locker.status = 'free'
+        elif original_locker_status == 'out_of_service':
+            # It was OOS with this parcel in it, now it's OOS and empty.
+            locker.status = 'out_of_service' 
+        else:
+            # Unexpected locker state, log and potentially error or default to 'free'/'OOS'
+            current_app.logger.warning(f"Locker {locker.id} had unexpected status '{original_locker_status}' during deposit retraction for parcel {parcel.id}. Setting to 'free'.")
+            locker.status = 'free'
+
+
+        db.session.add(parcel)
+        db.session.add(locker)
+        db.session.commit()
+
+        log_audit_event("USER_DEPOSIT_RETRACTED", details={
+            "parcel_id": parcel.id,
+            "locker_id": locker.id,
+            "reason": "Sender indicated mistake"
+        })
+        return parcel, None
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error in retract_deposit for parcel {parcel_id}: {e}")
+        return None, "A database error occurred while retracting deposit."
+
+def dispute_pickup(parcel_id: int) -> tuple[Parcel | None, str | None]:
+    try:
+        parcel = db.session.get(Parcel, parcel_id)
+        if not parcel:
+            return None, "Parcel not found."
+
+        # Typically, a pickup would have just happened, so status would be 'picked_up'.
+        # Allow dispute even if admin manually changed it, as long as it's not 'deposited'.
+        if parcel.status != 'picked_up':
+             return None, f"Parcel is not in 'picked_up' state (current status: {parcel.status}). Cannot dispute."
+
+        locker = db.session.get(Locker, parcel.locker_id)
+        if not locker:
+            current_app.logger.error(f"Data inconsistency: Locker ID {parcel.locker_id} not found for parcel {parcel.id} during pickup dispute.")
+            return None, "Associated locker not found. Data inconsistency."
+        
+        # The locker would have been set to 'free' or 'out_of_service' (if it was OOS before pickup).
+        # Now it becomes 'disputed_contents'.
+        # original_locker_status_after_pickup = locker.status 
+
+        parcel.status = 'pickup_disputed'
+        locker.status = 'disputed_contents' # New specific status for admin attention
+
+        db.session.add(parcel)
+        db.session.add(locker)
+        db.session.commit()
+
+        log_audit_event("USER_PICKUP_DISPUTED", details={
+            "parcel_id": parcel.id,
+            "locker_id": locker.id,
+            "reason": "Recipient indicated issue post-pickup"
+        })
+        return parcel, None
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error in dispute_pickup for parcel {parcel_id}: {e}")
+        return None, "A database error occurred while disputing pickup."

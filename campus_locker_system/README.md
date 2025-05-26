@@ -108,6 +108,7 @@ The project code is organized into several main parts within the `campus_locker_
 *   **Admin Login:** A basic login system for administrators. Admin passwords are also securely hashed (using bcrypt).
 *   **Audit Trail:** Records key system events like parcel deposits, pickups (successful and failed attempts), admin logins/logouts, and email notification status. These logs are viewable by administrators.
 *   **Locker Status Management (Admin):** Administrators can view all lockers and change their status (e.g., mark as 'out_of_service' or return to 'free' if empty). This helps manage faulty or reserved lockers.
+*   **Parcel Interaction Confirmation (Backend Logic):** Supports backend logic for a locker client to allow senders to retract a mistaken deposit or recipients to dispute a pickup within a short window. This introduces new parcel statuses ('retracted_by_sender', 'pickup_disputed') and a locker status ('disputed_contents'). These new states currently require administrative follow-up for full resolution.
 *   **Automated Tests:** Basic tests ensure core features are working as expected.
 
 ### 4.1. Viewing Audit Logs
@@ -131,6 +132,15 @@ Administrators have the ability to manage the operational status of individual l
     *   **Mark as 'Out of Service':** Any locker can be marked as 'out_of_service'. If it was 'free', it will no longer be assigned for new parcel deposits. If it was 'occupied', it remains 'out_of_service' (and the parcel can still be picked up; the locker will then be 'out_of_service' and empty).
     *   **Mark as 'Free':** A locker currently marked 'out_of_service' can be returned to 'free' status, making it available for new deposits. This action is only permitted if the locker does not contain an active ('deposited') parcel.
 *   **Auditing:** All changes to locker statuses made by administrators are recorded in the audit log.
+
+### 4.3. API Endpoints for Locker Client Interaction
+
+The system now includes a set of API endpoints under the `/api/v1/` prefix, intended for use by a separate locker hardware client system:
+
+*   **`POST /api/v1/deposit/<parcel_id>/retract`**: Called by the locker client if a sender indicates they made a mistake immediately after depositing a parcel. This marks the parcel as 'retracted_by_sender' and frees the locker (if it was not 'out_of_service').
+*   **`POST /api/v1/pickup/<parcel_id>/dispute`**: Called by the locker client if a recipient indicates an issue (e.g., wrong item, empty locker) immediately after a pickup attempt. This marks the parcel as 'pickup_disputed' and the locker as 'disputed_contents', requiring admin attention.
+
+These endpoints are designed for machine-to-machine communication and do not have a direct user interface in this web application. Authentication for these endpoints would be required in a production system.
 
 ## 5. Architectural Choices (Why things are built this way)
 
@@ -163,11 +173,12 @@ Administrators have the ability to manage the operational status of individual l
 
 This initial version covers the core requirements. Based on the original project charter, future enhancements could include:
 
-*   **Full Audit Trail (FR-07):** Logging every deposit, pickup, and admin action.
+*   **Full Audit Trail (FR-07):** Logging every deposit, pickup, and admin action (currently partially implemented).
 *   **Advanced Admin Functions:**
     *   Re-issuing PINs (FR-05).
-    *   Flagging lockers as "out of service" (FR-08).
+    *   Flagging lockers as "out_of_service" (FR-08 - basic version implemented).
     *   Reporting missing items (FR-06).
+    *   Admin resolution workflows for new parcel/locker states (e.g., 'retracted_by_sender', 'pickup_disputed', 'disputed_contents').
 *   **Web-Push Notifications (FR-03):** Real-time notifications in the browser, in addition to email.
 *   **Reminder Notifications (FR-04):** Automatic reminders after 24 hours of occupancy.
 *   **Nightly Backups:** Regular backups of the SQLite database.

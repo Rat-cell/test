@@ -32,6 +32,9 @@ def create_app():
     from .presentation import main_bp # Import the blueprint
     app.register_blueprint(main_bp) # Register the blueprint
 
+    from .presentation.api_routes import api_bp # Import the API blueprint
+    app.register_blueprint(api_bp) # Register the API blueprint
+
     with app.app_context():
         from .persistence import models # Ensure models are loaded
         db.create_all()

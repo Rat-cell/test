@@ -1,4 +1,13 @@
-from app.application.services import assign_locker_and_create_parcel, generate_pin_and_hash, verify_pin, process_pickup, log_audit_event, set_locker_status
+from app.application.services import (
+    assign_locker_and_create_parcel, 
+    generate_pin_and_hash, 
+    verify_pin, 
+    process_pickup, 
+    log_audit_event, 
+    set_locker_status,
+    retract_deposit, # Add this
+    dispute_pickup # Add this
+)
 from app.persistence.models import Locker, Parcel, AuditLog, AdminUser # Add AuditLog
 from app import db # Import db for direct session manipulation if needed
 from flask import current_app # Add current_app for logger
@@ -540,3 +549,164 @@ def test_set_locker_status_no_change(init_database, app, test_admin_user):
         # Verify no new ADMIN_LOCKER_STATUS_CHANGED log was created
         logs_after_no_change = AuditLog.query.filter_by(action="ADMIN_LOCKER_STATUS_CHANGED").count()
         assert logs_after_no_change == logs_before_no_change
+
+# Tests for retract_deposit service function
+def test_retract_deposit_success(init_database, app):
+    with app.app_context():
+        # 1. Setup: Deposit a parcel
+        parcel, _, _ = assign_locker_and_create_parcel('small', 'retract_success@example.com')
+        assert parcel is not None
+        assert parcel.status == 'deposited'
+        original_locker_id = parcel.locker_id
+        original_locker = db.session.get(Locker, original_locker_id)
+        assert original_locker.status == 'occupied'
+
+        # 2. Action: Call retract_deposit
+        retracted_parcel, error = retract_deposit(parcel.id)
+
+        # 3. Assert: Service returns success, DB state, Audit log
+        assert error is None
+        assert retracted_parcel is not None
+        assert retracted_parcel.status == 'retracted_by_sender'
+        
+        updated_locker = db.session.get(Locker, original_locker_id)
+        assert updated_locker.status == 'free'
+
+        log_entry = AuditLog.query.filter_by(action="USER_DEPOSIT_RETRACTED").order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+        details = json.loads(log_entry.details)
+        assert details['parcel_id'] == parcel.id
+        assert details['locker_id'] == original_locker_id
+
+def test_retract_deposit_parcel_not_found(init_database, app):
+    with app.app_context():
+        _, error = retract_deposit(99999) # Non-existent parcel ID
+        assert error is not None
+        assert "Parcel not found" in error
+
+def test_retract_deposit_parcel_not_deposited(init_database, app):
+    with app.app_context():
+        # 1. Deposit and then pick up a parcel
+        parcel, plain_pin, _ = assign_locker_and_create_parcel('small', 'retract_not_deposited@example.com')
+        assert parcel is not None
+        process_pickup(plain_pin) # Pick up the parcel
+        assert db.session.get(Parcel, parcel.id).status == 'picked_up'
+
+        # 2. Try to retract
+        _, error = retract_deposit(parcel.id)
+        assert error is not None
+        assert "not in 'deposited' state" in error
+
+def test_retract_deposit_locker_was_oos(init_database, app, test_admin_user):
+    with app.app_context():
+        # 1. Deposit parcel
+        parcel, _, _ = assign_locker_and_create_parcel('small', 'retract_oos@example.com')
+        assert parcel is not None
+        original_locker_id = parcel.locker_id
+
+        # 2. Admin marks locker 'out_of_service'
+        set_locker_status(test_admin_user.id, test_admin_user.username, original_locker_id, 'out_of_service')
+        assert db.session.get(Locker, original_locker_id).status == 'out_of_service'
+
+        # 3. User retracts deposit
+        retracted_parcel, error = retract_deposit(parcel.id)
+        assert error is None
+        assert retracted_parcel.status == 'retracted_by_sender'
+        assert db.session.get(Locker, original_locker_id).status == 'out_of_service' # Should remain OOS
+
+# Tests for dispute_pickup service function
+def test_dispute_pickup_success(init_database, app):
+    with app.app_context():
+        # 1. Deposit and pickup parcel
+        parcel, plain_pin, _ = assign_locker_and_create_parcel('small', 'dispute_success@example.com')
+        assert parcel is not None
+        original_locker_id = parcel.locker_id
+        process_pickup(plain_pin)
+        assert db.session.get(Parcel, parcel.id).status == 'picked_up'
+        # Locker should be 'free' after normal pickup
+        assert db.session.get(Locker, original_locker_id).status == 'free' 
+
+        # 2. Action: Call dispute_pickup
+        disputed_parcel, error = dispute_pickup(parcel.id)
+
+        # 3. Assert: Service returns success, DB state, Audit log
+        assert error is None
+        assert disputed_parcel is not None
+        assert disputed_parcel.status == 'pickup_disputed'
+        assert db.session.get(Locker, original_locker_id).status == 'disputed_contents'
+
+        log_entry = AuditLog.query.filter_by(action="USER_PICKUP_DISPUTED").order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+        details = json.loads(log_entry.details)
+        assert details['parcel_id'] == parcel.id
+        assert details['locker_id'] == original_locker_id
+
+def test_dispute_pickup_parcel_not_found(init_database, app):
+    with app.app_context():
+        _, error = dispute_pickup(99999) # Non-existent parcel ID
+        assert error is not None
+        assert "Parcel not found" in error
+
+def test_dispute_pickup_parcel_not_picked_up(init_database, app):
+    with app.app_context():
+        # 1. Deposit a parcel (but don't pick it up)
+        parcel, _, _ = assign_locker_and_create_parcel('small', 'dispute_not_pickedup@example.com')
+        assert parcel is not None
+        assert parcel.status == 'deposited'
+
+        # 2. Try to dispute
+        _, error = dispute_pickup(parcel.id)
+        assert error is not None
+        assert "not in 'picked_up' state" in error
+
+# Tests for process_pickup with new parcel statuses
+def test_process_pickup_fails_for_retracted_parcel(init_database, app):
+    with app.app_context():
+        # 1. Deposit and retract a parcel
+        parcel, plain_pin, _ = assign_locker_and_create_parcel('small', 'pickup_retracted_fail@example.com')
+        assert parcel is not None
+        retract_deposit(parcel.id)
+        assert db.session.get(Parcel, parcel.id).status == 'retracted_by_sender'
+
+        # 2. Try to pick up with the original PIN
+        _, _, error = process_pickup(plain_pin)
+        assert error is not None
+        assert "Invalid PIN" in error # Because process_pickup only queries 'deposited' parcels
+
+def test_process_pickup_fails_for_disputed_parcel(init_database, app):
+    with app.app_context():
+        # 1. Deposit, pick up, then dispute
+        parcel, plain_pin, _ = assign_locker_and_create_parcel('small', 'pickup_disputed_fail@example.com')
+        assert parcel is not None
+        process_pickup(plain_pin)
+        dispute_pickup(parcel.id)
+        assert db.session.get(Parcel, parcel.id).status == 'pickup_disputed'
+
+        # 2. Try to pick up again (should fail as it's no longer 'deposited')
+        _, _, error = process_pickup(plain_pin)
+        assert error is not None
+        assert "Invalid PIN" in error
+
+# Test for set_locker_status with new parcel status
+def test_set_locker_status_free_fails_for_disputed_locker(init_database, app, test_admin_user):
+    with app.app_context():
+        # 1. Deposit, pick up, then dispute
+        parcel, plain_pin, _ = assign_locker_and_create_parcel('small', 'set_status_disputed_fail@example.com')
+        assert parcel is not None
+        original_locker_id = parcel.locker_id
+        process_pickup(plain_pin)
+        dispute_pickup(parcel.id)
+        assert db.session.get(Parcel, parcel.id).status == 'pickup_disputed'
+        assert db.session.get(Locker, original_locker_id).status == 'disputed_contents'
+
+        # 2. Admin tries to set locker to 'free'
+        _, error = set_locker_status(
+            admin_id=test_admin_user.id,
+            admin_username=test_admin_user.username,
+            locker_id=original_locker_id,
+            new_status='free'
+        )
+        assert error is not None
+        # The error message from set_locker_status now specifically checks for 'pickup_disputed'
+        assert "associated with this locker has a 'pickup_disputed' status" in error
+        assert db.session.get(Locker, original_locker_id).status == 'disputed_contents' # Should remain disputed

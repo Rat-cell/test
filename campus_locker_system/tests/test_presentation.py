@@ -233,3 +233,92 @@ def test_admin_update_locker_status_fail_occupied_to_free(logged_in_admin_client
         assert response_to_free_fail.status_code == 200
         assert f"Error updating locker {locker_id_to_test}: Cannot set locker to 'free'. Parcel ID {parcel.id} is still marked as 'deposited' in this locker.".encode() in response_to_free_fail.data
         assert db.session.get(Locker, locker_id_to_test).status == 'out_of_service' # Should remain OOS
+
+# Tests for Parcel Interaction Confirmation API Endpoints
+def test_api_retract_deposit_success(client, init_database, app): # client fixture for making requests
+    with app.app_context():
+        # 1. Setup: Deposit a parcel
+        parcel, _, _ = assign_locker_and_create_parcel('small', 'api_retract_success@example.com')
+        assert parcel is not None
+        original_locker_id = parcel.locker_id
+
+        # 2. Action: POST to the retract endpoint
+        response = client.post(f'/api/v1/deposit/{parcel.id}/retract')
+        
+        # 3. Assert: HTTP 200, JSON response, DB state, Audit log
+        assert response.status_code == 200
+        response_data = json.loads(response.data)
+        assert response_data['status'] == 'success'
+        assert response_data['parcel_id'] == parcel.id
+        assert response_data['new_parcel_status'] == 'retracted_by_sender'
+        assert response_data['locker_id'] == original_locker_id
+        assert response_data['new_locker_status'] == 'free' # Assuming locker was 'occupied'
+
+        assert db.session.get(Parcel, parcel.id).status == 'retracted_by_sender'
+        assert db.session.get(Locker, original_locker_id).status == 'free'
+
+        log_entry = AuditLog.query.filter_by(action="USER_DEPOSIT_RETRACTED", details__contains=str(parcel.id)).order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+
+def test_api_retract_deposit_fail_conditions(client, init_database, app):
+    with app.app_context():
+        # Parcel not found
+        response_not_found = client.post('/api/v1/deposit/99999/retract')
+        assert response_not_found.status_code == 404
+        assert json.loads(response_not_found.data)['message'] == "Parcel not found."
+
+        # Parcel not in 'deposited' state
+        parcel, plain_pin, _ = assign_locker_and_create_parcel('small', 'api_retract_fail@example.com')
+        assert parcel is not None
+        # Pick up the parcel to change its state
+        from app.application.services import process_pickup # Import here to avoid circular if at top
+        process_pickup(plain_pin) 
+        assert db.session.get(Parcel, parcel.id).status == 'picked_up'
+        
+        response_wrong_state = client.post(f'/api/v1/deposit/{parcel.id}/retract')
+        assert response_wrong_state.status_code == 409 # Conflict
+        assert "not in 'deposited' state" in json.loads(response_wrong_state.data)['message']
+
+def test_api_dispute_pickup_success(client, init_database, app):
+    with app.app_context():
+        # 1. Setup: Deposit and then pickup a parcel
+        parcel, plain_pin, _ = assign_locker_and_create_parcel('small', 'api_dispute_success@example.com')
+        assert parcel is not None
+        original_locker_id = parcel.locker_id
+        from app.application.services import process_pickup # Import here
+        process_pickup(plain_pin)
+        assert db.session.get(Parcel, parcel.id).status == 'picked_up'
+
+        # 2. Action: POST to the dispute endpoint
+        response = client.post(f'/api/v1/pickup/{parcel.id}/dispute')
+
+        # 3. Assert: HTTP 200, JSON response, DB state, Audit log
+        assert response.status_code == 200
+        response_data = json.loads(response.data)
+        assert response_data['status'] == 'success'
+        assert response_data['parcel_id'] == parcel.id
+        assert response_data['new_parcel_status'] == 'pickup_disputed'
+        assert response_data['locker_id'] == original_locker_id
+        assert response_data['new_locker_status'] == 'disputed_contents'
+
+        assert db.session.get(Parcel, parcel.id).status == 'pickup_disputed'
+        assert db.session.get(Locker, original_locker_id).status == 'disputed_contents'
+        
+        log_entry = AuditLog.query.filter_by(action="USER_PICKUP_DISPUTED", details__contains=str(parcel.id)).order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+
+def test_api_dispute_pickup_fail_conditions(client, init_database, app):
+    with app.app_context():
+        # Parcel not found
+        response_not_found = client.post('/api/v1/pickup/99999/dispute')
+        assert response_not_found.status_code == 404
+        assert json.loads(response_not_found.data)['message'] == "Parcel not found."
+
+        # Parcel not in 'picked_up' state (still 'deposited')
+        parcel, _, _ = assign_locker_and_create_parcel('small', 'api_dispute_fail@example.com')
+        assert parcel is not None
+        assert db.session.get(Parcel, parcel.id).status == 'deposited' # Still deposited
+        
+        response_wrong_state = client.post(f'/api/v1/pickup/{parcel.id}/dispute')
+        assert response_wrong_state.status_code == 409 # Conflict
+        assert "not in 'picked_up' state" in json.loads(response_wrong_state.data)['message']
