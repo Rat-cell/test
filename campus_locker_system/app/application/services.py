@@ -101,6 +101,7 @@ def assign_locker_and_create_parcel(parcel_size: str, recipient_email: str):
             "pin_generated": True 
         })
 
+        # FR-03: Send email notification with PIN upon successful parcel deposit.
         # Send email notification (FR-03)
         msg = Message( # Define msg before try block so it's available in except
             subject="Your Campus Locker PIN",
@@ -460,6 +461,7 @@ def mark_parcel_missing_by_admin(admin_id: int, admin_username: str, parcel_id: 
         return None, "A database error occurred while marking parcel missing."
 
 def reissue_pin(parcel_id: int) -> tuple[Parcel | None, str | None]:
+    # FR-05: Part of PIN recovery process (admin path).
     try:
         parcel = db.session.get(Parcel, parcel_id)
         if not parcel:
@@ -493,6 +495,7 @@ def reissue_pin(parcel_id: int) -> tuple[Parcel | None, str | None]:
         db.session.add(parcel)
         db.session.commit()
 
+        # FR-03: Send email notification with new PIN upon admin-initiated PIN reissue.
         # Send email notification
         email_subject = "Your New Campus Locker PIN"
         email_body = (
@@ -682,8 +685,11 @@ def mark_locker_as_emptied(locker_id: int, admin_id: int, admin_username: str) -
         return locker, f"Database error marking locker as emptied: {str(e)}"
 
 def request_pin_regeneration_by_recipient(recipient_email_attempt: str, locker_id_attempt: int) -> bool:
+    # FR-05: Implements recipient PIN recovery mechanism.
     # All necessary imports are assumed to be at the top of the file.
     # log_audit_event and generate_pin_and_hash are in this file.
+    # flask.render_template is needed for email bodies
+    from flask import render_template
 
     try:
         # Convert locker_id_attempt to integer if it's passed as string from form
@@ -742,6 +748,7 @@ def request_pin_regeneration_by_recipient(recipient_email_attempt: str, locker_i
         db.session.add(parcel)
         db.session.commit() # Commit changes to parcel (new PIN and expiry)
 
+        # FR-03: Send email notification with new PIN upon recipient-initiated PIN regeneration.
         # Send email notification
         email_subject = "Your New Campus Locker PIN (Recipient Request)"
         email_body = (
@@ -793,3 +800,154 @@ def request_pin_regeneration_by_recipient(recipient_email_attempt: str, locker_i
             "error": str(e)
         })
         return False
+
+def send_scheduled_reminder_notifications():
+    # Imports are at the top or added in the diff block above
+    # from datetime import datetime, timedelta
+    # from flask import current_app, render_template
+    # from app import db, mail
+    # from app.persistence.models import Parcel
+    # from flask_mail import Message
+    # log_audit_event is already in this file
+
+    reminder_schedule_hours = current_app.config.get('REMINDER_NOTIFICATION_SCHEDULE_HOURS', [])
+    pre_return_hours = current_app.config.get('PRE_RETURN_NOTIFICATION_HOURS', 24)
+    max_pickup_days = current_app.config.get('PARCEL_MAX_PICKUP_DAYS', 7)
+    # pin_validity_days = current_app.config.get('PARCEL_DEFAULT_PIN_VALIDITY_DAYS', 7) # Not directly used for sending, but for context in email
+
+    parcels_to_notify = Parcel.query.filter_by(status='deposited').all()
+    
+    sent_scheduled_reminders = 0
+    sent_pre_return_reminders = 0
+    parcels_updated_in_session = []
+
+    now = datetime.utcnow()
+
+    for parcel in parcels_to_notify:
+        if not parcel.deposited_at:
+            current_app.logger.warning(f"Parcel ID {parcel.id} has no deposited_at timestamp. Skipping reminder.")
+            log_audit_event("REMINDER_SEND_FAIL", {
+                "parcel_id": parcel.id, 
+                "reason": "Missing deposited_at timestamp."
+            })
+            continue
+        
+        parcel_updated_this_run = False
+
+        # --- Scheduled Reminders ---
+        # Sort schedule to process earliest reminder first if multiple are due
+        sorted_schedule_hours = sorted(reminder_schedule_hours) 
+        for hour_offset in sorted_schedule_hours:
+            reminder_time = parcel.deposited_at + timedelta(hours=hour_offset)
+            
+            # Check if this reminder window is active and if a reminder for this window hasn't been sent
+            # A simple check: if now is past reminder_time, and last_reminder_sent_at is before this reminder_time
+            if now >= reminder_time:
+                if parcel.last_reminder_sent_at is None or parcel.last_reminder_sent_at < reminder_time:
+                    try:
+                        # Render email body
+                        email_body = render_template(
+                            'email/scheduled_reminder_email.txt',
+                            recipient_email=parcel.recipient_email,
+                            locker_id=parcel.locker_id,
+                            # PIN is not included as per updated requirement
+                            otp_expiry_formatted=parcel.otp_expiry.strftime('%Y-%m-%d %H:%M:%S UTC') if parcel.otp_expiry else 'N/A'
+                        )
+                        msg = Message(
+                            subject="Reminder: Your Parcel is Waiting for Pickup at Campus Locker", # Subject from template
+                            sender=current_app.config['MAIL_DEFAULT_SENDER'],
+                            recipients=[parcel.recipient_email],
+                            body=email_body
+                        )
+                        mail.send(msg)
+                        
+                        parcel.last_reminder_sent_at = now
+                        if not parcel_updated_this_run:
+                            parcels_updated_in_session.append(parcel)
+                            parcel_updated_this_run = True
+                        
+                        sent_scheduled_reminders += 1
+                        log_audit_event('SCHEDULED_REMINDER_SENT', {
+                            "parcel_id": parcel.id,
+                            "recipient_email": parcel.recipient_email,
+                            "reminder_hour_offset": hour_offset
+                        })
+                        # Break after sending one scheduled reminder per parcel per run
+                        # This prevents sending multiple scheduled reminders if the job runs late
+                        # and crosses several hour_offset thresholds.
+                        break 
+                    except Exception as e:
+                        current_app.logger.error(f"Failed to send scheduled reminder for parcel {parcel.id}: {e}")
+                        log_audit_event('SCHEDULED_REMINDER_FAIL', {
+                            "parcel_id": parcel.id,
+                            "recipient_email": parcel.recipient_email,
+                            "reminder_hour_offset": hour_offset,
+                            "error": str(e)
+                        })
+                        # Potentially break here too, or try next schedule if one email server error
+                        break 
+            # If now < reminder_time, subsequent scheduled reminders are also not due yet.
+            else:
+                 break
+
+
+        # --- Pre-Return Reminder ---
+        max_pickup_datetime = parcel.deposited_at + timedelta(days=max_pickup_days)
+        pre_return_window_start = max_pickup_datetime - timedelta(hours=pre_return_hours)
+
+        if now >= pre_return_window_start and not parcel.pre_return_reminder_sent:
+            try:
+                otp_expiry_formatted_str = parcel.otp_expiry.strftime('%Y-%m-%d %H:%M:%S UTC') if parcel.otp_expiry else 'N/A'
+                max_pickup_deadline_formatted_str = max_pickup_datetime.strftime('%Y-%m-%d %H:%M:%S UTC')
+
+                email_body_pre_return = render_template(
+                    'email/pre_return_reminder_email.txt',
+                    recipient_email=parcel.recipient_email,
+                    locker_id=parcel.locker_id,
+                    # PIN is not included
+                    otp_expiry_formatted=otp_expiry_formatted_str,
+                    max_pickup_deadline_formatted=max_pickup_deadline_formatted_str
+                )
+                msg_pre_return = Message(
+                    subject="Important: Action Required - Your Parcel Pickup Deadline is Approaching", # Subject from template
+                    sender=current_app.config['MAIL_DEFAULT_SENDER'],
+                    recipients=[parcel.recipient_email],
+                    body=email_body_pre_return
+                )
+                mail.send(msg_pre_return)
+
+                parcel.pre_return_reminder_sent = True
+                if not parcel_updated_this_run: # Add to list only if not already added
+                    parcels_updated_in_session.append(parcel)
+                    # parcel_updated_this_run = True # Not strictly needed to set here as it's the last update type for this parcel
+                
+                sent_pre_return_reminders += 1
+                log_audit_event('PRE_RETURN_REMINDER_SENT', {
+                    "parcel_id": parcel.id,
+                    "recipient_email": parcel.recipient_email,
+                    "max_pickup_deadline": max_pickup_datetime.isoformat()
+                })
+            except Exception as e:
+                current_app.logger.error(f"Failed to send pre-return reminder for parcel {parcel.id}: {e}")
+                log_audit_event('PRE_RETURN_REMINDER_FAIL', {
+                    "parcel_id": parcel.id,
+                    "recipient_email": parcel.recipient_email,
+                    "error": str(e)
+                })
+
+    if parcels_updated_in_session:
+        try:
+            db.session.add_all(parcels_updated_in_session)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Error committing reminder updates to DB: {str(e)}")
+            log_audit_event("REMINDER_BATCH_COMMIT_ERROR", {
+                "error": str(e),
+                "num_parcels_intended_for_update": len(parcels_updated_in_session)
+            })
+            # Return counts of what was attempted before commit error
+            return sent_scheduled_reminders, sent_pre_return_reminders, f"DB commit error. Attempted: {sent_scheduled_reminders} scheduled, {sent_pre_return_reminders} pre-return."
+
+    summary_message = f"Scheduled reminders sent: {sent_scheduled_reminders}. Pre-return reminders sent: {sent_pre_return_reminders}."
+    return sent_scheduled_reminders, sent_pre_return_reminders, summary_message
