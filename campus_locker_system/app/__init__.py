@@ -1,10 +1,14 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail # Add this
+from flask_apscheduler import APScheduler # New import for APScheduler
 from .config import Config
+# Import service functions for scheduling
+from app.application.services import send_scheduled_reminder_notifications, process_overdue_parcels
 
 db = SQLAlchemy()
 mail = Mail() # Add this
+scheduler = APScheduler() # New APScheduler instance
 
 def create_app():
     app = Flask(__name__)
@@ -38,5 +42,36 @@ def create_app():
     with app.app_context():
         from .persistence import models # Ensure models are loaded
         db.create_all()
+
+    # Initialize and start APScheduler if not already running (e.g. in test scenarios)
+    # and not in testing mode where scheduler might be handled differently or not needed.
+    if not scheduler.running and not app.config.get('TESTING', False):
+        scheduler.init_app(app)
+        scheduler.start()
+        app.logger.info("APScheduler initialized and started.")
+
+        # Scheduling jobs
+        reminder_interval_hours = app.config.get('REMINDER_JOB_INTERVAL_HOURS', 6)
+        overdue_interval_hours = app.config.get('OVERDUE_PROCESSING_JOB_INTERVAL_HOURS', 24)
+
+        if not scheduler.get_job('send_reminders_job'):
+            scheduler.add_job(
+                id='send_reminders_job',
+                func=send_scheduled_reminder_notifications,
+                trigger='interval',
+                hours=reminder_interval_hours,
+                replace_existing=True 
+            )
+            app.logger.info(f"Scheduled 'send_scheduled_reminder_notifications' to run every {reminder_interval_hours} hours.")
+
+        if not scheduler.get_job('process_overdue_job'):
+            scheduler.add_job(
+                id='process_overdue_job',
+                func=process_overdue_parcels,
+                trigger='interval',
+                hours=overdue_interval_hours,
+                replace_existing=True
+            )
+            app.logger.info(f"Scheduled 'process_overdue_parcels' to run every {overdue_interval_hours} hours.")
 
     return app
