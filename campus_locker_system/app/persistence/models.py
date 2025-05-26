@@ -21,6 +21,10 @@ class Parcel(db.Model):
     # Possible statuses: 'deposited', 'picked_up', 'missing', 'expired', 'retracted_by_sender', 'pickup_disputed', 'awaiting_return'
     status = db.Column(db.String(50), nullable=False, default='deposited')
     deposited_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow) # New field
+    
+    # New fields for reminder tracking
+    last_reminder_sent_at = db.Column(db.DateTime, nullable=True)
+    pre_return_reminder_sent = db.Column(db.Boolean, nullable=False, default=False)
 
     def __repr__(self):
         return f'<Parcel {self.id} in Locker {self.locker_id} - Status: {self.status}>'
