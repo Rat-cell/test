@@ -198,6 +198,22 @@ This initial version covers the core requirements. Based on the original project
 *   **More Comprehensive Testing:** Adding more unit and end-to-end tests.
 *   **Dockerization:** Packaging the entire application with Docker Compose for easy one-command deployment (`docker-compose up`).
 
+## Appendix: Changelog
+
+### Recent Changes
+
+- Refactored tests for robustness and best practices:
+  - Split admin/anonymous access tests for session isolation.
+  - Used substring assertions for flashed messages and sensor data to avoid issues with HTML formatting/escaping.
+  - Matched error codes and messages to actual Flask/API behavior.
+  - Ensured all tests pass with the current codebase and configuration.
+- Improved test coverage and reliability for admin locker management, sensor data display, and error handling.
+- Updated test and code comments for clarity and maintainability.
+- Added MailHog Docker Compose configuration for local email testing.
+- Cleaned up impossible code paths and tests (e.g., `deposited_at is None` for parcels).
+
+For a detailed commit history, see the project's git log.
+
 ---
 This README provides a starting point for understanding and running the Campus Locker System.
 ```
