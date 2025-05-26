@@ -9,7 +9,8 @@ from app.application.services import (
     dispute_pickup,
     report_parcel_missing_by_recipient, # Add this
     mark_parcel_missing_by_admin, # Add this
-    request_pin_regeneration_by_recipient # Add this service
+    request_pin_regeneration_by_recipient, # Add this service
+    send_scheduled_reminder_notifications # Add this service
 )
 from app.persistence.models import Locker, Parcel, AuditLog, AdminUser, LockerSensorData # Add LockerSensorData
 from app import db, mail # Import db and mail for testing
@@ -1124,3 +1125,237 @@ def test_request_pin_regeneration_missing_deposited_at(init_database, app):
         details = json.loads(log_entry.details)
         assert details['parcel_id'] == parcel.id
         assert details['reason'] == "Parcel has no deposit timestamp."
+
+
+# Tests for Reminder Notification Features (Application Layer)
+
+# Part A.1: Test New Configuration Defaults
+def test_reminder_notification_config_defaults(app):
+    with app.app_context():
+        # Temporarily pop to test default fallback in .get()
+        original_schedule = current_app.config.pop('REMINDER_NOTIFICATION_SCHEDULE_HOURS', None)
+        original_pre_return = current_app.config.pop('PRE_RETURN_NOTIFICATION_HOURS', None)
+        
+        assert current_app.config.get('REMINDER_NOTIFICATION_SCHEDULE_HOURS', [24]) == [24]
+        assert current_app.config.get('PRE_RETURN_NOTIFICATION_HOURS', 24) == 24
+        
+        # Restore if they were originally set
+        if original_schedule is not None:
+            current_app.config['REMINDER_NOTIFICATION_SCHEDULE_HOURS'] = original_schedule
+        if original_pre_return is not None:
+            current_app.config['PRE_RETURN_NOTIFICATION_HOURS'] = original_pre_return
+
+# Part A.2: Test Parcel Model Default Field Values
+def test_parcel_model_reminder_field_defaults(init_database, app):
+    with app.app_context():
+        locker = Locker.query.first() # Get any locker
+        parcel = Parcel(
+            locker_id=locker.id,
+            recipient_email="default_test@example.com",
+            pin_hash="testhash",
+            otp_expiry=datetime.utcnow() + timedelta(days=1)
+            # deposited_at is defaulted by model
+        )
+        db.session.add(parcel)
+        db.session.commit()
+
+        retrieved_parcel = db.session.get(Parcel, parcel.id)
+        assert retrieved_parcel.last_reminder_sent_at is None
+        assert retrieved_parcel.pre_return_reminder_sent is False
+
+# Part A.3: Test send_scheduled_reminder_notifications Service Function
+
+def test_send_scheduled_reminder_due(init_database, app):
+    with app.app_context():
+        original_schedule = current_app.config.get('REMINDER_NOTIFICATION_SCHEDULE_HOURS')
+        current_app.config['REMINDER_NOTIFICATION_SCHEDULE_HOURS'] = [1] # Reminder after 1 hour for test
+
+        locker = Locker.query.first()
+        parcel = Parcel(
+            locker_id=locker.id,
+            recipient_email="scheduled_due@example.com",
+            status='deposited',
+            pin_hash="testpin", # Service doesn't use PIN but model needs it
+            otp_expiry=datetime.utcnow() + timedelta(days=7),
+            deposited_at=datetime.utcnow() - timedelta(hours=2) # Deposited 2 hours ago
+        )
+        db.session.add(parcel)
+        db.session.commit()
+
+        with mail.record_messages() as outbox:
+            count_scheduled, count_pre_return, msg = send_scheduled_reminder_notifications()
+
+        assert count_scheduled == 1
+        assert count_pre_return == 0
+        assert "Scheduled reminders sent: 1" in msg
+        assert len(outbox) == 1
+        assert outbox[0].subject == "Reminder: Your Parcel is Waiting for Pickup at Campus Locker"
+        assert parcel.recipient_email in outbox[0.recipients
+        
+        updated_parcel = db.session.get(Parcel, parcel.id)
+        assert updated_parcel.last_reminder_sent_at is not None
+        # Check if it's close to now
+        assert (datetime.utcnow() - updated_parcel.last_reminder_sent_at).total_seconds() < 60 
+
+        log = AuditLog.query.filter_by(action="SCHEDULED_REMINDER_SENT").order_by(AuditLog.timestamp.desc()).first()
+        assert log is not None
+        details = json.loads(log.details)
+        assert details['parcel_id'] == parcel.id
+        assert details['reminder_hour_offset'] == 1
+        
+        if original_schedule is not None: # Restore
+            current_app.config['REMINDER_NOTIFICATION_SCHEDULE_HOURS'] = original_schedule
+        else:
+            current_app.config.pop('REMINDER_NOTIFICATION_SCHEDULE_HOURS',None)
+
+
+def test_send_multiple_scheduled_reminders_second_due(init_database, app):
+    with app.app_context():
+        original_schedule = current_app.config.get('REMINDER_NOTIFICATION_SCHEDULE_HOURS')
+        current_app.config['REMINDER_NOTIFICATION_SCHEDULE_HOURS'] = [1, 3] # Reminders at 1 and 3 hours
+
+        locker = Locker.query.first()
+        parcel_email = "multi_schedule@example.com"
+        parcel = Parcel(
+            locker_id=locker.id,
+            recipient_email=parcel_email,
+            status='deposited',
+            pin_hash="testpin",
+            otp_expiry=datetime.utcnow() + timedelta(days=7),
+            deposited_at=datetime.utcnow() - timedelta(hours=4), # Deposited 4 hours ago
+            last_reminder_sent_at=datetime.utcnow() - timedelta(hours=2) # First reminder (1hr) sent 2 hours ago
+        )
+        db.session.add(parcel)
+        db.session.commit()
+
+        with mail.record_messages() as outbox:
+            count_scheduled, _, _ = send_scheduled_reminder_notifications()
+        
+        assert count_scheduled == 1
+        assert len(outbox) == 1
+        assert parcel_email in outbox[0].recipients
+        
+        updated_parcel = db.session.get(Parcel, parcel.id)
+        assert (datetime.utcnow() - updated_parcel.last_reminder_sent_at).total_seconds() < 60
+
+        log = AuditLog.query.filter_by(action="SCHEDULED_REMINDER_SENT").order_by(AuditLog.timestamp.desc()).first()
+        assert log is not None
+        details = json.loads(log.details)
+        assert details['parcel_id'] == parcel.id
+        assert details['reminder_hour_offset'] == 3 # Second reminder (3hr) should have been sent
+
+        if original_schedule is not None: # Restore
+            current_app.config['REMINDER_NOTIFICATION_SCHEDULE_HOURS'] = original_schedule
+        else:
+            current_app.config.pop('REMINDER_NOTIFICATION_SCHEDULE_HOURS',None)
+
+
+def test_send_pre_return_reminder_due(init_database, app):
+    with app.app_context():
+        # Store original config values
+        original_max_pickup_days = current_app.config.get('PARCEL_MAX_PICKUP_DAYS')
+        original_pre_return_hours = current_app.config.get('PRE_RETURN_NOTIFICATION_HOURS')
+
+        # Set specific config for this test
+        current_app.config['PARCEL_MAX_PICKUP_DAYS'] = 3 # 72 hours
+        current_app.config['PRE_RETURN_NOTIFICATION_HOURS'] = 24 
+
+        locker = Locker.query.first()
+        parcel_email = "pre_return_due@example.com"
+        parcel = Parcel(
+            locker_id=locker.id,
+            recipient_email=parcel_email,
+            status='deposited',
+            pin_hash="testpin",
+            otp_expiry=datetime.utcnow() + timedelta(days=1), # OTP expiry is within the pre-return window
+            deposited_at=datetime.utcnow() - timedelta(hours=49), # Deposited 49 hours ago (72 - 49 = 23 hours left, within 24h window)
+            pre_return_reminder_sent=False
+        )
+        db.session.add(parcel)
+        db.session.commit()
+
+        with mail.record_messages() as outbox:
+            _, count_pre_return, _ = send_scheduled_reminder_notifications()
+
+        assert count_pre_return == 1
+        assert len(outbox) == 1
+        assert outbox[0].subject == "Important: Action Required - Your Parcel Pickup Deadline is Approaching"
+        assert parcel_email in outbox[0].recipients
+        
+        updated_parcel = db.session.get(Parcel, parcel.id)
+        assert updated_parcel.pre_return_reminder_sent is True
+
+        log = AuditLog.query.filter_by(action="PRE_RETURN_REMINDER_SENT").order_by(AuditLog.timestamp.desc()).first()
+        assert log is not None
+        details = json.loads(log.details)
+        assert details['parcel_id'] == parcel.id
+
+        # Restore original config values
+        if original_max_pickup_days is not None:
+            current_app.config['PARCEL_MAX_PICKUP_DAYS'] = original_max_pickup_days
+        else:
+            current_app.config.pop('PARCEL_MAX_PICKUP_DAYS',None)
+        if original_pre_return_hours is not None:
+            current_app.config['PRE_RETURN_NOTIFICATION_HOURS'] = original_pre_return_hours
+        else:
+            current_app.config.pop('PRE_RETURN_NOTIFICATION_HOURS',None)
+
+
+def test_send_no_reminders_due(init_database, app):
+    with app.app_context():
+        current_app.config['REMINDER_NOTIFICATION_SCHEDULE_HOURS'] = [24]
+        current_app.config['PRE_RETURN_NOTIFICATION_HOURS'] = 24
+        current_app.config['PARCEL_MAX_PICKUP_DAYS'] = 7
+
+        locker = Locker.query.first()
+        parcel = Parcel(
+            locker_id=locker.id,
+            recipient_email="no_reminders@example.com",
+            status='deposited',
+            pin_hash="testpin",
+            otp_expiry=datetime.utcnow() + timedelta(days=7),
+            deposited_at=datetime.utcnow() - timedelta(hours=1) # Deposited recently
+        )
+        db.session.add(parcel)
+        db.session.commit()
+        
+        original_last_sent = parcel.last_reminder_sent_at
+        original_pre_return_flag = parcel.pre_return_reminder_sent
+
+        with mail.record_messages() as outbox:
+            count_scheduled, count_pre_return, _ = send_scheduled_reminder_notifications()
+
+        assert count_scheduled == 0
+        assert count_pre_return == 0
+        assert len(outbox) == 0
+        
+        updated_parcel = db.session.get(Parcel, parcel.id)
+        assert updated_parcel.last_reminder_sent_at == original_last_sent
+        assert updated_parcel.pre_return_reminder_sent == original_pre_return_flag
+
+def test_send_reminders_already_sent(init_database, app):
+    with app.app_context():
+        current_app.config['REMINDER_NOTIFICATION_SCHEDULE_HOURS'] = [1] 
+        current_app.config['PRE_RETURN_NOTIFICATION_HOURS'] = 24
+        current_app.config['PARCEL_MAX_PICKUP_DAYS'] = 2 # 48 hours
+
+        locker = Locker.query.first()
+        parcel = Parcel(
+            locker_id=locker.id,
+            recipient_email="already_sent@example.com",
+            status='deposited',
+            pin_hash="testpin",
+            otp_expiry=datetime.utcnow() + timedelta(days=1),
+            deposited_at=datetime.utcnow() - timedelta(hours=25), # 25 hours ago
+            last_reminder_sent_at=datetime.utcnow() - timedelta(hours=23), # 1hr reminder sent 23 hours ago (i.e. 2h after deposit)
+            pre_return_reminder_sent=True # Pre-return also sent
+        )
+        db.session.add(parcel)
+        db.session.commit()
+
+        with mail.record_messages() as outbox:
+            count_scheduled, count_pre_return, _ = send_scheduled_reminder_notifications()
+
+        assert count_scheduled == 0
+        assert count_pre_return == 0
+        assert len(outbox) == 0
