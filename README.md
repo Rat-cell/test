@@ -151,7 +151,7 @@ You can run the Campus Locker System in two ways:
 *   **Team:** Developed by Team I (Pauline Feldhoﬀ, Paul von Franqué, Asma Mzee, Samuel Neo, Gublan Dag) as part of the Digital Literacy IV: Software Architecture course.
 *   **Note:** This is an initial implementation focusing on core deposit and pickup functionalities. All locker hardware is simulated.
 
-## 2. Getting Started: Setup & Running the Application
+## 2. OLDDDDDDDDDD   Getting Started: Setup & Running the Application
 
 Follow these steps to get the application running on your local machine (macOS is the primary demo environment, but it should work on other systems with Python).
 
@@ -167,7 +167,7 @@ Follow these steps to get the application running on your local machine (macOS i
     *   After running this, you can view received emails by opening your web browser and going to `http://localhost:8025`.
     *   If you don't have Docker, you can download MailHog directly from its GitHub releases page.
 
-### Setup Steps:
+### OLDDDDDDDD Setup Steps:
 
 1.  **Clone/Download the Code:**
     *   If you have git, clone the repository. Otherwise, download the source code files and place them in a directory, let's call it `campus_locker_system`.
@@ -365,7 +365,20 @@ The current edge case tests focus on invalid state transitions and error handlin
 
 See the comments in each test file for more details on the scenarios covered.
 
-## 7. Potential Next Steps & Future Improvements
+## 6.2 Application Logs
+
+All application logs are stored in the root-level `logs/` folder. This includes:
+- `campus_locker.log` and its rotated versions: Main application logs (info, warnings, errors) from the Flask app and its services.
+- **Log rotation policy:**
+    - Each log file is capped at 10 KB (10,240 bytes).
+    - Up to 10 backup log files are kept (`campus_locker.log.1` through `.10`).
+    - When the main log exceeds 10 KB, it is rotated and the oldest log is deleted.
+- **Best practices:**
+    - Monitor log file sizes and adjust `maxBytes` and `backupCount` in the logging configuration as needed for your deployment (e.g., increase for production).
+    - Regularly review logs for errors and warnings.
+    - Only main application logs are stored here. **Audit logs** are stored in the database table `audit_log` and are not written to files.
+
+## 7. OLDDDDDDPotential Next Steps & Future Improvements
 
 This initial version covers the core requirements. Based on the original project charter, future enhancements could include:
 
@@ -384,8 +397,9 @@ This initial version covers the core requirements. Based on the original project
 
 ## Appendix: Changelog
 
-### Recent Changes
+### Old versions
 
+V.1.80b
 - Refactored tests for robustness and best practices:
   - Split admin/anonymous access tests for session isolation.
   - Used substring assertions for flashed messages and sensor data to avoid issues with HTML formatting/escaping.
@@ -398,18 +412,6 @@ This initial version covers the core requirements. Based on the original project
 
 For a detailed commit history, see the project's git log.
 
-## Application Logs
-
-All application logs are stored in the root-level `logs/` folder. This includes:
-- `campus_locker.log` and its rotated versions: Main application logs (info, warnings, errors) from the Flask app and its services.
-- **Log rotation policy:**
-    - Each log file is capped at 10 KB (10,240 bytes).
-    - Up to 10 backup log files are kept (`campus_locker.log.1` through `.10`).
-    - When the main log exceeds 10 KB, it is rotated and the oldest log is deleted.
-- **Best practices:**
-    - Monitor log file sizes and adjust `maxBytes` and `backupCount` in the logging configuration as needed for your deployment (e.g., increase for production).
-    - Regularly review logs for errors and warnings.
-    - Only main application logs are stored here. **Audit logs** are stored in the database table `audit_log` and are not written to files.
 
 ---
 This README provides a starting point for understanding and running the Campus Locker System.
