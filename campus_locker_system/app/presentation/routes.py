@@ -1,0 +1,86 @@
+from flask import render_template, request, redirect, url_for, flash, session # Add session
+from . import main_bp # Assuming main_bp is defined in app/presentation/__init__.py
+from app.application.services import assign_locker_and_create_parcel, process_pickup, verify_admin_credentials # Add verify_admin_credentials
+from app.persistence.models import Locker # To get locker number/identifier
+
+@main_bp.route('/', methods=['GET']) # Optional: redirect root to deposit page
+@main_bp.route('/deposit', methods=['GET', 'POST'])
+def deposit_parcel():
+    if request.method == 'POST':
+        parcel_size = request.form.get('parcel_size')
+        recipient_email = request.form.get('recipient_email')
+
+        if not parcel_size or not recipient_email:
+            flash('Parcel size and recipient email are required.', 'error')
+            return redirect(url_for('main.deposit_parcel'))
+
+        parcel, pin, error_message = assign_locker_and_create_parcel(parcel_size, recipient_email)
+
+        if error_message:
+            flash(f'Error: {error_message}', 'error')
+            return redirect(url_for('main.deposit_parcel'))
+
+        if parcel and pin:
+            # We need the actual locker number/identifier to display.
+            # The 'parcel' object has 'locker_id', which is the foreign key.
+            # We can use this ID to fetch the locker object or just display the ID.
+            # For simplicity, let's assume locker_id is sufficient as "Locker ID".
+            flash('Parcel deposited successfully!', 'success')
+            return render_template('deposit_confirmation.html', locker_id=parcel.locker_id, pin=pin)
+        else:
+            # This case should ideally be covered by error_message, but as a fallback:
+            flash('An unexpected error occurred.', 'error')
+            return redirect(url_for('main.deposit_parcel'))
+
+    return render_template('deposit_form.html')
+
+@main_bp.route('/pickup', methods=['GET', 'POST'])
+def pickup_parcel():
+    if request.method == 'POST':
+        pin_provided = request.form.get('pin')
+
+        if not pin_provided or not pin_provided.isdigit() or len(pin_provided) != 6:
+            flash('Please enter a valid 6-digit PIN.', 'error')
+            return redirect(url_for('main.pickup_parcel'))
+
+        parcel, locker, error_message = process_pickup(pin_provided)
+
+        if error_message:
+            flash(f'Error: {error_message}', 'error')
+            return redirect(url_for('main.pickup_parcel'))
+
+        if parcel and locker:
+            flash('Parcel picked up successfully!', 'success')
+            return render_template('pickup_confirmation.html', locker_id=locker.id) # or locker.name if it has one
+        else:
+            # This case should ideally be covered by error_message
+            flash('An unexpected error occurred during pickup.', 'error')
+            return redirect(url_for('main.pickup_parcel'))
+
+    return render_template('pickup_form.html')
+
+@main_bp.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        admin_user = verify_admin_credentials(username, password)
+
+        if admin_user:
+            session['admin_id'] = admin_user.id # Store admin_id in session
+            flash('Admin login successful!', 'success')
+            # Redirect to a future admin dashboard page
+            # For now, redirect to deposit page or a simple success message page
+            return redirect(url_for('main.deposit_parcel')) # Placeholder redirect
+        else:
+            flash('Invalid admin credentials.', 'error')
+            return redirect(url_for('main.admin_login'))
+
+    return render_template('admin/admin_login.html')
+
+@main_bp.route('/admin/logout') # Basic logout
+def admin_logout():
+    session.pop('admin_id', None)
+    flash('You have been logged out.', 'info')
+    return redirect(url_for('main.admin_login'))
