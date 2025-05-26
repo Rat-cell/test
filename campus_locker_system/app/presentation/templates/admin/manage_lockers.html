@@ -22,6 +22,10 @@
         <form method="POST" action="{{ url_for('main.admin_process_overdue_parcels_action') }}" style="display: inline;">
             <button type="submit" class="btn btn-info" onclick="return confirm('Are you sure you want to process overdue parcels? This will mark them for return and update locker statuses.');">Process All Overdue Parcels</button>
         </form>
+        {# Button for sending reminder notifications #}
+        <form method="POST" action="{{ url_for('main.admin_send_reminders_action') }}" style="display: inline; margin-left: 10px;">
+            <button type="submit" class="btn btn-secondary" onclick="return confirm('Are you sure you want to check for and send any due reminder notifications?');">Send Reminder Notifications</button>
+        </form>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
