@@ -7,7 +7,7 @@ import json # Add this
 from flask import current_app, url_for # Import current_app and url_for
 from unittest.mock import patch # For mocking
 from datetime import datetime, timedelta # Ensure datetime and timedelta are imported
-from app.application.services import log_audit_event
+from app.services.audit_service import AuditService
 
 # Helper fixture for admin login
 @pytest.fixture
@@ -196,7 +196,7 @@ def test_admin_audit_logs_view(client, init_database, app):
         }, follow_redirects=True)
         assert login_resp.status_code == 200
 
-        log_audit_event("SPECIFIC_TEST_AUDIT_ACTION_PAGE", {"test_detail_page": "visible"})
+        AuditService.log_event("SPECIFIC_TEST_AUDIT_ACTION_PAGE", {"test_detail_page": "visible"})
         
         response = client.get('/admin/audit-logs')
         assert response.status_code == 200

@@ -2,7 +2,7 @@
 from typing import Tuple, Optional
 from flask import current_app
 from app.business.notification import NotificationManager, FormattedEmail, NotificationType
-from app.application.services import log_audit_event
+from app.services.audit_service import AuditService
 from app.adapters.email_adapter import create_email_adapter, EmailMessage
 
 class NotificationService:
@@ -29,7 +29,7 @@ class NotificationService:
             
             if success:
                 # Log successful notification
-                log_audit_event("NOTIFICATION_SENT", details={
+                AuditService.log_event("NOTIFICATION_SENT", details={
                     "notification_type": NotificationType.PARCEL_DEPOSIT.value,
                     "recipient": recipient_email,
                     "parcel_id": parcel_id,
@@ -64,7 +64,7 @@ class NotificationService:
             
             if success:
                 # Log successful notification
-                log_audit_event("NOTIFICATION_SENT", details={
+                AuditService.log_event("NOTIFICATION_SENT", details={
                     "notification_type": NotificationType.PIN_REISSUE.value,
                     "recipient": recipient_email,
                     "parcel_id": parcel_id,
@@ -99,7 +99,7 @@ class NotificationService:
             
             if success:
                 # Log successful notification
-                log_audit_event("NOTIFICATION_SENT", details={
+                AuditService.log_event("NOTIFICATION_SENT", details={
                     "notification_type": NotificationType.PIN_REGENERATION.value,
                     "recipient": recipient_email,
                     "parcel_id": parcel_id,

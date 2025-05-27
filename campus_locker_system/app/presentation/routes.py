@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, flash, session, current_app # Add current_app
+from flask import render_template, request, redirect, url_for, flash, session, current_app, jsonify # Add current_app
 from . import main_bp # Assuming main_bp is defined in app/presentation/__init__.py
 from app.services.parcel_service import (
     assign_locker_and_create_parcel, 
@@ -12,6 +12,24 @@ from .decorators import admin_required # Add admin_required decorator
 from app import db # Add db for session.get
 from app.services.locker_service import set_locker_status, mark_locker_as_emptied
 from app.services.pin_service import reissue_pin, request_pin_regeneration_by_recipient
+
+@main_bp.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for Docker and load balancers"""
+    try:
+        # Basic database connectivity check
+        from app import db
+        db.session.execute(db.text('SELECT 1'))
+        return jsonify({
+            'status': 'healthy',
+            'service': 'campus-locker-system',
+            'version': '1.0.0'
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e)
+        }), 503
 
 @main_bp.route('/', methods=['GET']) # Optional: redirect root to deposit page
 @main_bp.route('/deposit', methods=['GET', 'POST'])

@@ -4,13 +4,13 @@ from app import db
 from app.persistence.models import Locker
 from app.business.parcel import Parcel
 from app.business.pin import PinManager
+from app.services.audit_service import AuditService
 import hashlib
 import os
 import binascii
 import json
 
 def assign_locker_and_create_parcel(recipient_email: str, preferred_size: str = None):
-    from app.application.services import log_audit_event
     try:
         # Find an available locker
         query = Locker.query.filter_by(status='free')
@@ -53,7 +53,7 @@ def assign_locker_and_create_parcel(recipient_email: str, preferred_size: str = 
         )
         
         # Log the deposit
-        log_audit_event(f"Parcel {parcel.id} deposited in locker {locker.id} for {recipient_email}", "deposit")
+        AuditService.log_event(f"Parcel {parcel.id} deposited in locker {locker.id} for {recipient_email}")
         
         # Check notification result and adjust message
         if notification_success:
@@ -68,7 +68,6 @@ def assign_locker_and_create_parcel(recipient_email: str, preferred_size: str = 
         return None, "An error occurred while processing the deposit."
 
 def process_pickup(provided_pin: str):
-    from app.application.services import log_audit_event
     try:
         # Find parcel with matching PIN
         parcels = Parcel.query.filter_by(status='deposited').all()
@@ -78,7 +77,7 @@ def process_pickup(provided_pin: str):
                 # Check if PIN has expired
                 if PinManager.is_pin_expired(parcel.otp_expiry):
                     # Log the expired PIN attempt
-                    log_audit_event("USER_PICKUP_FAIL_PIN_EXPIRED", details={
+                    AuditService.log_event("USER_PICKUP_FAIL_PIN_EXPIRED", details={
                         "parcel_id": parcel.id,
                         "provided_pin_pattern": provided_pin[:3] + "XXX",
                         "expiry_time": parcel.otp_expiry.isoformat() if parcel.otp_expiry else None
@@ -100,12 +99,12 @@ def process_pickup(provided_pin: str):
                 db.session.commit()
                 
                 # Log the pickup
-                log_audit_event(f"Parcel {parcel.id} picked up from locker {parcel.locker_id}", "pickup")
+                AuditService.log_event(f"Parcel {parcel.id} picked up from locker {parcel.locker_id}")
                 
                 return parcel, f"Parcel successfully picked up from locker {parcel.locker_id}."
         
         # Log the invalid PIN attempt
-        log_audit_event("USER_PICKUP_FAIL_INVALID_PIN", details={
+        AuditService.log_event("USER_PICKUP_FAIL_INVALID_PIN", details={
             "provided_pin_pattern": provided_pin[:3] + "XXX",
             "reason": "No matching deposited parcel found"
         })
@@ -118,7 +117,6 @@ def process_pickup(provided_pin: str):
         return None, "An error occurred while processing the pickup."
 
 def retract_deposit(parcel_id: int):
-    from app.application.services import log_audit_event
     try:
         parcel = db.session.get(Parcel, parcel_id)
         if not parcel:
@@ -141,7 +139,7 @@ def retract_deposit(parcel_id: int):
         db.session.add(parcel)
         db.session.add(locker)
         db.session.commit()
-        log_audit_event("USER_DEPOSIT_RETRACTED", details={
+        AuditService.log_event("USER_DEPOSIT_RETRACTED", details={
             "parcel_id": parcel.id,
             "locker_id": locker.id,
             "reason": "Sender indicated mistake"
@@ -153,7 +151,6 @@ def retract_deposit(parcel_id: int):
         return None, "A database error occurred while retracting deposit."
 
 def dispute_pickup(parcel_id: int):
-    from app.application.services import log_audit_event
     try:
         parcel = db.session.get(Parcel, parcel_id)
         if not parcel:
@@ -169,7 +166,7 @@ def dispute_pickup(parcel_id: int):
         db.session.add(parcel)
         db.session.add(locker)
         db.session.commit()
-        log_audit_event("USER_PICKUP_DISPUTED", details={
+        AuditService.log_event("USER_PICKUP_DISPUTED", details={
             "parcel_id": parcel.id,
             "locker_id": locker.id,
             "reason": "Recipient indicated issue post-pickup"
@@ -181,7 +178,6 @@ def dispute_pickup(parcel_id: int):
         return None, "A database error occurred while disputing pickup."
 
 def report_parcel_missing_by_recipient(parcel_id: int):
-    from app.application.services import log_audit_event
     try:
         parcel = db.session.get(Parcel, parcel_id)
         if not parcel:
@@ -199,7 +195,7 @@ def report_parcel_missing_by_recipient(parcel_id: int):
                 db.session.add(locker)
         db.session.add(parcel)
         db.session.commit()
-        log_audit_event("PARCEL_REPORTED_MISSING_BY_RECIPIENT", details={
+        AuditService.log_event("PARCEL_REPORTED_MISSING_BY_RECIPIENT", details={
             "parcel_id": parcel.id,
             "locker_id": parcel.locker_id,
             "original_parcel_status": original_parcel_status,
@@ -213,7 +209,6 @@ def report_parcel_missing_by_recipient(parcel_id: int):
 
 def mark_parcel_missing_by_admin(admin_id: int, admin_username: str, parcel_id: int) -> tuple[Parcel | None, str | None]:
     """Admin function to mark a parcel as missing"""
-    from app.application.services import log_audit_event
     try:
         parcel = db.session.get(Parcel, parcel_id)
         if not parcel:
@@ -240,7 +235,7 @@ def mark_parcel_missing_by_admin(admin_id: int, admin_username: str, parcel_id: 
         
         db.session.commit()
 
-        log_audit_event("ADMIN_MARKED_PARCEL_MISSING", details={
+        AuditService.log_event("ADMIN_MARKED_PARCEL_MISSING", details={
             "admin_id": admin_id,
             "admin_username": admin_username,
             "parcel_id": parcel.id,
@@ -254,7 +249,6 @@ def mark_parcel_missing_by_admin(admin_id: int, admin_username: str, parcel_id: 
         return None, "A database error occurred while marking parcel missing."
 
 def process_overdue_parcels():
-    from app.application.services import log_audit_event
     max_pickup_days = current_app.config.get('PARCEL_MAX_PICKUP_DAYS', 7)
     deposited_parcels = Parcel.query.filter(
         Parcel.status == 'deposited',
@@ -264,7 +258,7 @@ def process_overdue_parcels():
     items_to_update_in_session = []
     for parcel in deposited_parcels:
         if not isinstance(parcel.deposited_at, datetime):
-            log_audit_event("PROCESS_OVERDUE_FAIL_INVALID_DEPOSITED_AT", {
+            AuditService.log_event("PROCESS_OVERDUE_FAIL_INVALID_DEPOSITED_AT", {
                 "parcel_id": parcel.id, 
                 "deposited_at_type": str(type(parcel.deposited_at)),
                 "reason": "Parcel has invalid or missing deposited_at timestamp."
@@ -274,7 +268,7 @@ def process_overdue_parcels():
             try:
                 locker = parcel.locker
                 if not locker:
-                    log_audit_event("PROCESS_OVERDUE_FAIL_NO_LOCKER", {
+                    AuditService.log_event("PROCESS_OVERDUE_FAIL_NO_LOCKER", {
                         "parcel_id": parcel.id, 
                         "reason": "Locker not found for deposited parcel."
                     })
@@ -289,7 +283,7 @@ def process_overdue_parcels():
                 items_to_update_in_session.append(parcel)
                 if old_locker_status != locker.status:
                     items_to_update_in_session.append(locker)
-                log_audit_event("PARCEL_MARKED_RETURN_TO_SENDER", {
+                AuditService.log_event("PARCEL_MARKED_RETURN_TO_SENDER", {
                     "parcel_id": parcel.id,
                     "locker_id": locker.id,
                     "old_parcel_status": old_parcel_status,
@@ -301,7 +295,7 @@ def process_overdue_parcels():
                 processed_count += 1
             except Exception as e:
                 current_app.logger.error(f"Error processing parcel ID {parcel.id} for overdue status: {str(e)}")
-                log_audit_event("PROCESS_OVERDUE_PARCEL_ERROR", {
+                AuditService.log_event("PROCESS_OVERDUE_PARCEL_ERROR", {
                     "parcel_id": parcel.id, 
                     "error": str(e),
                     "action": "Skipped this parcel, continued with batch."
@@ -314,7 +308,7 @@ def process_overdue_parcels():
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f"Error committing batch of overdue parcels: {str(e)}")
-            log_audit_event("PROCESS_OVERDUE_BATCH_COMMIT_ERROR", {
+            AuditService.log_event("PROCESS_OVERDUE_BATCH_COMMIT_ERROR", {
                 "error": str(e), 
                 "num_parcels_intended_for_update_in_batch": processed_count
             })

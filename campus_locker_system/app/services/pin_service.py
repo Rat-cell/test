@@ -3,7 +3,7 @@ from flask import current_app
 from app import db
 from app.business.pin import PinManager
 from app.business.parcel import Parcel
-from app.application.services import log_audit_event
+from app.services.audit_service import AuditService
 
 def reissue_pin(parcel_id: int):
     """Reissue a new PIN for a parcel"""
@@ -35,7 +35,7 @@ def reissue_pin(parcel_id: int):
         )
         
         # Log the reissue
-        log_audit_event(f"PIN reissued for parcel {parcel.id} by admin", "admin_action")
+        AuditService.log_event(f"PIN reissued for parcel {parcel.id} by admin")
         
         # Check notification result
         if notification_success:
@@ -82,7 +82,7 @@ def request_pin_regeneration_by_recipient(parcel_id: int, provided_email: str):
         )
         
         # Log the regeneration
-        log_audit_event(f"PIN regenerated for parcel {parcel.id} by recipient request", "recipient_action")
+        AuditService.log_event(f"PIN regenerated for parcel {parcel.id} by recipient request")
         
         # Check notification result
         if notification_success:

@@ -4,7 +4,7 @@ from flask import current_app, session
 from app import db
 from app.business.admin_auth import AdminUser as BusinessAdminUser, AdminAuthManager, AdminSession, AdminRole
 from app.persistence.models import AdminUser as PersistenceAdminUser
-from app.application.services import log_audit_event
+from app.services.audit_service import AuditService
 
 class AdminAuthService:
     """Service layer for admin authentication orchestration"""
@@ -16,7 +16,7 @@ class AdminAuthService:
             # Validate login attempt format
             validation_result = AdminAuthManager.validate_login_attempt(username, password)
             if not validation_result['valid']:
-                log_audit_event("ADMIN_LOGIN_FAIL", {
+                AuditService.log_event("ADMIN_LOGIN_FAIL", {
                     "username_attempted": username,
                     "reason": validation_result['reason']
                 })
@@ -26,7 +26,7 @@ class AdminAuthService:
             persistence_admin = PersistenceAdminUser.query.filter_by(username=username).first()
             
             if not persistence_admin:
-                log_audit_event("ADMIN_LOGIN_FAIL", {
+                AuditService.log_event("ADMIN_LOGIN_FAIL", {
                     "username_attempted": username,
                     "reason": "User not found"
                 })
@@ -37,7 +37,7 @@ class AdminAuthService:
             
             # Verify password
             if not business_admin.check_password(password):
-                log_audit_event("ADMIN_LOGIN_FAIL", {
+                AuditService.log_event("ADMIN_LOGIN_FAIL", {
                     "username_attempted": username,
                     "reason": "Invalid password"
                 })
@@ -49,7 +49,7 @@ class AdminAuthService:
             db.session.commit()
             
             # Log successful login
-            log_audit_event("ADMIN_LOGIN_SUCCESS", {
+            AuditService.log_event("ADMIN_LOGIN_SUCCESS", {
                 "admin_username": business_admin.username,
                 "admin_id": business_admin.id,
                 "role": business_admin.role.value
@@ -126,7 +126,7 @@ class AdminAuthService:
         """Logout admin and clear session"""
         admin_id = session.get('admin_id')
         if admin_id:
-            log_audit_event("ADMIN_LOGOUT", {"admin_id": admin_id})
+            AuditService.log_event("ADMIN_LOGOUT", {"admin_id": admin_id})
         
         # Clear all admin-related session data
         session.pop('admin_id', None)
@@ -151,7 +151,7 @@ class AdminAuthService:
         business_admin = AdminAuthService._convert_to_business_entity(persistence_admin)
         
         if not business_admin.can_perform_action(action):
-            log_audit_event("ADMIN_PERMISSION_DENIED", {
+            AuditService.log_event("ADMIN_PERMISSION_DENIED", {
                 "admin_id": admin_session.admin_id,
                 "action_attempted": action,
                 "admin_role": admin_session.role.value
@@ -188,7 +188,7 @@ class AdminAuthService:
             # Update business entity with generated ID
             business_admin.id = persistence_admin.id
             
-            log_audit_event("ADMIN_USER_CREATED", {
+            AuditService.log_event("ADMIN_USER_CREATED", {
                 "admin_id": business_admin.id,
                 "username": business_admin.username,
                 "role": business_admin.role.value,

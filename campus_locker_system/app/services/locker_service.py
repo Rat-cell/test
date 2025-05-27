@@ -1,7 +1,7 @@
 from app import db
 from app.business.locker import Locker
 from app.business.parcel import Parcel
-from app.application.services import log_audit_event
+from app.services.audit_service import AuditService
 from flask import current_app
 
 def set_locker_status(admin_id: int, admin_username: str, locker_id: int, new_status: str):
@@ -28,7 +28,7 @@ def set_locker_status(admin_id: int, admin_username: str, locker_id: int, new_st
             locker.status = 'free'
         db.session.add(locker)
         db.session.commit()
-        log_audit_event("ADMIN_LOCKER_STATUS_CHANGED", details={
+        AuditService.log_event("ADMIN_LOCKER_STATUS_CHANGED", details={
             "admin_id": admin_id,
             "admin_username": admin_username,
             "locker_id": locker_id,
@@ -44,10 +44,10 @@ def set_locker_status(admin_id: int, admin_username: str, locker_id: int, new_st
 def mark_locker_as_emptied(locker_id: int, admin_id: int, admin_username: str):
     locker = db.session.get(Locker, locker_id)
     if not locker:
-        log_audit_event("MARK_LOCKER_EMPTIED_FAIL", {"locker_id": locker_id, "admin_id": admin_id, "admin_username": admin_username, "reason": "Locker not found."})
+        AuditService.log_event("MARK_LOCKER_EMPTIED_FAIL", {"locker_id": locker_id, "admin_id": admin_id, "admin_username": admin_username, "reason": "Locker not found."})
         return None, "Locker not found."
     if locker.status != 'awaiting_collection':
-        log_audit_event("MARK_LOCKER_EMPTIED_FAIL", {
+        AuditService.log_event("MARK_LOCKER_EMPTIED_FAIL", {
             "locker_id": locker_id, 
             "admin_id": admin_id,
             "admin_username": admin_username, 
@@ -60,7 +60,7 @@ def mark_locker_as_emptied(locker_id: int, admin_id: int, admin_username: str):
     try:
         db.session.add(locker)
         db.session.commit()
-        log_audit_event("LOCKER_MARKED_EMPTIED_AFTER_RETURN", {
+        AuditService.log_event("LOCKER_MARKED_EMPTIED_AFTER_RETURN", {
             "locker_id": locker_id,
             "admin_id": admin_id,
             "admin_username": admin_username,
@@ -71,7 +71,7 @@ def mark_locker_as_emptied(locker_id: int, admin_id: int, admin_username: str):
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error in mark_locker_as_emptied for locker {locker_id}: {str(e)}")
-        log_audit_event("MARK_LOCKER_EMPTIED_ERROR", {
+        AuditService.log_event("MARK_LOCKER_EMPTIED_ERROR", {
             "locker_id": locker_id, 
             "admin_id": admin_id,
             "admin_username": admin_username,

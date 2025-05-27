@@ -1,18 +1,17 @@
 # syntax=docker/dockerfile:1
 
-# Use Python 3.12 slim image for smaller size and security
-FROM python:3.12-slim as base
+# Use Python 3.12 slim image
+FROM python:3.12-slim
 
-# Set environment variables
+# Set environment variables for development
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    FLASK_ENV=development \
+    FLASK_DEBUG=1
 
-# Create non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
-
-# Install system dependencies
+# Install system dependencies including curl for health checks
 RUN apt-get update && apt-get install -y \
     --no-install-recommends \
     curl \
@@ -30,12 +29,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create necessary directories and set permissions
-RUN mkdir -p logs databases && \
-    chown -R appuser:appuser /app
-
-# Switch to non-root user
-USER appuser
+# Create necessary directories
+RUN mkdir -p logs databases
 
 # Expose port
 EXPOSE 5000
@@ -44,5 +39,5 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/health || exit 1
 
-# Production command
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "run:app"] 
+# Development command with auto-reload
+CMD ["python", "run.py"] 

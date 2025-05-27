@@ -8,7 +8,7 @@ import pytest # Import pytest to use fixtures
 import json # Add this import
 from datetime import datetime, timedelta # For expired PIN test
 from app.business.pin import PinManager
-from app.application.services import log_audit_event
+from app.services.audit_service import AuditService
 from app.services.parcel_service import mark_parcel_missing_by_admin
 
 def test_generate_pin_and_hash():
@@ -221,7 +221,7 @@ def test_log_audit_event_utility(init_database, app): # Uses app for context
         action_name = "TEST_ACTION"
         details_dict = {"key1": "value1", "number": 123}
         
-        log_audit_event(action_name, details_dict)
+        AuditService.log_event(action_name, details_dict)
         
         log_entry = AuditLog.query.filter_by(action=action_name).order_by(AuditLog.timestamp.desc()).first()
         assert log_entry is not None
@@ -230,7 +230,7 @@ def test_log_audit_event_utility(init_database, app): # Uses app for context
 
         # Test with details as None
         action_name_none_details = "TEST_ACTION_NO_DETAILS"
-        log_audit_event(action_name_none_details, None)
+        AuditService.log_event(action_name_none_details, None)
         log_entry_none = AuditLog.query.filter_by(action=action_name_none_details).order_by(AuditLog.timestamp.desc()).first()
         assert log_entry_none is not None
         assert log_entry_none.action == action_name_none_details
