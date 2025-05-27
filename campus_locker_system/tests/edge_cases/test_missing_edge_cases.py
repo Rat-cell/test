@@ -9,7 +9,7 @@
 # - Explicit test that new PIN expires old PINs
 
 import pytest
-from app.application.services import assign_locker_and_create_parcel, process_pickup, report_parcel_missing_by_recipient, process_overdue_parcels
+from app.services.parcel_service import assign_locker_and_create_parcel, process_pickup, report_parcel_missing_by_recipient, process_overdue_parcels
 from app import db
 from datetime import datetime, timedelta
 
@@ -24,15 +24,25 @@ def test_report_missing_by_recipient_fail_not_found(init_database, app):
 def test_report_missing_by_recipient_fail_wrong_state(init_database, app):
     with app.app_context():
         # Parcel 'picked_up'
-        parcel_picked_up, plain_pin, _ = assign_locker_and_create_parcel('small', 'missing_wrong_state1@example.com')
+        result = assign_locker_and_create_parcel('missing_wrong_state1@example.com', 'small')
+        parcel_picked_up, _ = result
         assert parcel_picked_up is not None
-        process_pickup(plain_pin)
+        
+        # Create a known PIN for testing
+        from app.business.pin import PinManager
+        test_pin, test_hash = PinManager.generate_pin_and_hash()
+        parcel_picked_up.pin_hash = test_hash
+        from app import db
+        db.session.commit()
+        
+        process_pickup(test_pin)
         assert db.session.get(type(parcel_picked_up), parcel_picked_up.id).status == 'picked_up'
         _, error_picked_up = report_parcel_missing_by_recipient(parcel_picked_up.id)
         assert error_picked_up is not None
         assert "cannot be reported missing by recipient from its current state: 'picked_up'" in error_picked_up
         # Parcel 'return_to_sender'
-        parcel_return_to_sender, _, _ = assign_locker_and_create_parcel('small', 'missing_wrong_state2@example.com')
+        result2 = assign_locker_and_create_parcel('missing_wrong_state2@example.com', 'small')
+        parcel_return_to_sender, _ = result2
         assert parcel_return_to_sender is not None
         parcel_return_to_sender.deposited_at = datetime.utcnow() - timedelta(days=8)
         db.session.commit()

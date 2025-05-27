@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, current_app
-from app.application.services import retract_deposit, dispute_pickup, report_parcel_missing_by_recipient
+from app.services.parcel_service import retract_deposit, dispute_pickup, report_parcel_missing_by_recipient
 from app.persistence.models import Locker, LockerSensorData # Import LockerSensorData and Locker
 from app import db # Import db
 
