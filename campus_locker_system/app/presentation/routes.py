@@ -31,7 +31,7 @@ def health_check():
             'error': str(e)
         }), 503
 
-@main_bp.route('/', methods=['GET']) # Optional: redirect root to deposit page
+@main_bp.route('/', methods=['GET', 'POST']) # Root route handles both GET and POST like deposit
 @main_bp.route('/deposit', methods=['GET', 'POST'])
 def deposit_parcel():
     if request.method == 'POST':
@@ -101,9 +101,8 @@ def admin_login():
         if admin_user:
             AdminAuthService.create_session(admin_user)
             flash('Admin login successful!', 'success')
-            # Redirect to a future admin dashboard page
-            # For now, redirect to deposit page or a simple success message page
-            return redirect(url_for('main.deposit_parcel')) # Placeholder redirect
+            # Redirect to admin dashboard (locker management)
+            return redirect(url_for('main.manage_lockers'))
         else:
             flash(f'Login failed: {message}', 'error')
             return redirect(url_for('main.admin_login'))

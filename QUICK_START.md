@@ -1,4 +1,4 @@
-# 🚀 Campus Locker System v2.0 - Quick Start Guide
+# 🚀 Campus Locker System v2.1 - Quick Start Guide
 
 **Get the Campus Locker System running in under 5 minutes!**
 
@@ -29,7 +29,7 @@ make test
 - **🏠 Main Application**: http://localhost/
 - **💊 Health Check**: http://localhost/health
 - **📧 Email Testing (MailHog)**: http://localhost:8025
-- **👤 Admin Login**: http://localhost/admin/login (admin/adminpass123)
+- **👤 Admin Login**: http://localhost/admin/login (admin/AdminPass123!)
 
 ## 📋 Available Commands
 

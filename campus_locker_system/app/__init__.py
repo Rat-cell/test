@@ -6,6 +6,53 @@ from .config import Config
 db = SQLAlchemy()
 mail = Mail() # Add this
 
+def seed_database():
+    """Seed the database with initial data for manual testing"""
+    from app.business.locker import Locker
+    from app.services.admin_auth_service import AdminAuthService
+    from app.business.admin_auth import AdminRole
+    
+    # Check if lockers already exist
+    if Locker.query.count() == 0:
+        print("🌱 Seeding database with initial lockers...")
+        
+        # Create sample lockers for testing
+        lockers = [
+            # Small lockers
+            Locker(size='small', status='free'),
+            Locker(size='small', status='free'),
+            Locker(size='small', status='free'),
+            Locker(size='small', status='free'),
+            
+            # Medium lockers
+            Locker(size='medium', status='free'),
+            Locker(size='medium', status='free'),
+            Locker(size='medium', status='free'),
+            
+            # Large lockers
+            Locker(size='large', status='free'),
+            Locker(size='large', status='free'),
+        ]
+        
+        for locker in lockers:
+            db.session.add(locker)
+        
+        db.session.commit()
+        print(f"✅ Created {len(lockers)} initial lockers")
+    
+    # Check if admin user exists
+    from app.persistence.models import AdminUser
+    if AdminUser.query.count() == 0:
+        print("🔐 Creating default admin user...")
+        try:
+            admin_user, message = AdminAuthService.create_admin_user('admin', 'AdminPass123!', AdminRole.ADMIN)
+            if admin_user:
+                print("✅ Default admin user created: admin / AdminPass123!")
+            else:
+                print(f"⚠️  Could not create admin user: {message}")
+        except Exception as e:
+            print(f"⚠️  Error creating admin user: {e}")
+
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
@@ -43,5 +90,8 @@ def create_app():
             os.makedirs(databases_dir)
         from .persistence import models # Ensure models are loaded
         db.create_all()
+        
+        # Seed database with initial data for manual testing
+        seed_database()
 
     return app
