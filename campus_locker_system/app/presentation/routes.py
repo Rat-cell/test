@@ -22,9 +22,10 @@ def deposit_parcel():
     if request.method == 'POST':
         parcel_size = request.form.get('parcel_size')
         recipient_email = request.form.get('recipient_email')
+        recipient_phone = request.form.get('recipient_phone')
 
-        if not parcel_size or not recipient_email:
-            flash('Parcel size and recipient email are required.', 'error')
+        if not parcel_size or not recipient_email or not recipient_phone:
+            flash('Parcel size, recipient email, and recipient phone are required.', 'error')
             return redirect(url_for('main.deposit_parcel'))
 
         confirm_recipient_email = request.form.get('confirm_recipient_email')
@@ -36,7 +37,7 @@ def deposit_parcel():
             flash('Email addresses do not match. Please try again.', 'error')
             return redirect(url_for('main.deposit_parcel'))
 
-        parcel, pin, error_message = assign_locker_and_create_parcel(parcel_size, recipient_email)
+        parcel, pin, error_message = assign_locker_and_create_parcel(parcel_size, recipient_email, recipient_phone)
 
         print(f"DEBUG: error_message from assign_locker_and_create_parcel: {error_message}")
 
