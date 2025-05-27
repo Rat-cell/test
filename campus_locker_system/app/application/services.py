@@ -34,10 +34,11 @@ def verify_pin(stored_pin_hash_with_salt, provided_pin):
     )
     return hashed_provided_pin.hex() == stored_hash_hex
 
-def assign_locker_and_create_parcel(parcel_size: str, recipient_email: str):
+def assign_locker_and_create_parcel(parcel_size: str, recipient_email: str, recipient_phone: str):
     log_audit_event("USER_DEPOSIT_INITIATED", {
         "parcel_size_requested": parcel_size, 
-        "recipient_email": recipient_email
+        "recipient_email": recipient_email,
+        "recipient_phone": recipient_phone
     })
 
     ALLOWED_PARCEL_SIZES = ['small', 'medium', 'large']
@@ -46,6 +47,7 @@ def assign_locker_and_create_parcel(parcel_size: str, recipient_email: str):
         log_audit_event("USER_DEPOSIT_FAIL", {
             "parcel_size_requested": parcel_size,
             "recipient_email": recipient_email,
+            "recipient_phone": recipient_phone,
             "reason": reason
         })
         return None, None, reason
@@ -56,6 +58,17 @@ def assign_locker_and_create_parcel(parcel_size: str, recipient_email: str):
         log_audit_event("USER_DEPOSIT_FAIL", {
             "parcel_size_requested": parcel_size,
             "recipient_email": recipient_email,
+            "recipient_phone": recipient_phone,
+            "reason": reason
+        })
+        return None, None, reason
+
+    if not recipient_phone or len(recipient_phone) < 7:
+        reason = "Invalid recipient phone number."
+        log_audit_event("USER_DEPOSIT_FAIL", {
+            "parcel_size_requested": parcel_size,
+            "recipient_email": recipient_email,
+            "recipient_phone": recipient_phone,
             "reason": reason
         })
         return None, None, reason
@@ -69,6 +82,7 @@ def assign_locker_and_create_parcel(parcel_size: str, recipient_email: str):
             log_audit_event("USER_DEPOSIT_FAIL", {
                 "parcel_size_requested": parcel_size,
                 "recipient_email": recipient_email,
+                "recipient_phone": recipient_phone,
                 "reason": reason
             })
             return None, None, reason
@@ -98,6 +112,7 @@ def assign_locker_and_create_parcel(parcel_size: str, recipient_email: str):
             "parcel_id": new_parcel.id,
             "locker_id": locker.id, 
             "recipient_email": new_parcel.recipient_email,
+            "recipient_phone": recipient_phone,
             "pin_generated": True 
         })
 
@@ -107,11 +122,12 @@ def assign_locker_and_create_parcel(parcel_size: str, recipient_email: str):
             sender=current_app.config['MAIL_DEFAULT_SENDER'],
             recipients=[recipient_email]
         )
-        msg.body = f"Hello,\n\nYour parcel has been deposited.\nLocker ID: {locker.id}\nYour PIN: {plain_pin}\n\nThis PIN will expire in {current_app.config.get('PARCEL_DEFAULT_PIN_VALIDITY_DAYS', 7)} days.\n\nThank you."
+        msg.body = f"Hello,\n\nYour parcel has been deposited.\nLocker ID: {locker.id}\nYour PIN: {plain_pin}\nRecipient Phone: {recipient_phone}\n\nThis PIN will expire in {current_app.config.get('PARCEL_DEFAULT_PIN_VALIDITY_DAYS', 7)} days.\n\nThank you."
         try:
             mail.send(msg)
             log_audit_event("EMAIL_NOTIFICATION_SENT", {
                 "recipient_email": recipient_email,
+                "recipient_phone": recipient_phone,
                 "subject": msg.subject, 
                 "parcel_id": new_parcel.id 
             })
@@ -119,6 +135,7 @@ def assign_locker_and_create_parcel(parcel_size: str, recipient_email: str):
             current_app.logger.error(f"Failed to send PIN email to {recipient_email}: {e}")
             log_audit_event("EMAIL_NOTIFICATION_FAIL", {
                 "recipient_email": recipient_email,
+                "recipient_phone": recipient_phone,
                 "subject": msg.subject, 
                 "parcel_id": new_parcel.id,
                 "error": str(e) 
@@ -132,6 +149,7 @@ def assign_locker_and_create_parcel(parcel_size: str, recipient_email: str):
         log_audit_event("USER_DEPOSIT_FAIL", {
             "parcel_size_requested": parcel_size,
             "recipient_email": recipient_email,
+            "recipient_phone": recipient_phone,
             "reason": f"Error processing request: {str(e)}"
         })
         return None, None, "Error processing request."
