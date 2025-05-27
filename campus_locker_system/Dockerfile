@@ -10,4 +10,4 @@ COPY . .
 
 EXPOSE 5000
 
-CMD ["python", "run.py"] 
+CMD python create_admin.py admin admin1234 && python run.py 
