@@ -1,1 +1,7 @@
 2025-05-27 12:30:35,836 INFO: Campus Locker System startup [in /Users/samy/Desktop/test/campus_locker_system/app/__init__.py:30]
+2025-05-27 15:38:20,486 INFO: Campus Locker System startup [in /Users/samy/Desktop/test/campus_locker_system/app/__init__.py:30]
+2025-05-27 15:38:20,743 ERROR: Error creating admin user: Working outside of request context.
+
+This typically means that you attempted to use functionality that needed
+an active HTTP request. Consult the documentation on testing for
+information about how to avoid this problem. [in /Users/samy/Desktop/test/campus_locker_system/app/services/admin_auth_service.py:204]

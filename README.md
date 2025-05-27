@@ -1,11 +1,19 @@
-# Campus Locker System v2.0 - Team I
+# Campus Locker System v2.1 - Team I
 
-## 🚀 Version 2.0 - Production-Ready Docker Deployment
+## 🚀 Version 2.1 - Email Security & Manual Testing Fixes
 
 **Campus Locker System** is now fully containerized and production-ready! Version 2.0 introduces comprehensive Docker deployment with enterprise-grade features including reverse proxy, email testing, caching, and automated health monitoring.
 
-### 🎯 What's New in v2.0
+### 🎯 What's New in v2.1
 
+- **🔒 Enhanced Security**: PIN security - depositors can no longer see pickup PINs
+- **📧 Fixed Email System**: Emails now properly route to MailHog for testing
+- **🗄️ Auto Database Seeding**: 18 pre-configured lockers and admin user ready on startup
+- **🔧 Environment Configuration**: All email settings now configurable via environment variables
+- **🧪 Manual Testing Ready**: Complete workflow from deposit to pickup with email verification
+- **📚 Updated Documentation**: Correct admin credentials and testing procedures
+
+### ✨ Previous v2.0 Features
 - **🐳 Full Docker Containerization**: Production and development environments
 - **🔄 Nginx Reverse Proxy**: Load balancing, security headers, SSL-ready
 - **📧 Integrated Email Testing**: MailHog for development and testing
@@ -14,7 +22,6 @@
 - **🔒 Security Hardened**: Non-root containers, security headers, proper secrets management
 - **📊 Comprehensive Logging**: Structured logging with rotation and monitoring
 - **🧪 Enhanced Testing**: Containerized test environment with 91 passing tests
-- **📚 Complete Documentation**: Deployment guides, troubleshooting, and best practices
 
 ---
 
