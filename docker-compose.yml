@@ -10,12 +10,13 @@ services:
   app:
     build: ./campus_locker_system
     container_name: campus_locker_app
+    command: python run.py
     ports:
       - "5001:5000"
     volumes:
-      - ./campus_locker_system/campus_locker.db:/app/campus_locker.db
-      - ./campus_locker_system/campus_locker_audit.db:/app/campus_locker_audit.db
+      - ./campus_locker_system/databases:/app/databases
     depends_on:
       - mailhog
     environment:
       - FLASK_ENV=development 
+      - MAIL_SERVER=mailhog 
