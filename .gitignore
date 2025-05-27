@@ -25,12 +25,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# === Virtual Environment (personal setup) ===
-venv/
-env/
-ENV/
-.venv/
-.env
+# === Personal Python Config ===
 .python-version
 
 # === Flask ===

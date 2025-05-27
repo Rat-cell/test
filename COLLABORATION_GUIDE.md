@@ -54,8 +54,14 @@ open http://localhost/
 - **All configuration files**
 - **All documentation**
 
-### 🚫 What's NOT Included (Intentionally)
-- `venv/` - Virtual environment (you create your own)
+### ✅ What's Included (Complete Setup)
+- `venv/` - **Complete virtual environment** with all dependencies
+- All source code and configuration files
+- All tests and documentation
+- All Docker deployment files
+- All setup scripts and tools
+
+### 🚫 What's NOT Included (Runtime Data Only)
 - `__pycache__/` - Python cache (regenerated automatically)
 - `*.db` files - Databases (created when you run the app)
 - `*.log` files - Log files (created at runtime)
@@ -77,9 +83,7 @@ make up
 # Prerequisites: Python 3.12+, Docker for MailHog
 git clone <repo-url> && cd <repo-name>
 git checkout v2.00
-python3 -m venv venv
-source venv/bin/activate
-pip install -r campus_locker_system/requirements.txt
+source venv/bin/activate  # Virtual environment already included!
 cd campus_locker_system && python run.py
 # ✅ Done! App running at http://127.0.0.1:5000/
 ```
