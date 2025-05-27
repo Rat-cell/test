@@ -22,7 +22,7 @@ class Config:
     }
 
     # Flask-Mail configuration for MailHog
-    MAIL_SERVER = 'localhost'
+    MAIL_SERVER = os.environ.get('MAIL_SERVER', 'localhost')
     MAIL_PORT = 1025
     MAIL_USE_TLS = False
     MAIL_USE_SSL = False
