@@ -1,7 +1,7 @@
 import pytest
 from app import db
 from app.persistence.models import AuditLog, AdminUser
-from app.application.services import log_audit_event
+from app.services.audit_service import AuditService
 from flask import Flask
 
 @pytest.fixture
@@ -18,7 +18,7 @@ def test_admin_login_audit_log(init_database, app, admin_user_fixture):
     with app.app_context():
         admin = db.session.get(AdminUser, admin_user_fixture)  # Query by ID to get attached instance
         # Simulate admin login event
-        log_audit_event("ADMIN_LOGIN_SUCCESS", {"admin_username": admin.username, "admin_id": admin.id})
+        AuditService.log_event("ADMIN_LOGIN_SUCCESS", {"admin_username": admin.username, "admin_id": admin.id})
         # Check that the audit log was created
         log_entry = AuditLog.query.filter_by(action="ADMIN_LOGIN_SUCCESS").order_by(AuditLog.timestamp.desc()).first()
         assert log_entry is not None

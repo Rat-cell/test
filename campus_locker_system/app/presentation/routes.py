@@ -1,20 +1,35 @@
-from flask import render_template, request, redirect, url_for, flash, session, current_app # Add current_app
+from flask import render_template, request, redirect, url_for, flash, session, current_app, jsonify # Add current_app
 from . import main_bp # Assuming main_bp is defined in app/presentation/__init__.py
-from app.application.services import (
+from app.services.parcel_service import (
     assign_locker_and_create_parcel, 
-    process_pickup, 
-    verify_admin_credentials, 
-    log_audit_event, # Add log_audit_event
-    set_locker_status, # Add set_locker_status
-    mark_parcel_missing_by_admin, # Add this
-    reissue_pin, # Add reissue_pin
-    process_overdue_parcels, # Add process_overdue_parcels
-    mark_locker_as_emptied, # Add mark_locker_as_emptied
-    request_pin_regeneration_by_recipient # Add request_pin_regeneration_by_recipient
+    process_pickup,
+    mark_parcel_missing_by_admin,
+    process_overdue_parcels
 )
+from app.services.audit_service import AuditService
 from app.persistence.models import Locker, AuditLog, AdminUser, Parcel, LockerSensorData # Add LockerSensorData
 from .decorators import admin_required # Add admin_required decorator
 from app import db # Add db for session.get
+from app.services.locker_service import set_locker_status, mark_locker_as_emptied
+from app.services.pin_service import reissue_pin, request_pin_regeneration_by_recipient
+
+@main_bp.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for Docker and load balancers"""
+    try:
+        # Basic database connectivity check
+        from app import db
+        db.session.execute(db.text('SELECT 1'))
+        return jsonify({
+            'status': 'healthy',
+            'service': 'campus-locker-system',
+            'version': '1.0.0'
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e)
+        }), 503
 
 @main_bp.route('/', methods=['GET']) # Optional: redirect root to deposit page
 @main_bp.route('/deposit', methods=['GET', 'POST'])
@@ -36,50 +51,41 @@ def deposit_parcel():
             flash('Email addresses do not match. Please try again.', 'error')
             return redirect(url_for('main.deposit_parcel'))
 
-        parcel, pin, error_message = assign_locker_and_create_parcel(parcel_size, recipient_email)
-
-        print(f"DEBUG: error_message from assign_locker_and_create_parcel: {error_message}")
-
-        if error_message:
-            flash(f'Error: {error_message}', 'error')
+        result = assign_locker_and_create_parcel(recipient_email, parcel_size)
+        if result[0] is None:  # parcel is None means error
+            flash(result[1], 'error')  # result[1] is the error message
             return redirect(url_for('main.deposit_parcel'))
-
-        if parcel and pin:
-            # We need the actual locker number/identifier to display.
-            # The 'parcel' object has 'locker_id', which is the foreign key.
-            # We can use this ID to fetch the locker object or just display the ID.
-            # For simplicity, let's assume locker_id is sufficient as "Locker ID".
-            flash('Parcel deposited successfully!', 'success')
-            return render_template('deposit_confirmation.html', locker_id=parcel.locker_id, pin=pin)
-        else:
-            # This case should ideally be covered by error_message, but as a fallback:
-            flash('An unexpected error occurred.', 'error')
-            return redirect(url_for('main.deposit_parcel'))
+        
+        parcel = result[0]
+        success_message = result[1]
+        flash(success_message, 'success')
+        return render_template('deposit_confirmation.html', 
+                               parcel=parcel, 
+                               message=success_message)
 
     return render_template('deposit_form.html')
 
 @main_bp.route('/pickup', methods=['GET', 'POST'])
 def pickup_parcel():
     if request.method == 'POST':
-        pin_provided = request.form.get('pin')
+        pin = request.form.get('pin')
 
-        if not pin_provided or not pin_provided.isdigit() or len(pin_provided) != 6:
-            flash('Please enter a valid 6-digit PIN.', 'error')
+        if not pin:
+            flash('PIN is required.', 'error')
             return redirect(url_for('main.pickup_parcel'))
 
-        parcel, locker, error_message = process_pickup(pin_provided)
-
-        if error_message:
-            flash(f'Error: {error_message}', 'error')
+        # Updated to handle new return format (parcel, message)
+        result = process_pickup(pin)
+        if result[0] is None:  # parcel is None means error
+            flash(result[1], 'error')  # result[1] is the error message
             return redirect(url_for('main.pickup_parcel'))
-
-        if parcel and locker:
-            flash('Parcel picked up successfully!', 'success')
-            return render_template('pickup_confirmation.html', locker_id=locker.id) # or locker.name if it has one
-        else:
-            # This case should ideally be covered by error_message
-            flash('An unexpected error occurred during pickup.', 'error')
-            return redirect(url_for('main.pickup_parcel'))
+        
+        parcel = result[0]
+        success_message = result[1]
+        flash(success_message, 'success')
+        return render_template('pickup_confirmation.html', 
+                               parcel=parcel, 
+                               message=success_message)
 
     return render_template('pickup_form.html')
 
@@ -89,40 +95,33 @@ def admin_login():
         username = request.form.get('username')
         password = request.form.get('password')
 
-        admin_user = verify_admin_credentials(username, password)
+        from app.services.admin_auth_service import AdminAuthService
+        admin_user, message = AdminAuthService.authenticate_admin(username, password)
 
         if admin_user:
-            session['admin_id'] = admin_user.id # Store admin_id in session
-            log_audit_event("ADMIN_LOGIN_SUCCESS", {
-                "admin_username": admin_user.username, 
-                "admin_id": admin_user.id
-            })
+            AdminAuthService.create_session(admin_user)
             flash('Admin login successful!', 'success')
             # Redirect to a future admin dashboard page
             # For now, redirect to deposit page or a simple success message page
             return redirect(url_for('main.deposit_parcel')) # Placeholder redirect
         else:
-            log_audit_event("ADMIN_LOGIN_FAIL", {"username_attempted": username})
-            flash('Invalid admin credentials.', 'error')
+            flash(f'Login failed: {message}', 'error')
             return redirect(url_for('main.admin_login'))
 
     return render_template('admin/admin_login.html')
 
 @main_bp.route('/admin/logout') # Basic logout
 def admin_logout():
-    admin_id_from_session = session.get('admin_id')
-    if admin_id_from_session:
-        log_audit_event("ADMIN_LOGOUT", {"admin_id": admin_id_from_session})
-    
-    session.pop('admin_id', None)
+    from app.services.admin_auth_service import AdminAuthService
+    AdminAuthService.logout()
     flash('You have been logged out.', 'info')
     return redirect(url_for('main.admin_login'))
 
 @main_bp.route('/admin/audit-logs')
 @admin_required
 def audit_logs_view():
-    # Query the latest 100 audit logs, newest first
-    logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).limit(100).all()
+    # Use the new audit service to get logs
+    logs = AuditService.get_audit_logs(limit=100)
     return render_template('admin/audit_logs.html', logs=logs)
 
 @main_bp.route('/admin/lockers', methods=['GET'])

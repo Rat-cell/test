@@ -4,9 +4,13 @@ from flask import session, redirect, url_for, flash
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'admin_id' not in session:
-            print("DEBUG: admin_required - not logged in, redirecting to login")
+        from app.services.admin_auth_service import AdminAuthService
+        
+        is_valid, error_message = AdminAuthService.validate_session()
+        if not is_valid:
+            print(f"DEBUG: admin_required - session validation failed: {error_message}")
             flash('Please log in to access this page.', 'warning')
-            return redirect(url_for('main.admin_login')) # Assuming 'main' is the blueprint name
+            return redirect(url_for('main.admin_login'))
+        
         return f(*args, **kwargs)
     return decorated_function

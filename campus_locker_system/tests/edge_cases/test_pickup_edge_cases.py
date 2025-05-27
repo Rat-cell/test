@@ -9,28 +9,48 @@
 # - Explicit test that new PIN expires old PINs
 
 import pytest
-from app.application.services import assign_locker_and_create_parcel, process_pickup, retract_deposit, dispute_pickup
+from app.services.parcel_service import assign_locker_and_create_parcel, process_pickup, retract_deposit, dispute_pickup
 from app import db
 
 # Test: Picking up a parcel that has already been retracted should fail with 'Invalid PIN'
 def test_process_pickup_fails_for_retracted_parcel(init_database, app):
     with app.app_context():
-        parcel, plain_pin, _ = assign_locker_and_create_parcel('small', 'pickup_retracted_fail@example.com')
+        result = assign_locker_and_create_parcel('pickup_retracted_fail@example.com', 'small')
+        parcel, _ = result
         assert parcel is not None
+        
+        # Create a known PIN for testing
+        from app.business.pin import PinManager
+        test_pin, test_hash = PinManager.generate_pin_and_hash()
+        parcel.pin_hash = test_hash
+        db.session.commit()
+        
         retract_deposit(parcel.id)
         assert db.session.get(type(parcel), parcel.id).status == 'retracted_by_sender'
-        _, _, error = process_pickup(plain_pin)
-        assert error is not None
-        assert "Invalid PIN" in error
+        
+        pickup_result = process_pickup(test_pin)
+        picked_parcel, pickup_message = pickup_result
+        assert picked_parcel is None
+        assert "Invalid PIN" in pickup_message
 
 # Test: Picking up a parcel that has been disputed should fail with 'Invalid PIN'
 def test_process_pickup_fails_for_disputed_parcel(init_database, app):
     with app.app_context():
-        parcel, plain_pin, _ = assign_locker_and_create_parcel('small', 'pickup_disputed_fail@example.com')
+        result = assign_locker_and_create_parcel('pickup_disputed_fail@example.com', 'small')
+        parcel, _ = result
         assert parcel is not None
-        process_pickup(plain_pin)
+        
+        # Create a known PIN for testing
+        from app.business.pin import PinManager
+        test_pin, test_hash = PinManager.generate_pin_and_hash()
+        parcel.pin_hash = test_hash
+        db.session.commit()
+        
+        process_pickup(test_pin)
         dispute_pickup(parcel.id)
         assert db.session.get(type(parcel), parcel.id).status == 'pickup_disputed'
-        _, _, error = process_pickup(plain_pin)
-        assert error is not None
-        assert "Invalid PIN" in error 
+        
+        pickup_result = process_pickup(test_pin)
+        picked_parcel, pickup_message = pickup_result
+        assert picked_parcel is None
+        assert "Invalid PIN" in pickup_message 

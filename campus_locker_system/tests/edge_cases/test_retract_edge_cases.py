@@ -9,9 +9,10 @@
 # - Explicit test that new PIN expires old PINs
 
 import pytest
-from app.application.services import assign_locker_and_create_parcel
+from app.services.parcel_service import assign_locker_and_create_parcel, process_pickup
 from app.persistence.models import Locker, Parcel, AdminUser
 from app import db
+from app.services.locker_service import set_locker_status
 
 # Test: API should return 404 or 400 when trying to retract a non-existent parcel
 def test_api_retract_deposit_parcel_not_found(client, init_database, app):
@@ -23,11 +24,18 @@ def test_api_retract_deposit_parcel_not_found(client, init_database, app):
 # Test: API should return 400 or 409 when trying to retract a parcel that is not in 'deposited' state (already picked up)
 def test_api_retract_deposit_not_deposited(client, init_database, app):
     with app.app_context():
-        parcel, pin, _ = assign_locker_and_create_parcel('small', 'retract_not_deposited@example.com')
+        result = assign_locker_and_create_parcel('retract_not_deposited@example.com', 'small')
+        parcel, _ = result
         assert parcel is not None
+        
+        # Create a known PIN for testing
+        from app.business.pin import PinManager
+        test_pin, test_hash = PinManager.generate_pin_and_hash()
+        parcel.pin_hash = test_hash
+        db.session.commit()
+        
         # Simulate pickup (so status is 'picked_up')
-        from app.application.services import process_pickup
-        process_pickup(pin)
+        process_pickup(test_pin)
         response = client.post(f'/api/v1/deposit/{parcel.id}/retract')
         assert response.status_code == 400 or response.status_code == 409
         # Optionally check error message in response
@@ -41,11 +49,11 @@ def test_api_retract_deposit_locker_was_oos(client, init_database, app):
         db.session.add(admin)
         db.session.commit()
         # Setup: deposit parcel
-        parcel, _, _ = assign_locker_and_create_parcel('small', 'retract_oos@example.com')
+        result = assign_locker_and_create_parcel('retract_oos@example.com', 'small')
+        parcel, _ = result
         assert parcel is not None
         original_locker_id = parcel.locker_id
         # Mark locker as out_of_service
-        from app.application.services import set_locker_status
         set_locker_status(admin.id, admin.username, original_locker_id, 'out_of_service')
         assert db.session.get(Locker, original_locker_id).status == 'out_of_service'
         # Retract deposit

@@ -1,0 +1,114 @@
+# Campus Locker System v2.0 - Collaborative Git Ignore Configuration
+# Only excludes temporary files and runtime data - keeps everything needed for collaboration
+
+# === Python Cache (regenerated automatically) ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# === Personal Python Config ===
+.python-version
+
+# === Flask ===
+instance/
+.webassets-cache
+.env
+
+# === Runtime Database Files (created when app runs) ===
+campus_locker_system/databases/*.db
+campus_locker_system/instance/*.db
+
+# === Runtime Log Files (created when app runs) ===
+campus_locker_system/logs/*.log*
+logs/*.log*
+
+# === Personal Environment Variables ===
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# === Testing Cache ===
+.pytest_cache/
+.coverage
+htmlcov/
+
+# === IDE Personal Settings ===
+.vscode/settings.json
+.idea/workspace.xml
+.idea/tasks.xml
+*.swp
+*.swo
+
+# === macOS Personal Files ===
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+# === Docker ===
+.dockerignore
+
+# === Node.js (if used for frontend tools) ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === Temporary Files ===
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# === Backup Files ===
+*.bak
+*.backup
+*~
+
+# === SSL Certificates ===
+ssl/
+*.pem
+*.crt
+*.key
+
+# === Cache ===
+.cache/
+*.cache
+
+# === OS ===
+.DS_Store?
+ehthumbs.db
+Thumbs.db
+
+# === Docker Volumes (runtime data) ===
+docker-volumes/
+
+# === Keep These Important Files for Collaboration ===
+# .env (template with defaults)
+# Dockerfile*
+# docker-compose*.yml
+# requirements.txt
+# All source code
+# All documentation
+# All scripts
+# All configuration files 
