@@ -11,7 +11,13 @@ from app.persistence.models import Locker, AuditLog, AdminUser, Parcel, LockerSe
 from .decorators import admin_required # Add admin_required decorator
 from app import db # Add db for session.get
 from app.services.locker_service import set_locker_status, mark_locker_as_emptied
-from app.services.pin_service import reissue_pin, request_pin_regeneration_by_recipient
+from app.services.pin_service import (
+    reissue_pin, 
+    request_pin_regeneration_by_recipient, 
+    generate_pin_by_token,
+    regenerate_pin_token,
+    request_pin_regeneration_by_recipient_email_and_locker
+)
 
 @main_bp.route('/health', methods=['GET'])
 def health_check():
@@ -23,7 +29,7 @@ def health_check():
         return jsonify({
             'status': 'healthy',
             'service': 'campus-locker-system',
-            'version': '1.0.0'
+            'version': '2.1.2'
         }), 200
     except Exception as e:
         return jsonify({
@@ -59,11 +65,43 @@ def deposit_parcel():
         parcel = result[0]
         success_message = result[1]
         flash(success_message, 'success')
+        
+        # Get PIN expiry hours from config for template
+        from app.business.pin import PinManager
+        pin_expiry_hours = PinManager.get_pin_expiry_hours()
+        
         return render_template('deposit_confirmation.html', 
                                parcel=parcel, 
-                               message=success_message)
+                               message=success_message,
+                               pin_expiry_hours=pin_expiry_hours)
 
     return render_template('deposit_form.html')
+
+@main_bp.route('/generate-pin/<token>', methods=['GET'])
+def generate_pin_by_token_route(token):
+    """Generate PIN using email token"""
+    try:
+        parcel, message = generate_pin_by_token(token)
+        
+        # Get PIN expiry hours from config
+        from app.business.pin import PinManager
+        pin_expiry_hours = PinManager.get_pin_expiry_hours()
+        
+        if parcel:
+            flash(message, 'success')
+            return render_template('pin_generation_success.html', 
+                                 parcel=parcel, 
+                                 message=message,
+                                 pin_expiry_hours=pin_expiry_hours)
+        else:
+            flash(message, 'error')
+            return render_template('pin_generation_error.html', 
+                                 error_message=message)
+    except Exception as e:
+        current_app.logger.error(f"Error in PIN generation route: {str(e)}")
+        flash('An unexpected error occurred. Please try again later.', 'error')
+        return render_template('pin_generation_error.html', 
+                             error_message='An unexpected error occurred.')
 
 @main_bp.route('/pickup', methods=['GET', 'POST'])
 def pickup_parcel():
@@ -201,13 +239,18 @@ def request_new_pin_action():
             flash('Email and Locker ID are required.', 'error')
             return redirect(url_for('main.request_new_pin_action'))
 
-        request_pin_regeneration_by_recipient(recipient_email, locker_id) # Call the actual service
+        # Call the service function that handles both PIN systems
+        parcel, message = request_pin_regeneration_by_recipient_email_and_locker(recipient_email, locker_id)
 
-        # Always flash the same generic message for security (to prevent fishing)
-        flash("If your details matched an active parcel eligible for a new PIN, an email with the new PIN has been sent to the registered email address. Please check your inbox (and spam folder).", "info")
+        # Always flash a generic message for security (to prevent fishing)
+        flash("If your details matched an active parcel eligible for a new PIN, an email has been sent to the registered email address. Please check your inbox (and spam folder).", "info")
         return redirect(url_for('main.request_new_pin_action'))
 
-    return render_template('request_new_pin_form.html')
+    # Get PIN expiry hours from config for template
+    from app.business.pin import PinManager
+    pin_expiry_hours = PinManager.get_pin_expiry_hours()
+    
+    return render_template('request_new_pin_form.html', pin_expiry_hours=pin_expiry_hours)
 
 @main_bp.route('/admin/locker/<int:locker_id>/mark-emptied', methods=['POST'])
 @admin_required
@@ -269,6 +312,36 @@ def reissue_pin_admin_action(parcel_id):
         flash(f"Error reissuing PIN for parcel {parcel_id}: {message}", "error")
     
     return redirect(url_for('main.view_parcel_admin', parcel_id=parcel_id))
+
+@main_bp.route('/admin/parcel/<int:parcel_id>/regenerate-pin-token', methods=['POST'])
+@admin_required
+def regenerate_pin_token_admin_action(parcel_id):
+    """Admin action to regenerate PIN generation token for email-based PIN parcels"""
+    try:
+        parcel = db.session.get(Parcel, parcel_id)
+        if not parcel:
+            flash(f"Parcel ID {parcel_id} not found.", "error")
+            return redirect(url_for('main.manage_lockers'))
+        
+        # Check if this parcel uses email-based PIN generation
+        if not current_app.config.get('ENABLE_EMAIL_BASED_PIN_GENERATION', True):
+            flash("Email-based PIN generation is not enabled.", "error")
+            return redirect(url_for('main.view_parcel_admin', parcel_id=parcel_id))
+        
+        # Regenerate PIN token
+        success, message = regenerate_pin_token(parcel_id, parcel.recipient_email)
+        
+        if success:
+            flash(f"Successfully regenerated PIN generation link for parcel {parcel_id}. {message}", "success")
+        else:
+            flash(f"Error regenerating PIN generation link for parcel {parcel_id}: {message}", "error")
+        
+        return redirect(url_for('main.view_parcel_admin', parcel_id=parcel_id))
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in regenerate PIN token admin action: {str(e)}")
+        flash(f"An unexpected error occurred while regenerating PIN token for parcel {parcel_id}.", "error")
+        return redirect(url_for('main.view_parcel_admin', parcel_id=parcel_id))
 
 @main_bp.route('/admin/locker/<int:locker_id>/set-status', methods=['POST'])
 @admin_required

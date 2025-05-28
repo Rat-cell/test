@@ -803,3 +803,224 @@ def test_admin_manage_lockers_no_sensor_data_default_true(logged_in_admin_client
         finally:
             current_app.config['ENABLE_LOCKER_SENSOR_DATA_FEATURE'] = original_sensor_feature
             current_app.config['DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE'] = original_default_state
+
+
+# Tests for Email-Based PIN Generation Routes
+
+@patch('app.presentation.routes.EmailPinService.generate_pin_by_token')
+def test_generate_pin_by_token_success(mock_service, client, init_database, app):
+    """Test successful PIN generation via email token"""
+    with app.app_context():
+        from app.business.parcel import Parcel
+        
+        # Create mock parcel
+        mock_parcel = Parcel(
+            id=1,
+            locker_id=1,
+            recipient_email='test@example.com',
+            status='deposited'
+        )
+        mock_service.return_value = (mock_parcel, "PIN generated successfully and sent to test@example.com")
+        
+        response = client.get('/generate-pin/test_token_123')
+        
+        assert response.status_code == 200
+        assert b"PIN Generated Successfully!" in response.data
+        assert b"test@example.com" in response.data
+        assert b"Locker ID: 1" in response.data
+        mock_service.assert_called_once_with('test_token_123')
+
+@patch('app.presentation.routes.EmailPinService.generate_pin_by_token')
+def test_generate_pin_by_token_invalid_token(mock_service, client, init_database, app):
+    """Test PIN generation with invalid token"""
+    with app.app_context():
+        mock_service.return_value = (None, "Invalid or expired token.")
+        
+        response = client.get('/generate-pin/invalid_token')
+        
+        assert response.status_code == 200
+        assert b"PIN Generation Failed" in response.data
+        assert b"Invalid or expired token." in response.data
+        mock_service.assert_called_once_with('invalid_token')
+
+@patch('app.presentation.routes.EmailPinService.generate_pin_by_token')
+def test_generate_pin_by_token_rate_limit(mock_service, client, init_database, app):
+    """Test PIN generation rate limit error"""
+    with app.app_context():
+        mock_service.return_value = (None, "Daily PIN generation limit reached (3 per day). Please try again tomorrow.")
+        
+        response = client.get('/generate-pin/rate_limited_token')
+        
+        assert response.status_code == 200
+        assert b"PIN Generation Failed" in response.data
+        assert b"Daily PIN generation limit reached" in response.data
+        mock_service.assert_called_once_with('rate_limited_token')
+
+@patch('app.presentation.routes.EmailPinService.generate_pin_by_token')
+def test_generate_pin_by_token_exception_handling(mock_service, client, init_database, app):
+    """Test PIN generation route exception handling"""
+    with app.app_context():
+        mock_service.side_effect = Exception("Database error")
+        
+        response = client.get('/generate-pin/error_token')
+        
+        assert response.status_code == 200
+        assert b"PIN Generation Failed" in response.data
+        assert b"An unexpected error occurred" in response.data
+        mock_service.assert_called_once_with('error_token')
+
+def test_admin_regenerate_pin_token_success(logged_in_admin_client, init_database, app):
+    """Test admin regeneration of PIN token"""
+    with app.app_context():
+        from app.business.parcel import Parcel
+        
+        # Create parcel with email-based PIN
+        parcel = Parcel(
+            locker_id=1,
+            recipient_email='admin_regen@example.com',
+            status='deposited'
+        )
+        parcel.generate_pin_token()
+        db.session.add(parcel)
+        db.session.commit()
+        
+        with patch('app.presentation.routes.EmailPinService.regenerate_pin_token') as mock_service:
+            mock_service.return_value = (True, "New PIN generation link sent to admin_regen@example.com")
+            
+            response = logged_in_admin_client.post(f'/admin/parcel/{parcel.id}/regenerate-pin-token')
+            
+            assert response.status_code == 302  # Redirect
+            mock_service.assert_called_once_with(parcel.id, 'admin_regen@example.com')
+
+def test_admin_regenerate_pin_token_parcel_not_found(logged_in_admin_client, init_database, app):
+    """Test admin regeneration of PIN token for non-existent parcel"""
+    with app.app_context():
+        response = logged_in_admin_client.post('/admin/parcel/99999/regenerate-pin-token')
+        
+        assert response.status_code == 302  # Redirect
+        # Should redirect back to manage_lockers with error message
+
+def test_admin_regenerate_pin_token_email_disabled(logged_in_admin_client, init_database, app):
+    """Test admin regeneration when email-based PIN is disabled"""
+    with app.app_context():
+        from app.business.parcel import Parcel
+        
+        # Disable email-based PIN generation
+        app.config['ENABLE_EMAIL_BASED_PIN_GENERATION'] = False
+        
+        # Create parcel
+        parcel = Parcel(
+            locker_id=1,
+            recipient_email='disabled@example.com',
+            status='deposited'
+        )
+        db.session.add(parcel)
+        db.session.commit()
+        
+        response = logged_in_admin_client.post(f'/admin/parcel/{parcel.id}/regenerate-pin-token')
+        
+        assert response.status_code == 302  # Redirect
+        # Should redirect with error message about feature being disabled
+
+def test_deposit_confirmation_email_pin_display(client, init_database, app):
+    """Test deposit confirmation page displays email PIN information correctly"""
+    with app.app_context():
+        from app.business.parcel import Parcel
+        
+        # Configure for email-based PIN generation
+        app.config['ENABLE_EMAIL_BASED_PIN_GENERATION'] = True
+        
+        with patch('app.services.parcel_service.EmailPinService.create_parcel_with_email_pin') as mock_service:
+            # Create mock parcel with email-based PIN
+            mock_parcel = Parcel(
+                id=1,
+                locker_id=1,
+                recipient_email='email_display@example.com',
+                status='deposited'
+            )
+            mock_parcel.generate_pin_token()
+            mock_service.return_value = (mock_parcel, "Parcel deposited successfully. PIN generation link sent to email_display@example.com.")
+            
+            response = client.post('/', data={
+                'parcel_size': 'small',
+                'recipient_email': 'email_display@example.com',
+                'confirm_recipient_email': 'email_display@example.com'
+            })
+            
+            assert response.status_code == 200
+            assert b"Email-based PIN Generation" in response.data
+            assert b"PIN generation link has been sent" in response.data
+            assert b"Enhanced Security Features" in response.data
+            assert b"No PIN is sent immediately" in response.data
+
+def test_deposit_confirmation_traditional_pin_display(client, init_database, app):
+    """Test deposit confirmation page displays traditional PIN information correctly"""
+    with app.app_context():
+        # Configure for traditional PIN generation
+        app.config['ENABLE_EMAIL_BASED_PIN_GENERATION'] = False
+        
+        with patch('app.services.parcel_service.NotificationService.send_parcel_deposit_notification') as mock_notify:
+            mock_notify.return_value = (True, "PIN sent successfully")
+            
+            response = client.post('/', data={
+                'parcel_size': 'small',
+                'recipient_email': 'traditional_display@example.com',
+                'confirm_recipient_email': 'traditional_display@example.com'
+            })
+            
+            assert response.status_code == 200
+            assert b"Traditional PIN System" in response.data
+            assert b"pickup PIN has been sent" in response.data
+
+def test_admin_view_parcel_email_pin_information(logged_in_admin_client, init_database, app):
+    """Test admin parcel view displays email PIN generation information"""
+    with app.app_context():
+        from app.business.parcel import Parcel
+        
+        # Create parcel with email-based PIN
+        parcel = Parcel(
+            locker_id=1,
+            recipient_email='admin_view@example.com',
+            status='deposited'
+        )
+        token = parcel.generate_pin_token()
+        parcel.pin_generation_count = 2
+        db.session.add(parcel)
+        db.session.commit()
+        
+        response = logged_in_admin_client.get(f'/admin/parcel/{parcel.id}/view')
+        
+        assert response.status_code == 200
+        response_html = response.data.decode('utf-8')
+        
+        assert "Email-based PIN Generation" in response_html
+        assert "PIN Generation Count: 2/3" in response_html
+        assert "No PIN Generated Yet" in response_html
+        assert "Regenerate PIN Link" in response_html
+
+def test_admin_view_parcel_traditional_pin_information(logged_in_admin_client, init_database, app):
+    """Test admin parcel view displays traditional PIN information"""
+    with app.app_context():
+        from app.business.parcel import Parcel
+        from app.business.pin import PinManager
+        
+        # Create parcel with traditional PIN
+        pin, pin_hash = PinManager.generate_pin_and_hash()
+        parcel = Parcel(
+            locker_id=1,
+            recipient_email='admin_traditional@example.com',
+            status='deposited',
+            pin_hash=pin_hash,
+            otp_expiry=PinManager.generate_expiry_time()
+        )
+        db.session.add(parcel)
+        db.session.commit()
+        
+        response = logged_in_admin_client.get(f'/admin/parcel/{parcel.id}/view')
+        
+        assert response.status_code == 200
+        response_html = response.data.decode('utf-8')
+        
+        assert "Traditional PIN System" in response_html
+        assert "Reissue PIN" in response_html
+        assert "PIN Hash:" in response_html

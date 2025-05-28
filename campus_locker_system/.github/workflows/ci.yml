@@ -127,10 +127,10 @@ jobs:
     
     - name: Test Docker image runs
       run: |
-        docker run --rm -d -p 5000:5000 --name test-container campus-locker-system:test
+        docker run --rm -d -p 80:80 --name test-container campus-locker-system:test
         sleep 10
         # Basic health check
-        curl -f http://localhost:5000/ || echo "Health check failed - this is expected in CI"
+        curl -f http://localhost/ || echo "Health check failed - this is expected in CI"
         docker stop test-container
         
     - name: Clean up test image

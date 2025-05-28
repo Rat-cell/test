@@ -35,6 +35,12 @@ class Config:
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@campuslocker.local')
 
+    LOCKER_SIZE_DIMENSIONS = {
+        'small': {'height': 10, 'width': 10, 'depth': 10},
+        'medium': {'height': 20, 'width': 20, 'depth': 20},
+        'large': {'height': 30, 'width': 30, 'depth': 30},
+    }
+
     # Sensor Data Feature Configuration
     ENABLE_LOCKER_SENSOR_DATA_FEATURE = True
     DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE = False
@@ -51,4 +57,4 @@ class Config:
     MAX_PIN_GENERATIONS_PER_DAY = int(os.environ.get('MAX_PIN_GENERATIONS_PER_DAY', 3))
     ENABLE_EMAIL_BASED_PIN_GENERATION = os.environ.get('ENABLE_EMAIL_BASED_PIN_GENERATION', 'true').lower() == 'true'
 
-    LOG_DIR = os.environ.get('LOG_DIR') or os.path.abspath(os.path.join(basedir, '..', 'logs'))
+    LOG_DIR = os.environ.get('LOG_DIR') or os.path.abspath(os.path.join(basedir, '..', 'logs')) 

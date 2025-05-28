@@ -2,6 +2,7 @@
 import hashlib
 import os
 from datetime import datetime, timedelta
+from flask import current_app
 
 class PinManager:
     """Business logic for PIN management"""
@@ -29,9 +30,32 @@ class PinManager:
     @staticmethod
     def is_pin_expired(otp_expiry):
         """Check if a PIN has expired"""
+        if otp_expiry is None:
+            return True  # Treat None expiry as expired
         return datetime.utcnow() > otp_expiry
     
     @staticmethod
-    def generate_expiry_time(hours=24):
-        """Generate expiry time for a PIN (default 24 hours from now)"""
-        return datetime.utcnow() + timedelta(hours=hours) 
+    def generate_expiry_time(hours=None):
+        """Generate expiry time for a PIN using configurable hours from app config"""
+        if hours is None:
+            # Get from Flask app config, default to 24 hours if not configured
+            hours = current_app.config.get('PIN_EXPIRY_HOURS', 24)
+        return datetime.utcnow() + timedelta(hours=hours)
+    
+    @staticmethod
+    def get_pin_expiry_hours():
+        """Get the configured PIN expiry hours from app config"""
+        return current_app.config.get('PIN_EXPIRY_HOURS', 24)
+    
+    @staticmethod
+    def is_valid_pin_format(pin):
+        """Validate PIN format (6 digits)"""
+        if not pin:
+            return False
+        if not isinstance(pin, str):
+            return False
+        if len(pin) != 6:
+            return False
+        if not pin.isdigit():
+            return False
+        return True 

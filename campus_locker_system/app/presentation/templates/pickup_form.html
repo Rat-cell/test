@@ -3,23 +3,163 @@
 <head>
     <meta charset="UTF-8">
     <title>Pick Up Parcel</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .info-box {
+            background-color: #e7f3ff;
+            border: 1px solid #007bff;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .help-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+        button {
+            width: 100%;
+            padding: 12px 15px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        .flashes {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        .flashes li {
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .flashes .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .flashes .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .actions {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .actions a {
+            display: inline-block;
+            margin: 5px 10px;
+            padding: 8px 16px;
+            color: #007bff;
+            text-decoration: none;
+            border: 1px solid #007bff;
+            border-radius: 4px;
+        }
+        .actions a:hover {
+            background-color: #007bff;
+            color: white;
+        }
+        .help-link {
+            background-color: #ffc107;
+            color: #212529;
+            font-weight: bold;
+        }
+        .help-link:hover {
+            background-color: #e0a800;
+            color: #212529;
+        }
+    </style>
 </head>
 <body>
-    <h1>Pick Up Parcel</h1>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <ul class=flashes>
-        {% for category, message in messages %}
-          <li class="{{ category }}">{{ message }}</li>
-        {% endfor %}
-        </ul>
-      {% endif %}
-    {% endwith %}
-    <form method="POST">
-        <label for="pin">Enter PIN:</label>
-        <input type="text" name="pin" id="pin" required minlength="6" maxlength="6"><br><br>
-        <button type="submit">Pick Up</button>
-    </form>
-    <p><a href="{{ url_for('main.deposit_parcel') }}">Deposit a parcel</a></p>
+    <div class="container">
+        <h1>🔑 Pick Up Parcel</h1>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <ul class="flashes">
+            {% for category, message in messages %}
+              <li class="{{ category }}">{{ message }}</li>
+            {% endfor %}
+            </ul>
+          {% endif %}
+        {% endwith %}
+        
+        <div class="info-box">
+            <h3>📋 How to pick up your parcel:</h3>
+            <ol>
+                <li>Enter your 6-digit PIN below</li>
+                <li>Click "Pick Up" to open the locker</li>
+                <li>Collect your parcel</li>
+                <li>Close the locker securely</li>
+            </ol>
+        </div>
+        
+        <form method="POST">
+            <label for="pin">🔢 Enter Your 6-Digit PIN:</label>
+            <input type="text" name="pin" id="pin" required minlength="6" maxlength="6" 
+                   placeholder="123456" pattern="[0-9]{6}" title="Please enter a 6-digit PIN">
+            <button type="submit">🔑 Pick Up Parcel</button>
+        </form>
+        
+        <div class="help-box">
+            <h3>❓ Need help?</h3>
+            <ul>
+                <li><strong>Don't have a PIN?</strong> Check your email for the PIN or PIN generation link</li>
+                <li><strong>PIN expired?</strong> Use the "Request New PIN" button below</li>
+                <li><strong>Didn't receive an email?</strong> Check your spam folder or request a new PIN</li>
+                <li><strong>Having trouble?</strong> Contact support or visit the pickup location</li>
+            </ul>
+        </div>
+        
+        <div class="actions">
+            <a href="{{ url_for('main.request_new_pin_action') }}" class="help-link">🔄 Request New PIN</a>
+            <a href="{{ url_for('main.deposit_parcel') }}">📦 Deposit a Parcel</a>
+        </div>
+    </div>
 </body>
 </html>
