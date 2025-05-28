@@ -85,7 +85,7 @@ git clone <repo-url> && cd <repo-name>
 git checkout v2.00
 source venv/bin/activate  # Virtual environment already included!
 cd campus_locker_system && python run.py
-# ✅ Done! App running at http://127.0.0.1:5000/
+# ✅ Done! App running at http://localhost/
 ```
 
 ### Option 3: Automated Setup
@@ -162,8 +162,9 @@ cp .env.template .env
 
 ### Port Conflicts
 If port 5000 is busy (common on macOS):
-- System automatically uses port 5001
-- Access via http://localhost:5001/
+- System routes through nginx proxy on port 80
+- Access via http://localhost/ (recommended)
+- Direct access available at http://localhost/ (debugging only)
 
 ### Container Issues
 ```bash

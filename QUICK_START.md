@@ -1,4 +1,4 @@
-# 🚀 Campus Locker System v2.1 - Quick Start Guide
+# 🚀 Campus Locker System v2.1.2 - Quick Start Guide
 
 **Get the Campus Locker System running in under 5 minutes!**
 
@@ -26,7 +26,7 @@ make test
 ```
 
 ### 4. Access the Application
-- **🏠 Main Application**: http://localhost/
+- **🌐 Campus Locker System**: http://localhost
 - **💊 Health Check**: http://localhost/health
 - **📧 Email Testing (MailHog)**: http://localhost:8025
 - **👤 Admin Login**: http://localhost/admin/login (admin/AdminPass123!)
@@ -79,7 +79,7 @@ python run.py
 ```
 
 ### 5. Access Application
-- **Main App**: http://127.0.0.1:5000/
+- **Main App**: http://localhost/
 - **MailHog**: http://localhost:8025
 
 ## 🧪 Testing
@@ -114,7 +114,7 @@ pytest --cov=app
 ### Port Conflicts
 If port 5000 is in use (common on macOS):
 - The system automatically uses port 5001 externally
-- Access via http://localhost:5001/health
+- Access via http://localhost/health
 
 ### Container Issues
 ```bash
@@ -155,4 +155,4 @@ make up
 
 ---
 
-**Campus Locker System v2.0** - Enterprise-ready parcel management system 🚀 
+**Campus Locker System v2.1.2** - Enterprise-ready parcel management system 🚀 

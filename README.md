@@ -1,11 +1,19 @@
-# Campus Locker System v2.1 - Team I
+# Campus Locker System v2.1.2 - Team I
 
-## 🚀 Version 2.1 - Email Security & Manual Testing Fixes
+## 🚀 Version 2.1.2 - Email Template Enhancement & System Standardization
 
-**Campus Locker System** is now fully containerized and production-ready! Version 2.0 introduces comprehensive Docker deployment with enterprise-grade features including reverse proxy, email testing, caching, and automated health monitoring.
+**Campus Locker System** is now fully containerized and production-ready! Version 2.1.2 introduces professional email templates, enhanced PIN regeneration, and comprehensive system standardization.
 
-### 🎯 What's New in v2.1
+### 🎯 What's New in v2.1.2
 
+- **🎨 Professional Email Templates**: Completely redesigned email templates with clean, professional formatting
+- **🔄 Enhanced PIN Regeneration**: All PIN-related emails now include regeneration links for improved user experience
+- **📅 Parcel Lifecycle Clarity**: All emails include pickup deadline information (7 days from deposit)
+- **🌐 URL Standardization**: Consistent localhost URL structure throughout the entire system
+- **🗄️ Database Optimization**: Additional test lockers and improved data structure for comprehensive testing
+- **🔧 Configuration Improvements**: Flask port migration to 80 and nginx upstream fixes
+
+### ✨ Previous v2.1 Features
 - **🔒 Enhanced Security**: PIN security - depositors can no longer see pickup PINs
 - **📧 Fixed Email System**: Emails now properly route to MailHog for testing
 - **🗄️ Auto Database Seeding**: 18 pre-configured lockers and admin user ready on startup
@@ -60,10 +68,10 @@ make up
 ```
 
 ### 3. Access the Application
-- **🏠 Main Application**: http://localhost/
+- **🏠 Main Application**: http://localhost
 - **💊 Health Check**: http://localhost/health
 - **📧 Email Testing (MailHog)**: http://localhost:8025
-- **🔧 Direct App Access**: http://localhost:5001
+- **🔧 Direct App Access**: http://localhost
 
 ### 4. Test the System
 ```bash
@@ -102,7 +110,7 @@ Developed by **Team I**: Pauline Feldhoff, Paul von Franqué, Asma Mzee, Samuel 
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │     Nginx       │    │   Flask App     │    │     Redis       │
 │  Reverse Proxy  │────│  (Gunicorn)     │────│     Cache       │
-│   Port 80/443   │    │   Port 5000     │    │   Port 6379     │
+│   Port 80/443   │    │    Port 80      │    │   Port 6379     │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          │                       │                       │
          │              ┌─────────────────┐              │
@@ -167,7 +175,7 @@ make help           # Show all available commands
 
 #### 🐍 Flask Application
 - **Image**: Custom Python 3.12 slim
-- **Ports**: 5001 (external), 5000 (internal)
+- **Ports**: 5001 (external), 80 (internal)
 - **Features**:
   - Gunicorn WSGI server with 4 workers
   - Non-root user for security
@@ -550,7 +558,7 @@ export DATABASE_URL=your-production-database-url
 **Solution**: The system automatically uses port 5001 externally
 ```bash
 # Access application on port 5001
-curl http://localhost:5001/health
+curl http://localhost/health
 ```
 
 #### Container Startup Issues
@@ -602,7 +610,8 @@ curl http://localhost/health
 # Response: {"service":"campus-locker-system","status":"healthy","version":"2.0.0"}
 
 # Individual service health
-curl http://localhost:5001/health  # Direct app access
+curl http://localhost/health   # Nginx proxy access (recommended)
+curl http://localhost/health  # Direct app access (debugging only)
 curl http://localhost:8025         # MailHog web interface
 ```
 
@@ -723,9 +732,12 @@ docker run -d -p 1025:1025 -p 8025:8025 mailhog/mailhog
 python run.py
 ```
 
-8. **Access Application**:
-- Main app: http://127.0.0.1:5000/
-- MailHog: http://localhost:8025
+You should see output indicating the server is running, usually on http://localhost/.
+Access the Application:
+
+Open your web browser and go to http://localhost/deposit to deposit a parcel.
+Go to http://localhost/pickup to pick up a parcel.
+Go to http://localhost/admin/login to log in as an admin.
 
 ### Local Development Workflow
 
@@ -807,7 +819,39 @@ This project is developed as part of an academic course. Please respect intellec
 
 ### Appendix A: Version History & Changelog
 
-#### Version 2.0.0 (Current) - Docker Production Deployment
+#### Version 2.1.2 (Current) - Email Template Enhancement & System Standardization
+**Release Date**: January 2025
+
+**🎨 Email Template Overhaul:**
+- **Professional Email Design**: Completely redesigned all email templates with clean, professional formatting
+- **Removed Clutter**: Eliminated excessive emojis and verbose text for better readability
+- **Consistent Styling**: Standardized formatting across all email types with clear section headers
+- **Dynamic Configuration**: All templates now use configurable PIN expiry and parcel lifecycle values
+
+**🔄 PIN Regeneration Enhancement:**
+- **Universal Regeneration Links**: All PIN-related emails now include "🔄 NEED A NEW PIN?" section
+- **Always Available**: Recipients can regenerate PINs from any PIN-related email, not just the initial notification
+- **Improved User Experience**: Clear instructions and accessible regeneration throughout the PIN lifecycle
+
+**📅 Parcel Lifecycle Information:**
+- **Pickup Deadline Clarity**: All emails now include "7 days from deposit" pickup deadline information
+- **Dynamic Configuration**: Parcel pickup deadlines read from `PARCEL_MAX_PICKUP_DAYS` configuration
+- **Security Notes**: Enhanced security information about timeframes and PIN validity
+
+**🌐 URL Configuration Standardization:**
+- **Consistent URL Structure**: Standardized all URL references throughout the codebase to use `localhost` (port 80)
+- **Flask Port Migration**: Migrated Flask application from port 5000 to port 80 internally for consistency
+- **Nginx Upstream Fix**: Updated nginx configuration to properly proxy to Flask on port 80
+- **Documentation Updates**: Updated all documentation files with correct URLs
+
+**🗄️ Database & Configuration Improvements:**
+- **Locker Availability**: Added additional test lockers to ensure sufficient availability for all sizes
+- **Database Cleanup**: Freed occupied lockers and added new lockers for comprehensive testing
+- **Configuration Files**: Updated Flask, Docker Compose, and Nginx configurations for consistency
+
+---
+
+#### Version 2.0.0 - Docker Production Deployment
 **Release Date**: December 2024
 
 **🎯 Major Features:**
@@ -1021,12 +1065,12 @@ Run the Application:
 
 Start the Flask development server:
 python run.py
-You should see output indicating the server is running, usually on http://127.0.0.1:5000/.
+You should see output indicating the server is running, usually on http://localhost/.
 Access the Application:
 
-Open your web browser and go to http://127.0.0.1:5000/deposit to deposit a parcel.
-Go to http://127.0.0.1:5000/pickup to pick up a parcel.
-Go to http://127.0.0.1:5000/admin/login to log in as an admin.
+Open your web browser and go to http://localhost/deposit to deposit a parcel.
+Go to http://localhost/pickup to pick up a parcel.
+Go to http://localhost/admin/login to log in as an admin.
 3. Project Structure Explained
 The project code is organized into several main parts within the campus_locker_system directory:
 

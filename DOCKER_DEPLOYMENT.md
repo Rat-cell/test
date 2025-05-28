@@ -162,7 +162,7 @@ curl -f http://localhost:8025
 {
   "status": "healthy",
   "service": "campus-locker-system",
-  "version": "1.0.0"
+  "version": "2.1.2"
 }
 ```
 

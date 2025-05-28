@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Campus Locker System v2.0 - Setup Script
+# Campus Locker System v2.1.1 - Setup Script
 # This script initializes the project for new users
 
 set -e  # Exit on any error
 
-echo "🚀 Campus Locker System v2.0 - Setup Script"
+echo "🚀 Campus Locker System v2.1.1 - Setup Script"
 echo "=============================================="
 
 # Check if Docker is installed
@@ -50,7 +50,7 @@ echo ""
 if [ ! -f .env ]; then
     echo "🔧 Creating environment configuration..."
     cat > .env << EOL
-# Campus Locker System v2.0 - Environment Configuration
+# Campus Locker System v2.1.1 - Environment Configuration
 # Production Environment Settings
 
 # Application
@@ -149,4 +149,4 @@ echo "   - README.md for complete documentation"
 echo "   - QUICK_START.md for quick reference"
 echo "   - DOCKER_DEPLOYMENT.md for detailed deployment guide"
 echo ""
-echo "🚀 Campus Locker System v2.0 is ready to use!" 
+echo "🚀 Campus Locker System v2.1.1 is ready to use!" 
