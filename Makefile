@@ -43,19 +43,7 @@ logs:
 	@echo "📋 Viewing production logs..."
 	docker-compose logs -f
 
-# Development deployment
-dev-up:
-	@echo "🚀 Starting development deployment..."
-	docker-compose -f docker-compose.dev.yml up -d
-	@echo "✅ Development services started!"
-
-dev-down:
-	@echo "🛑 Stopping development deployment..."
-	docker-compose -f docker-compose.dev.yml down
-
-dev-logs:
 	@echo "📋 Viewing development logs..."
-	docker-compose -f docker-compose.dev.yml logs -f
 
 # Testing
 test:
@@ -71,7 +59,6 @@ test:
 clean:
 	@echo "🧹 Cleaning up Docker resources..."
 	docker-compose down -v
-	docker-compose -f docker-compose.dev.yml down -v
 	docker system prune -f
 	@echo "✅ Cleanup complete!"
 

@@ -141,7 +141,6 @@ if [ "$MAKE_AVAILABLE" = true ]; then
 else
     echo "   docker-compose logs     # View application logs"
     echo "   docker-compose down     # Stop the system"
-    echo "   docker-compose -f docker-compose.dev.yml up -d  # Start development mode"
 fi
 echo ""
 echo "📖 Documentation:"

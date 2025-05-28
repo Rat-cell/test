@@ -134,7 +134,7 @@ Developed by **Team I**: Pauline Feldhoff, Paul von Franqué, Asma Mzee, Samuel 
 
 #### 🛠️ Development Environment  
 - **Purpose**: Development with live code reloading
-- **Command**: `make dev-up`
+- **Command**: `make up`
 - **Features**:
   - Flask development server with debug mode
   - Live code mounting for instant changes
@@ -152,9 +152,9 @@ make logs           # View production logs
 make test           # Test deployment
 
 # Development Environment
-make dev-up         # Start development deployment
-make dev-down       # Stop development deployment
-make dev-logs       # View development logs
+make up         # Start development deployment
+make down       # Stop development deployment
+make logs       # View development logs
 
 # Maintenance
 make clean          # Clean up Docker resources
@@ -248,16 +248,16 @@ Perfect for consistent development environment:
 
 ```bash
 # Start development environment
-make dev-up
+make up
 
 # View logs
-make dev-logs
+make logs
 
 # Run tests in container
-docker-compose -f docker-compose.dev.yml exec app pytest
+docker-compose exec app pytest
 
 # Stop development environment
-make dev-down
+make down
 ```
 
 ### Option 2: VS Code with Remote Containers
