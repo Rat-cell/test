@@ -1,6 +1,6 @@
 # 📋 Campus Locker System - Changelog
 
-## v2.1.2 (2025-01-XX) - Email Template Enhancement & System Standardization
+## v2.1.1 (2024-05-28) - Email Template Enhancement & System Standardization
 
 ### 🎨 Email Template Overhaul
 - **Professional Email Design**: Completely redesigned all email templates with clean, professional formatting

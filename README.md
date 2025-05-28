@@ -1,10 +1,10 @@
-# Campus Locker System v2.1.2 - Team I
+# Campus Locker System v2.1.1 - Team I
 
-## 🚀 Version 2.1.2 - Email Template Enhancement & System Standardization
+## 🚀 Version 2.1.1 - Email Template Enhancement & System Standardization
 
-**Campus Locker System** is now fully containerized and production-ready! Version 2.1.2 introduces professional email templates, enhanced PIN regeneration, and comprehensive system standardization.
+**Campus Locker System** is now fully containerized and production-ready! Version 2.1.1 introduces professional email templates, enhanced PIN regeneration, and comprehensive system standardization.
 
-### 🎯 What's New in v2.1.2
+### 🎯 What's New in v2.1.1
 
 - **🎨 Professional Email Templates**: Completely redesigned email templates with clean, professional formatting
 - **🔄 Enhanced PIN Regeneration**: All PIN-related emails now include regeneration links for improved user experience
@@ -819,7 +819,7 @@ This project is developed as part of an academic course. Please respect intellec
 
 ### Appendix A: Version History & Changelog
 
-#### Version 2.1.2 (Current) - Email Template Enhancement & System Standardization
+#### Version 2.1.1 (Current) - Email Template Enhancement & System Standardization
 **Release Date**: January 2025
 
 **🎨 Email Template Overhaul:**

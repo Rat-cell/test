@@ -1,4 +1,4 @@
-# 🚀 Campus Locker System v2.1.2 - Quick Start Guide
+# 🚀 Campus Locker System v2.1.1 - Quick Start Guide
 
 **Get the Campus Locker System running in under 5 minutes!**
 
@@ -155,4 +155,4 @@ make up
 
 ---
 
-**Campus Locker System v2.1.2** - Enterprise-ready parcel management system 🚀 
+**Campus Locker System v2.1.1** - Enterprise-ready parcel management system 🚀 

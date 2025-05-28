@@ -29,7 +29,7 @@ def health_check():
         return jsonify({
             'status': 'healthy',
             'service': 'campus-locker-system',
-            'version': '2.1.2'
+            'version': '2.1.1'
         }), 200
     except Exception as e:
         return jsonify({
