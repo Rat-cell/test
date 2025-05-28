@@ -3,6 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <title>Admin - View Parcel {{ parcel.id }}</title>
+    <style>
+        .btn {
+            display: inline-block;
+            padding: 8px 16px;
+            margin: 5px;
+            text-decoration: none;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-warning { background-color: #ffc107; color: #212529; }
+        .btn-info { background-color: #17a2b8; color: white; }
+        .btn-danger { background-color: #dc3545; color: white; }
+        .email-pin-info {
+            background-color: #e8f4fd;
+            border: 1px solid #17a2b8;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .traditional-pin-info {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+    </style>
 </head>
 <body>
     <h1>Parcel Details: ID {{ parcel.id }}</h1>
@@ -22,21 +51,60 @@
     {% if locker %}
         <p><strong>Locker Status:</strong> {{ locker.status }}</p>
     {% endif %}
-    <p><strong>PIN Hash:</strong> {{ parcel.pin_hash }} (Masked/Partial display recommended for actual UI)</p>
-    <p><strong>OTP Expiry:</strong> {{ parcel.otp_expiry.strftime('%Y-%m-%d %H:%M:%S') if parcel.otp_expiry else 'N/A' }} UTC</p>
+    <p><strong>Deposited At:</strong> {{ parcel.deposited_at.strftime('%Y-%m-%d %H:%M:%S') if parcel.deposited_at else 'N/A' }} UTC</p>
     
+    <!-- Email-based PIN Generation Information -->
+    {% if parcel.pin_generation_token %}
+    <div class="email-pin-info">
+        <h3>📧 Email-based PIN Generation</h3>
+        <p><strong>PIN Generation Token:</strong> {{ parcel.pin_generation_token[:16] }}... (truncated for security)</p>
+        <p><strong>Token Expiry:</strong> {{ parcel.pin_generation_token_expiry.strftime('%Y-%m-%d %H:%M:%S') if parcel.pin_generation_token_expiry else 'N/A' }} UTC</p>
+        <p><strong>PIN Generation Count:</strong> {{ parcel.pin_generation_count }}/3 (daily limit)</p>
+        <p><strong>Last PIN Generation:</strong> {{ parcel.last_pin_generation.strftime('%Y-%m-%d %H:%M:%S') if parcel.last_pin_generation else 'Never' }} UTC</p>
+        <p><strong>Current PIN Status:</strong> 
+            {% if parcel.pin_hash %}
+                <span style="color: green;">PIN Generated</span>
+            {% else %}
+                <span style="color: orange;">No PIN Generated Yet</span>
+            {% endif %}
+        </p>
+    </div>
+    {% else %}
+    <div class="traditional-pin-info">
+        <h3>🔑 Traditional PIN System</h3>
+        <p>This parcel uses the traditional immediate PIN generation system.</p>
+    </div>
+    {% endif %}
+    
+    <!-- PIN Information -->
+    {% if parcel.pin_hash %}
+        <p><strong>PIN Hash:</strong> {{ parcel.pin_hash[:16] }}... (truncated for security)</p>
+        <p><strong>PIN Expiry:</strong> {{ parcel.otp_expiry.strftime('%Y-%m-%d %H:%M:%S') if parcel.otp_expiry else 'N/A' }} UTC</p>
+    {% else %}
+        <p><strong>PIN Status:</strong> <em>No PIN generated yet (email-based system)</em></p>
+    {% endif %}
+    
+    <!-- Admin Actions -->
     {% if parcel.status in ['deposited', 'pickup_disputed'] %}
     <form method="POST" action="{{ url_for('main.mark_parcel_missing_admin_action', parcel_id=parcel.id) }}" style="margin-top: 20px;">
-        <button type="submit" onclick="return confirm('Are you sure you want to mark this parcel as MISSING? This action implies the parcel is not physically in the locker.');">Mark Parcel as Missing</button>
+        <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to mark this parcel as MISSING? This action implies the parcel is not physically in the locker.');">Mark Parcel as Missing</button>
     </form>
     {% elif parcel.status == 'missing' %}
     <p><em>This parcel is already marked as missing.</em></p>
     {% endif %}
 
     {% if parcel and parcel.status == 'deposited' %}
-        <form method="POST" action="{{ url_for('main.reissue_pin_admin_action', parcel_id=parcel.id) }}" style="display: inline; margin-top: 20px;">
-            <button type="submit" class="btn btn-warning" onclick="return confirm('Are you sure you want to reissue the PIN for this parcel? A new PIN will be generated and sent to the recipient.');">Reissue PIN</button>
-        </form>
+        {% if parcel.pin_generation_token %}
+            <!-- Email-based PIN system actions -->
+            <form method="POST" action="{{ url_for('main.regenerate_pin_token_admin_action', parcel_id=parcel.id) }}" style="display: inline; margin-top: 20px;">
+                <button type="submit" class="btn btn-info" onclick="return confirm('Are you sure you want to regenerate the PIN generation link? A new email with a fresh link will be sent to the recipient.');">Regenerate PIN Link</button>
+            </form>
+        {% else %}
+            <!-- Traditional PIN system actions -->
+            <form method="POST" action="{{ url_for('main.reissue_pin_admin_action', parcel_id=parcel.id) }}" style="display: inline; margin-top: 20px;">
+                <button type="submit" class="btn btn-warning" onclick="return confirm('Are you sure you want to reissue the PIN for this parcel? A new PIN will be generated and sent to the recipient.');">Reissue PIN</button>
+            </form>
+        {% endif %}
     {% endif %}
 
     <p style="margin-top: 30px;">

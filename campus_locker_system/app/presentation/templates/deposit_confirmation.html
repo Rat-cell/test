@@ -19,17 +19,66 @@
     
     <div class="confirmation-details">
         <p><strong>✅ Parcel deposited successfully in Locker #{{ parcel.locker_id }}</strong></p>
-        <p>📧 A pickup PIN has been sent to: <strong>{{ parcel.recipient_email }}</strong></p>
-        <p>⏰ The PIN will expire in 24 hours</p>
         
-        <div class="info-box">
-            <h3>What happens next?</h3>
-            <ul>
-                <li>The recipient will receive an email with the pickup PIN</li>
-                <li>They can use the PIN to collect the parcel from Locker #{{ parcel.locker_id }}</li>
-                <li>If they don't receive the email, they can request a new PIN using their email address</li>
-            </ul>
+        {% if parcel.pin_generation_token %}
+        <!-- Email-based PIN Generation -->
+        <div class="email-pin-info">
+            <h3>📧 Email-Based PIN Generation System</h3>
+            <p><strong>Step 1 Complete:</strong> A PIN generation link has been sent to <strong>{{ parcel.recipient_email }}</strong></p>
+            
+            <div class="process-flow">
+                <h4>🔄 How to get your pickup PIN:</h4>
+                <ol style="font-size: 1.1em; line-height: 1.6;">
+                    <li><strong>Check your email</strong> for the "Generate PIN" link</li>
+                    <li><strong>Click the link</strong> to generate your secure pickup PIN</li>
+                    <li><strong>Receive your PIN</strong> in a new email within seconds</li>
+                    <li><strong>Use the PIN</strong> to collect your parcel from Locker #{{ parcel.locker_id }}</li>
+                </ol>
+            </div>
+            
+            <div class="info-box">
+                <h3>📋 Important Information:</h3>
+                <ul>
+                    <li><strong>No PIN is sent immediately</strong> - you control when to generate it</li>
+                    <li>The PIN generation link expires in <strong>{{ pin_expiry_hours }} hours</strong></li>
+                    <li>Each PIN is valid for <strong>{{ pin_expiry_hours }} hours</strong> after generation</li>
+                    <li>You can generate up to <strong>3 PINs per day</strong> for security</li>
+                    <li>Each new PIN invalidates the previous one</li>
+                </ul>
+            </div>
+            
+            <div class="security-info">
+                <h3>🔒 Enhanced Security Features:</h3>
+                <ul>
+                    <li>PIN generation is on-demand - only when you need it</li>
+                    <li>Rate limiting prevents unauthorized PIN generation</li>
+                    <li>Time-limited tokens and PINs for maximum security</li>
+                    <li>Complete audit trail of all PIN generation activities</li>
+                </ul>
+            </div>
+            
+            <div style="background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 15px; margin-top: 15px;">
+                <h4 style="color: #856404; margin-top: 0;">⚠️ What if the PIN expires?</h4>
+                <p style="margin-bottom: 0;">If your PIN expires (after {{ pin_expiry_hours }} hours), simply use the same link from your original email to generate a new one, or use the "Generate New PIN" button on the PIN generation page.</p>
+            </div>
         </div>
+        
+        {% else %}
+        <!-- Traditional PIN System -->
+        <div class="traditional-pin-info">
+            <p>📧 A pickup PIN has been sent to: <strong>{{ parcel.recipient_email }}</strong></p>
+            <p>⏰ The PIN will expire in {{ pin_expiry_hours }} hours</p>
+            
+            <div class="info-box">
+                <h3>What happens next?</h3>
+                <ul>
+                    <li>The recipient will receive an email with the pickup PIN</li>
+                    <li>They can use the PIN to collect the parcel from Locker #{{ parcel.locker_id }}</li>
+                    <li>If they don't receive the email, they can request a new PIN using their email address</li>
+                </ul>
+            </div>
+        </div>
+        {% endif %}
     </div>
     
     <div class="actions">
@@ -40,7 +89,7 @@
     <style>
         body { 
             font-family: Arial, sans-serif; 
-            max-width: 600px; 
+            max-width: 700px; 
             margin: 50px auto; 
             padding: 20px; 
             background-color: #f5f5f5; 
@@ -52,12 +101,33 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
             margin: 20px 0; 
         }
+        .email-pin-info {
+            background-color: #e8f4fd;
+            border: 1px solid #17a2b8;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .traditional-pin-info {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
         .info-box { 
             background: #e7f3ff; 
             padding: 15px; 
             border-radius: 5px; 
             border-left: 4px solid #007bff; 
             margin-top: 15px; 
+        }
+        .security-info {
+            background: #e8f5e8;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #28a745;
+            margin-top: 15px;
         }
         .actions { 
             text-align: center; 
@@ -71,6 +141,9 @@
             color: white; 
             text-decoration: none; 
             border-radius: 5px; 
+        }
+        .actions a:hover {
+            background: #0056b3;
         }
         .flashes { 
             list-style: none; 

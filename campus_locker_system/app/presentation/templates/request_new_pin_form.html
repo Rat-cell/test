@@ -4,24 +4,117 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Request New PIN</title>
-    <!-- Link to a shared CSS file if available, or basic styling -->
     <style>
-        body { font-family: sans-serif; margin: 20px; }
-        .container { max-width: 500px; margin: auto; padding: 20px; border: 1px solid #ccc; border-radius: 5px; }
-        label { display: block; margin-bottom: 5px; }
-        input[type="email"], input[type="text"], input[type="number"] { width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; }
-        button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
-        .flashes { list-style: none; padding: 0; }
-        .flashes li { padding: 10px; margin-bottom: 10px; border-radius: 3px; }
-        .flashes .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        .flashes .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .flashes .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
-        p { font-size: 0.9em; color: #555; }
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #f5f5f5; 
+        }
+        .container { 
+            max-width: 600px; 
+            margin: auto; 
+            padding: 30px; 
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .info-box {
+            background-color: #e7f3ff;
+            border: 1px solid #007bff;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .warning-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        label { 
+            display: block; 
+            margin-bottom: 5px; 
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="email"], input[type="text"] { 
+            width: 100%; 
+            padding: 10px; 
+            margin-bottom: 15px; 
+            box-sizing: border-box; 
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button { 
+            width: 100%;
+            padding: 12px 15px; 
+            background-color: #007bff; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 16px;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .flashes { 
+            list-style: none; 
+            padding: 0; 
+            margin: 20px 0;
+        }
+        .flashes li { 
+            padding: 12px; 
+            margin-bottom: 10px; 
+            border-radius: 4px; 
+        }
+        .flashes .error { 
+            background-color: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb; 
+        }
+        .flashes .success { 
+            background-color: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb; 
+        }
+        .flashes .info { 
+            background-color: #d1ecf1; 
+            color: #0c5460; 
+            border: 1px solid #bee5eb; 
+        }
+        .process-info {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .back-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .back-link a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .back-link a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>Request New PIN</h2>
+        <h2>🔄 Request New PIN</h2>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
@@ -33,20 +126,50 @@
           {% endif %}
         {% endwith %}
 
-        <form method="POST" action=""> {# Action URL will be set by Flask's url_for in the route #}
+        <div class="info-box">
+            <h3>📋 When to use this form:</h3>
+            <ul>
+                <li><strong>Your PIN has expired</strong> (after {{ pin_expiry_hours }} hours)</li>
+                <li><strong>You didn't receive your PIN email</strong></li>
+                <li><strong>You need a fresh PIN</strong> for any reason</li>
+                <li><strong>Your PIN generation link expired</strong> (email-based system)</li>
+            </ul>
+        </div>
+
+        <form method="POST" action="">
             <div>
-                <label for="recipient_email">Your Email Address:</label>
-                <input type="email" id="recipient_email" name="recipient_email" required>
+                <label for="recipient_email">📧 Your Email Address:</label>
+                <input type="email" id="recipient_email" name="recipient_email" required 
+                       placeholder="Enter the email address used for the parcel">
             </div>
             <div>
-                <label for="locker_id">Locker ID:</label>
-                <input type="text" id="locker_id" name="locker_id" required> {# Changed to text for flexibility #}
+                <label for="locker_id">🔒 Locker ID:</label>
+                <input type="text" id="locker_id" name="locker_id" required 
+                       placeholder="Enter the locker number (e.g., 1, 2, 3)">
             </div>
-            <button type="submit">Request New PIN</button>
+            <button type="submit">🔄 Request New PIN</button>
         </form>
-        <p style="margin-top: 15px;">
-            If your details match an active parcel eligible for a new PIN, an email with the new PIN will be sent to the registered email address. Please check your inbox (and spam folder).
-        </p>
+
+        <div class="process-info">
+            <h3>🔄 How this works:</h3>
+            <p><strong>Traditional PIN System:</strong> A new PIN will be generated and sent directly to your email.</p>
+            <p><strong>Email-based PIN System:</strong> A new PIN generation link will be sent to your email. Click the link to generate your PIN.</p>
+        </div>
+
+        <div class="warning-box">
+            <h3>🔒 Security Information</h3>
+            <ul>
+                <li>For security, we'll only confirm if an email was sent</li>
+                <li>Check your spam folder if you don't see the email</li>
+                <li>Each new PIN invalidates the previous one</li>
+                <li>PIN generation is limited to 3 times per day</li>
+            </ul>
+        </div>
+
+        <div class="back-link">
+            <a href="{{ url_for('main.pickup_parcel') }}">← Back to Pickup Page</a> | 
+            <a href="{{ url_for('main.deposit_parcel') }}">📦 Deposit a Parcel</a>
+        </div>
     </div>
 </body>
 </html>

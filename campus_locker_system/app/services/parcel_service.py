@@ -2,70 +2,130 @@ from datetime import datetime, timedelta
 from flask import current_app
 from app import db
 from app.persistence.models import Locker
-from app.business.parcel import Parcel
+from app.business.parcel import Parcel, ParcelManager
+from app.business.locker import LockerManager
 from app.business.pin import PinManager
 from app.services.audit_service import AuditService
+from app.services.notification_service import NotificationService
 import hashlib
 import os
 import binascii
 import json
 
-def assign_locker_and_create_parcel(recipient_email: str, preferred_size: str = None):
+def assign_locker_and_create_parcel(recipient_email: str, preferred_size: str):
+    """
+    Assign a locker and create a parcel for the specified recipient
+    
+    Returns:
+        Tuple[Parcel|None, str]: (parcel_object, message) or (None, error_message)
+    """
     try:
-        # Find an available locker
-        query = Locker.query.filter_by(status='free')
-        if preferred_size:
-            query = query.filter_by(size=preferred_size)
-        locker = query.first()
+        # Business validation
+        if not ParcelManager.is_valid_email(recipient_email):
+            return None, "Invalid email address format."
         
+        if not LockerManager.is_valid_size(preferred_size):
+            return None, f"Invalid parcel size: {preferred_size}. Valid sizes: {', '.join(LockerManager.VALID_SIZES)}"
+        
+        # Find available locker
+        locker = LockerManager.find_available_locker(preferred_size)
         if not locker:
-            return None, "No available lockers found."
+            return None, f"No available lockers for size: {preferred_size}"
         
-        # Generate PIN and hash using PinManager
-        pin, pin_hash = PinManager.generate_pin_and_hash()
-        
-        # Set OTP expiry (24 hours from now)
-        otp_expiry = PinManager.generate_expiry_time()
-        
-        # Create parcel
-        parcel = Parcel(
-            locker_id=locker.id,
-            pin_hash=pin_hash,
-            otp_expiry=otp_expiry,
-            recipient_email=recipient_email
-        )
-        
-        # Update locker status
+        # Reserve the locker
         locker.status = 'occupied'
         
-        # Commit to database
-        db.session.add(parcel)
-        db.session.commit()
+        # Check if email-based PIN generation is enabled
+        use_email_pin = current_app.config.get('ENABLE_EMAIL_BASED_PIN_GENERATION', True)
         
-        # Send PIN via email using notification service
-        from app.services.notification_service import NotificationService
-        notification_success, notification_message = NotificationService.send_parcel_deposit_notification(
-            recipient_email=recipient_email,
-            parcel_id=parcel.id,
-            locker_id=locker.id,
-            pin=pin,
-            expiry_time=otp_expiry
-        )
-        
-        # Log the deposit
-        AuditService.log_event(f"Parcel {parcel.id} deposited in locker {locker.id} for {recipient_email}")
-        
-        # Check notification result and adjust message
-        if notification_success:
-            return parcel, f"Parcel deposited in locker {locker.id}. PIN sent to {recipient_email}."
+        if use_email_pin:
+            # Create parcel with email-based PIN generation (no immediate PIN)
+            parcel = Parcel(
+                locker_id=locker.id,
+                recipient_email=recipient_email,
+                status='deposited',
+                deposited_at=datetime.utcnow()
+            )
+            
+            # Generate PIN generation token
+            token = parcel.generate_pin_token()
+            
+            db.session.add(parcel)
+            db.session.commit()
+            
+            # Generate PIN generation URL
+            from flask import url_for
+            pin_generation_url = url_for('main.generate_pin_by_token_route', 
+                                       token=token, 
+                                       _external=True)
+            
+            # Send parcel ready notification with PIN generation link
+            notification_success, notification_message = NotificationService.send_parcel_ready_notification(
+                recipient_email=recipient_email,
+                parcel_id=parcel.id,
+                locker_id=locker.id,
+                deposited_time=parcel.deposited_at,
+                pin_generation_url=pin_generation_url
+            )
+            
+            # Log the parcel creation
+            AuditService.log_event("PARCEL_CREATED_EMAIL_PIN", details={
+                "parcel_id": parcel.id,
+                "locker_id": locker.id,
+                "recipient_email": recipient_email,
+                "notification_sent": notification_success
+            })
+            
+            if notification_success:
+                return parcel, f"Parcel deposited successfully. PIN generation link sent to {recipient_email}."
+            else:
+                current_app.logger.warning(f"Parcel created but notification failed: {notification_message}")
+                return parcel, f"Parcel deposited successfully. Note: Email notification may have failed."
         else:
-            current_app.logger.warning(f"Parcel deposited but notification failed: {notification_message}")
-            return parcel, f"Parcel deposited in locker {locker.id}. Note: Email notification may have failed."
-    
+            # Traditional PIN generation (immediate PIN)
+            pin, pin_hash = PinManager.generate_pin_and_hash()
+            pin_expiry = PinManager.generate_expiry_time()
+            
+            # Create parcel with immediate PIN
+            parcel = Parcel(
+                locker_id=locker.id,
+                recipient_email=recipient_email,
+                pin_hash=pin_hash,
+                otp_expiry=pin_expiry,
+                status='deposited',
+                deposited_at=datetime.utcnow()
+            )
+            
+            db.session.add(parcel)
+            db.session.commit()
+            
+            # Send immediate PIN notification
+            notification_success, notification_message = NotificationService.send_parcel_deposit_notification(
+                recipient_email=recipient_email,
+                parcel_id=parcel.id,
+                locker_id=locker.id,
+                pin=pin,
+                expiry_time=pin_expiry
+            )
+            
+            # Log the parcel creation
+            AuditService.log_event("PARCEL_CREATED_TRADITIONAL_PIN", details={
+                "parcel_id": parcel.id,
+                "locker_id": locker.id,
+                "recipient_email": recipient_email,
+                "notification_sent": notification_success
+            })
+            
+            if notification_success:
+                return parcel, f"Parcel deposited successfully. PIN sent to {recipient_email}."
+            else:
+                current_app.logger.warning(f"Parcel created but notification failed: {notification_message}")
+                return parcel, f"Parcel deposited successfully. Note: Email notification may have failed."
+        
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Error assigning locker and creating parcel: {str(e)}")
-        return None, "An error occurred while processing the deposit."
+        current_app.logger.error(f"Error in assign_locker_and_create_parcel: {str(e)}")
+        return None, "An error occurred while processing the request."
 
 def process_pickup(provided_pin: str):
     try:
@@ -73,6 +133,10 @@ def process_pickup(provided_pin: str):
         parcels = Parcel.query.filter_by(status='deposited').all()
         
         for parcel in parcels:
+            # Skip parcels without PIN hash (email-based PIN not yet generated)
+            if not parcel.pin_hash:
+                continue
+                
             if PinManager.verify_pin(parcel.pin_hash, provided_pin):
                 # Check if PIN has expired
                 if PinManager.is_pin_expired(parcel.otp_expiry):

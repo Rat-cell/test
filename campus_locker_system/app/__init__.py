@@ -12,33 +12,24 @@ def seed_database():
     from app.services.admin_auth_service import AdminAuthService
     from app.business.admin_auth import AdminRole
     
-    # Check if lockers already exist
+    # Create some test lockers if none exist
     if Locker.query.count() == 0:
-        print("🌱 Seeding database with initial lockers...")
-        
-        # Create sample lockers for testing
-        lockers = [
-            # Small lockers
-            Locker(size='small', status='free'),
-            Locker(size='small', status='free'),
-            Locker(size='small', status='free'),
-            Locker(size='small', status='free'),
-            
-            # Medium lockers
-            Locker(size='medium', status='free'),
-            Locker(size='medium', status='free'),
-            Locker(size='medium', status='free'),
-            
-            # Large lockers
-            Locker(size='large', status='free'),
-            Locker(size='large', status='free'),
-        ]
-        
-        for locker in lockers:
-            db.session.add(locker)
-        
-        db.session.commit()
-        print(f"✅ Created {len(lockers)} initial lockers")
+        print("🌱 Creating test lockers...")
+        try:
+            test_lockers = [
+                Locker(id=1, location="Building A - Floor 1", size="small"),
+                Locker(id=2, location="Building A - Floor 1", size="medium"),
+                Locker(id=3, location="Building A - Floor 2", size="large"),
+                Locker(id=4, location="Building B - Floor 1", size="small"),
+                Locker(id=5, location="Building B - Floor 1", size="medium"),
+            ]
+            from app.extensions import db
+            for locker in test_lockers:
+                db.session.add(locker)
+            db.session.commit()
+            print(f"✅ Created {len(test_lockers)} test lockers")
+        except Exception as e:
+            print(f"⚠️  Error creating test lockers: {e}")
     
     # Check if admin user exists
     from app.persistence.models import AdminUser

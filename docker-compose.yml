@@ -33,12 +33,12 @@ services:
 
   # Main Application
   app:
-    build: 
+    build:
       context: ./campus_locker_system
       dockerfile: Dockerfile
     container_name: campus_locker_app
     ports:
-      - "5001:5000"  # Use port 5001 externally to avoid conflict with macOS Control Center
+      - "5001:80"  # Use port 5001 externally to avoid conflict with macOS Control Center
     environment:
       # Flask Configuration
       - FLASK_ENV=production
@@ -61,6 +61,11 @@ services:
       - MAIL_USERNAME=
       - MAIL_PASSWORD=
       - MAIL_DEFAULT_SENDER=noreply@campuslocker.local
+      
+      # Flask URL Generation Configuration
+      - SERVER_NAME=localhost
+      - PREFERRED_URL_SCHEME=http
+      - APPLICATION_ROOT=/
       
       # Application Configuration
       - PARCEL_MAX_PICKUP_DAYS=7
@@ -86,7 +91,7 @@ services:
     restart: unless-stopped
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 30s
       timeout: 10s
       retries: 3

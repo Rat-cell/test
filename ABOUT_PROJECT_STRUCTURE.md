@@ -36,12 +36,10 @@ This is the main folder that contains everything for our project.
 - **Why we need it**: Tells new developers how to set up and use the project
 - **What it contains**: Installation instructions, features, and how to get started
 
-#### `docker-compose.yml` & `docker-compose.dev.yml`
 - **What they are**: Instructions for running our app in "containers" (isolated environments)
 - **Why we need them**: Makes it easy to run the app on any computer without setup hassles
 - **Difference**: 
   - `docker-compose.yml` = Production version (for real use)
-  - `docker-compose.dev.yml` = Development version (for coding/testing)
 
 #### `.gitignore`
 - **What it is**: A list of files that Git should ignore
@@ -158,12 +156,10 @@ Our app follows a special pattern called "Hexagonal Architecture." Think of it l
 
 ### 🐳 Containerization
 
-#### `Dockerfile` & `Dockerfile.dev`
 - **What they are**: Instructions for building a "container" (isolated environment) for our app
 - **Why we need them**: Ensures the app runs the same way on every computer
 - **Difference**:
   - `Dockerfile` = Production version (optimized for real use)
-  - `Dockerfile.dev` = Development version (optimized for coding)
 
 ---
 

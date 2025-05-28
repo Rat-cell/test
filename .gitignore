@@ -1,4 +1,4 @@
-# Campus Locker System v2.0 - Collaborative Git Ignore Configuration
+# Campus Locker System v2.1.1 - Collaborative Git Ignore Configuration
 # Only excludes temporary files and runtime data - keeps everything needed for collaboration
 
 # === Python Cache (regenerated automatically) ===
@@ -34,12 +34,20 @@ instance/
 .env
 
 # === Runtime Database Files (created when app runs) ===
+databases/*.db
+databases/*.db-*
 campus_locker_system/databases/*.db
+campus_locker_system/databases/*.db-*
 campus_locker_system/instance/*.db
+*.db
+*.sqlite
+*.sqlite3
 
 # === Runtime Log Files (created when app runs) ===
-campus_locker_system/logs/*.log*
 logs/*.log*
+campus_locker_system/logs/*.log*
+*.log
+*.log.*
 
 # === Personal Environment Variables ===
 .env.local
@@ -79,6 +87,8 @@ yarn-error.log*
 *.temp
 .tmp/
 .temp/
+cookies.txt
+debug_*.py
 
 # === Backup Files ===
 *.bak
@@ -102,6 +112,11 @@ Thumbs.db
 
 # === Docker Volumes (runtime data) ===
 docker-volumes/
+
+# === Virtual Environment ===
+venv/
+env/
+ENV/
 
 # === Keep These Important Files for Collaboration ===
 # .env (template with defaults)

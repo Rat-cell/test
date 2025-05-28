@@ -55,9 +55,9 @@ docker-build:
 # Test Docker image
 docker-test: docker-build
 	@echo "Testing Docker image..."
-	docker run --rm -d -p 5000:5000 --name test-container campus-locker-system:dev
+	docker run --rm -d -p 80:80 --name test-container campus-locker-system:dev
 	sleep 5
-	curl -f http://localhost:5000/ || echo "App started successfully"
+	curl -f http://localhost/ || echo "App started successfully"
 	docker stop test-container
 	docker rmi campus-locker-system:dev
 

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PIN Generated Successfully</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .success-icon {
+            color: #28a745;
+            font-size: 48px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .success-title {
+            color: #28a745;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .info-box {
+            background-color: #e8f5e8;
+            border: 1px solid #28a745;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .warning-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .regenerate-box {
+            background-color: #e7f3ff;
+            border: 1px solid #007bff;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .actions {
+            text-align: center;
+            margin-top: 30px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 5px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        .btn:hover {
+            opacity: 0.8;
+        }
+        .generation-info {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">✅</div>
+        <h1 class="success-title">PIN Generated Successfully!</h1>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <ul class="flashes">
+            {% for category, message in messages %}
+              <li class="{{ category }}">{{ message }}</li>
+            {% endfor %}
+            </ul>
+          {% endif %}
+        {% endwith %}
+        
+        <div class="info-box">
+            <h3>📧 Check Your Email Now</h3>
+            <p>Your pickup PIN has been generated and sent to <strong>{{ parcel.recipient_email }}</strong></p>
+            <p><strong>Locker ID:</strong> {{ parcel.locker_id }}</p>
+            <p><strong>Parcel ID:</strong> {{ parcel.id }}</p>
+            
+            <div class="generation-info">
+                <strong>Generation Count:</strong> {{ parcel.pin_generation_count }}/3 (daily limit)
+                {% if parcel.last_pin_generation %}
+                <br><strong>Generated:</strong> {{ parcel.last_pin_generation.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="warning-box">
+            <h3>⚠️ Important Security Information</h3>
+            <ul>
+                <li><strong>Your PIN is valid for {{ pin_expiry_hours }} hours only</strong></li>
+                <li>Keep your PIN secure and don't share it with others</li>
+                <li>Each new PIN invalidates the previous one</li>
+                <li>You can generate up to 3 PINs per day for security</li>
+            </ul>
+        </div>
+        
+        <div class="regenerate-box">
+            <h3>🔄 Need a New PIN?</h3>
+            <p>If your PIN expires or you need a fresh one, you can generate a new PIN below:</p>
+            
+            {% if parcel.pin_generation_count < 3 %}
+                <form method="GET" action="{{ url_for('main.generate_pin_by_token_route', token=parcel.pin_generation_token) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-warning" onclick="return confirm('This will generate a new PIN and invalidate your current one. Continue?');">
+                        🔄 Generate New PIN ({{ 3 - parcel.pin_generation_count }} remaining today)
+                    </button>
+                </form>
+            {% else %}
+                <p style="color: #dc3545; font-weight: bold;">
+                    ⚠️ Daily PIN generation limit reached (3/3). Please try again tomorrow.
+                </p>
+            {% endif %}
+            
+            <p style="font-size: 0.9em; color: #6c757d; margin-top: 10px;">
+                You can also use the original link from your first email to generate new PINs.
+            </p>
+        </div>
+        
+        <div class="info-box">
+            <h3>📦 Next Steps</h3>
+            <ol>
+                <li><strong>Check your email inbox</strong> (and spam folder) for the PIN</li>
+                <li>Go to the pickup location</li>
+                <li>Enter your PIN to open locker #{{ parcel.locker_id }}</li>
+                <li>Collect your parcel</li>
+                <li>Make sure to close the locker securely</li>
+            </ol>
+        </div>
+        
+        <div class="actions">
+            <a href="{{ url_for('main.pickup_parcel') }}" class="btn btn-primary">🔑 Go to Pickup Page</a>
+            <a href="{{ url_for('main.deposit_parcel') }}" class="btn btn-secondary">📦 Deposit Another Parcel</a>
+        </div>
+    </div>
+</body>
+</html> 
