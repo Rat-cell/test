@@ -50,35 +50,63 @@ class SQLAlchemyAuditAdapter(AuditAdapterInterface):
     """SQLAlchemy implementation of the audit adapter"""
     
     def store_audit_event(self, action: str, details: Dict[str, Any]) -> Tuple[bool, str]:
-        """Store audit event using SQLAlchemy"""
+        """Store audit event using SQLAlchemy with simplified fields"""
         try:
             from app import db  # Import here to avoid circular imports
             
             # Serialize details to JSON
             details_json = json.dumps(details) if details else "{}"
             
-            # Create audit log entry
+            # Extract ONLY the essential admin tracking information
+            admin_id = details.get('admin_id') if details else None
+            admin_username = details.get('admin_username') if details else None
+            
+            # Create simplified audit log entry
             audit_log = AuditLog(
                 action=action,
                 details=details_json,
-                timestamp=datetime.utcnow()
+                admin_id=admin_id,
+                admin_username=admin_username
+                # timestamp is auto-set by default=datetime.utcnow
             )
             
-            # Save to database
             db.session.add(audit_log)
             db.session.commit()
             
             return True, f"Audit event '{action}' stored successfully"
             
         except Exception as e:
-            try:
-                from app import db
-                db.session.rollback()
-            except:
-                pass
-            error_msg = f"Error storing audit event '{action}': {str(e)}"
-            current_app.logger.error(error_msg)
-            return False, error_msg
+            return False, f"Failed to store audit event: {str(e)}"
+    
+    def _classify_event_category(self, action: str) -> str:
+        """Classify event category based on action pattern"""
+        action_upper = action.upper()
+        
+        if any(pattern in action_upper for pattern in ["ADMIN_", "ADMIN "]):
+            return "admin_action"
+        elif any(pattern in action_upper for pattern in ["USER_", "USER "]):
+            return "user_action"
+        elif any(pattern in action_upper for pattern in ["LOGIN", "LOGOUT", "AUTH", "PERMISSION"]):
+            return "security_event"
+        elif any(pattern in action_upper for pattern in ["ERROR", "FAIL", "EXCEPTION"]):
+            return "error_event"
+        elif any(pattern in action_upper for pattern in ["SYSTEM", "PROCESS", "BATCH", "NOTIFICATION"]):
+            return "system_action"
+        else:
+            return "user_action"  # Default
+    
+    def _classify_event_severity(self, action: str) -> str:
+        """Classify event severity based on action pattern"""
+        action_upper = action.upper()
+        
+        if any(pattern in action_upper for pattern in ["FAIL", "ERROR", "EXCEPTION", "DENIED"]):
+            return "high"
+        elif any(pattern in action_upper for pattern in ["LOGIN", "LOGOUT", "MISSING", "DISPUTED"]):
+            return "medium"
+        elif any(pattern in action_upper for pattern in ["VIEWED", "ACCESSED", "NOTIFICATION"]):
+            return "low"
+        else:
+            return "medium"  # Default
     
     def get_audit_logs(self, limit: Optional[int] = None, offset: int = 0) -> List[AuditLog]:
         """Get audit logs with pagination"""

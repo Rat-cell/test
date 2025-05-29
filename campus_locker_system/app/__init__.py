@@ -6,47 +6,12 @@ from .config import Config
 db = SQLAlchemy()
 mail = Mail() # Add this
 
-def seed_database():
-    """Seed the database with initial data for manual testing"""
-    from app.business.locker import Locker
-    from app.services.admin_auth_service import AdminAuthService
-    from app.business.admin_auth import AdminRole
-    
-    # Create some test lockers if none exist
-    if Locker.query.count() == 0:
-        print("🌱 Creating test lockers...")
-        try:
-            test_lockers = [
-                Locker(id=1, location="Building A - Floor 1", size="small"),
-                Locker(id=2, location="Building A - Floor 1", size="medium"),
-                Locker(id=3, location="Building A - Floor 2", size="large"),
-                Locker(id=4, location="Building B - Floor 1", size="small"),
-                Locker(id=5, location="Building B - Floor 1", size="medium"),
-            ]
-            from app.extensions import db
-            for locker in test_lockers:
-                db.session.add(locker)
-            db.session.commit()
-            print(f"✅ Created {len(test_lockers)} test lockers")
-        except Exception as e:
-            print(f"⚠️  Error creating test lockers: {e}")
-    
-    # Check if admin user exists
-    from app.persistence.models import AdminUser
-    if AdminUser.query.count() == 0:
-        print("🔐 Creating default admin user...")
-        try:
-            admin_user, message = AdminAuthService.create_admin_user('admin', 'AdminPass123!', AdminRole.ADMIN)
-            if admin_user:
-                print("✅ Default admin user created: admin / AdminPass123!")
-            else:
-                print(f"⚠️  Could not create admin user: {message}")
-        except Exception as e:
-            print(f"⚠️  Error creating admin user: {e}")
-
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+    
+    # Add DATABASE_DIR to config for database service
+    app.config['DATABASE_DIR'] = app.config.get('DATABASE_DIR', '/app/databases')
 
     db.init_app(app)
     mail.init_app(app) # Add this
@@ -65,7 +30,7 @@ def create_app():
         file_handler.setLevel(logging.INFO)
         app.logger.addHandler(file_handler)
         app.logger.setLevel(logging.INFO)
-        app.logger.info('Campus Locker System startup')
+        app.logger.info('🚀 Campus Locker System startup')
 
     from .presentation import main_bp # Import the blueprint
     app.register_blueprint(main_bp) # Register the blueprint
@@ -74,15 +39,13 @@ def create_app():
     app.register_blueprint(api_bp) # Register the API blueprint
 
     with app.app_context():
-        # Ensure the databases folder exists before creating the database files
-        import os
-        databases_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'databases'))
-        if not os.path.exists(databases_dir):
-            os.makedirs(databases_dir)
-        from .persistence import models # Ensure models are loaded
-        db.create_all()
-        
-        # Seed database with initial data for manual testing
-        seed_database()
+        # 🗄️ Initialize databases with comprehensive validation and setup
+        from .services.database_service import initialize_database_on_startup
+        try:
+            success, message = initialize_database_on_startup()
+            app.logger.info(f"✅ Database initialization: {message}")
+        except RuntimeError as e:
+            app.logger.critical(f"🚨 CRITICAL: Application cannot start - {str(e)}")
+            raise
 
     return app

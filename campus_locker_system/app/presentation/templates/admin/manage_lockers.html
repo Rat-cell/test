@@ -40,6 +40,7 @@
         <thead>
             <tr>
                 <th>ID</th>
+                <th>Location</th>
                 <th>Size</th>
                 <th>Current Status</th>
                 <th>Sensor Status</th>
@@ -52,6 +53,7 @@
             {% for item in lockers_with_parcels %}
             <tr>
                 <td>{{ item.locker.id }}</td>
+                <td>{{ item.locker.location or 'Not specified' }}</td>
                 <td>{{ item.locker.size }}</td>
                 <td>{{ item.locker.status }}</td>
                 <td>
