@@ -174,7 +174,7 @@ class DatabaseService:
             # Create admin user if none exists
             if AdminUser.query.count() == 0:
                 admin_user = AdminUser(username='admin')
-                admin_user.set_password('admin123')  # TODO: Change in production
+                admin_user.set_password('AdminPass123!')  # Meets password strength requirements
                 db.session.add(admin_user)
                 logger.info("👤 Created default admin user")
             
