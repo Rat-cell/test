@@ -1,10 +1,10 @@
-# 📂 Project Structure Guide - Campus Locker System
+# 📂 Project Structure Guide - Campus Locker System v2.1.3
 
 This document explains what each file and folder in our project does and why we need it. It's written for people who are new to coding or want to understand how our project is organized.
 
 ## 🎯 What is this project?
 
-The Campus Locker System is a web application that helps manage package deliveries on campus. Think of it like a smart mailbox system where people can drop off and pick up packages using special codes.
+The Campus Locker System is a web application that helps manage package deliveries on campus. Think of it like a smart mailbox system where people can drop off and pick up packages using special codes. Version 2.1.3 is production-ready with 15 pre-configured lockers and safety-first architecture!
 
 ---
 
@@ -14,13 +14,16 @@ The Campus Locker System is a web application that helps manage package deliveri
 This is the main folder that contains everything for our project.
 
 ```
-📦 Campus Locker System
+📦 Campus Locker System v2.1.3
 ├── 📁 campus_locker_system/     # Main application code
 ├── 📁 docs/                     # Documentation and diagrams
 ├── 📁 scripts/                  # Helper scripts for setup
 ├── 📁 ssl/                      # Security certificates
 ├── 📁 venv/                     # Python virtual environment
 ├── 📄 README.md                 # Main project information
+├── 📄 LOCKER_OPERATIONS_GUIDE.md # Complete operational guide
+├── 📄 DATABASE_DOCUMENTATION.md # Database architecture guide
+├── 📄 QUICK_START.md           # 5-minute startup guide
 ├── 📄 docker-compose.yml        # How to run the app in containers
 └── 📄 other configuration files...
 ```
@@ -34,12 +37,31 @@ This is the main folder that contains everything for our project.
 #### `README.md`
 - **What it is**: The main instruction manual for the project
 - **Why we need it**: Tells new developers how to set up and use the project
-- **What it contains**: Installation instructions, features, and how to get started
+- **What it contains**: Installation instructions, features, architecture overview, and comprehensive documentation
+- **New in v2.1.3**: Streamlined content with references to specialized guides
 
-- **What they are**: Instructions for running our app in "containers" (isolated environments)
-- **Why we need them**: Makes it easy to run the app on any computer without setup hassles
-- **Difference**: 
-  - `docker-compose.yml` = Production version (for real use)
+#### `LOCKER_OPERATIONS_GUIDE.md` ⭐ **NEW**
+- **What it is**: Complete guide for safe configuration and operational management
+- **Why we need it**: Provides step-by-step safety procedures and troubleshooting
+- **What it contains**: Configuration methods, safety procedures, emergency recovery
+- **Perfect for**: Administrators and operators managing the locker system
+
+#### `DATABASE_DOCUMENTATION.md`
+- **What it is**: Detailed database architecture and technical documentation
+- **Why we need it**: Explains how data is stored and organized
+- **What it contains**: Database schemas, ERD diagrams, performance tuning
+- **Perfect for**: Technical team members working with data
+
+#### `QUICK_START.md`
+- **What it is**: Step-by-step guide to get the app running in 5 minutes
+- **Why we need it**: New team members can start working quickly
+- **Perfect for**: People who just want to see the app work right away
+- **New in v2.1.3**: Updated for production-ready deployment with 15 HWR lockers
+
+#### `docker-compose.yml`
+- **What it is**: Instructions for running our app in "containers" (isolated environments)
+- **Why we need it**: Makes it easy to run the app on any computer without setup hassles
+- **New in v2.1.3**: Fixed critical volume configuration for database persistence
 
 #### `.gitignore`
 - **What it is**: A list of files that Git should ignore
@@ -50,6 +72,7 @@ This is the main folder that contains everything for our project.
 - **What it is**: A collection of shortcuts for common commands
 - **Why we need it**: Instead of typing long commands, you can just type `make up` or `make test`
 - **Example**: `make up` starts the entire application
+- **New in v2.1.3**: Enhanced with deployment validation testing
 
 #### `nginx.conf`
 - **What it is**: Configuration for Nginx (a web server)
@@ -57,11 +80,6 @@ This is the main folder that contains everything for our project.
 - **Think of it as**: A receptionist at a hotel directing guests to the right rooms
 
 ### 📚 Documentation Files
-
-#### `QUICK_START.md`
-- **What it is**: Step-by-step guide to get the app running quickly
-- **Why we need it**: New team members can start working in minutes, not hours
-- **Perfect for**: People who just want to see the app work
 
 #### `COLLABORATION_GUIDE.md`
 - **What it is**: Rules and guidelines for working together on the project
@@ -130,24 +148,35 @@ Our app follows a special pattern called "Hexagonal Architecture." Think of it l
 - **Why we need it**: Breaks down complex tasks into smaller, manageable pieces
 - **Think of it as**: Specialized departments in a company (HR, Accounting, etc.)
 
-### 🗄️ Data Storage
+### 🗄️ Data Storage - Enhanced in v2.1.3
 
-#### `📁 databases/`
+#### `📁 databases/` ⭐ **IMPROVED**
 - **What it is**: Where all our data is stored (user accounts, locker information, etc.)
 - **Why we need it**: The app needs to remember things between sessions
 - **Think of it as**: A digital filing cabinet that never forgets
+- **New in v2.1.3**: 
+  - **Fixed volume configuration**: Database files now properly stored on host filesystem
+  - **15 Pre-configured HWR lockers**: Ready for production use (5 small, 5 medium, 5 large)
+  - **Dual-database architecture**: Main database + audit trail database
+  - **Automatic backups**: Safety-first architecture with backup protection
+  - **Configuration persistence**: `lockers-hwr.json` with production locker setup
 
 #### `📁 logs/`
 - **What it is**: A diary of everything that happens in the app
 - **Why we need it**: Helps us debug problems and understand how the app is being used
 - **Think of it as**: Security camera footage - helps investigate issues
 
-### 🧪 Testing
+### 🧪 Testing - Enhanced in v2.1.3
 
-#### `📁 tests/`
+#### `📁 tests/` ⭐ **IMPROVED**
 - **What it is**: Code that tests our main code to make sure it works correctly
 - **Why we need it**: Catches bugs before users find them
 - **Think of it as**: Quality control in a factory
+- **New in v2.1.3**:
+  - **91 comprehensive tests**: All passing with complete coverage
+  - **6-step deployment flow test**: Validates complete deployment process
+  - **Edge case testing**: Enhanced locker overwrite protection testing
+  - **Organized structure**: `flow/` for deployment tests, `edge_cases/` for boundary testing
 
 #### `pytest.ini`
 - **What it is**: Configuration file for our testing system
@@ -156,10 +185,10 @@ Our app follows a special pattern called "Hexagonal Architecture." Think of it l
 
 ### 🐳 Containerization
 
-- **What they are**: Instructions for building a "container" (isolated environment) for our app
-- **Why we need them**: Ensures the app runs the same way on every computer
-- **Difference**:
-  - `Dockerfile` = Production version (optimized for real use)
+#### `Dockerfile`
+- **What it is**: Instructions for building a "container" (isolated environment) for our app
+- **Why we need it**: Ensures the app runs the same way on every computer
+- **Production ready**: Optimized for real use with Gunicorn and security hardening
 
 ---
 
@@ -202,34 +231,54 @@ Contains helpful automation scripts
 
 ---
 
-## 🔄 How Everything Works Together
+## 🔄 How Everything Works Together - v2.1.3 Architecture
 
 1. **User visits the website** → Nginx receives the request
-2. **Nginx forwards the request** → To our Flask application
-3. **Flask app processes the request** → Using business logic
-4. **If data is needed** → Persistence layer talks to the database
-5. **Response is sent back** → Through the same chain, but in reverse
-6. **Everything is logged** → For debugging and monitoring
+2. **Nginx forwards the request** → To our Flask application (Gunicorn WSGI server)
+3. **Flask app processes the request** → Using business logic and safety checks
+4. **If data is needed** → Persistence layer talks to the dual-database system
+5. **Safety features activate** → Automatic backups and conflict detection
+6. **Response is sent back** → Through the same chain, but in reverse
+7. **Everything is logged** → To both application logs and audit database
+8. **Performance optimized** → Redis caching and multi-worker deployment
+
+## 🛡️ Safety-First Architecture - New in v2.1.3
+
+Our system now includes comprehensive safety features:
+
+- **🚫 No Accidental Data Loss**: Multiple safety mechanisms prevent overwriting existing locker data
+- **💾 Automatic Backups**: Every data-changing operation creates timestamped backups
+- **🔒 Conflict Detection**: System blocks operations that would corrupt existing data
+- **🌱 Add-Only Mode**: Safely add new lockers without touching existing ones
+- **💥 Admin-Reset Mode**: Requires multiple confirmations for destructive operations
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Getting Started - v2.1.3
 
 If you're new to the project:
 
-1. Read `README.md` first for the big picture
-2. Follow `QUICK_START.md` to get the app running
-3. Check `COLLABORATION_GUIDE.md` to understand how we work together
-4. Use this file to understand what each part does
+1. **Read `QUICK_START.md` first** - Get running in 5 minutes with 15 pre-configured lockers
+2. **Follow the quick deployment** - `make up` and you're ready!
+3. **Check `LOCKER_OPERATIONS_GUIDE.md`** - Learn safe operational procedures
+4. **Read `README.md`** - Understand the complete system architecture
+5. **Use this file** - Understand what each part does as you explore
 
-Remember: You don't need to understand everything at once. Start with getting the app running, then gradually explore different parts as you work on the project!
+**What's New in v2.1.3:**
+- **Production Ready**: 15 HWR lockers configured and ready for real use
+- **Safety First**: Comprehensive protection against accidental data loss
+- **Enhanced Testing**: 91 tests ensure reliability
+- **Streamlined Documentation**: Clear, focused guides for different audiences
 
 ---
 
 ## 🤔 Still Have Questions?
 
-- Check the `README.md` for more technical details
-- Look at the `docs/` folder for visual diagrams
-- Ask team members - we're here to help!
+- **Start here**: `QUICK_START.md` for immediate setup
+- **Operations**: `LOCKER_OPERATIONS_GUIDE.md` for management procedures
+- **Technical details**: `README.md` for comprehensive information
+- **Database questions**: `DATABASE_DOCUMENTATION.md` for data architecture
+- **Visual diagrams**: Check the `docs/` folder
+- **Ask team members**: We're here to help!
 
-This project is designed to be beginner-friendly, so don't hesitate to explore and learn! 
+This project is designed to be beginner-friendly while being production-ready. Version 2.1.3 brings enterprise-level safety and reliability - don't hesitate to explore and learn! 🚀 

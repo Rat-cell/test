@@ -187,26 +187,19 @@ class AuditService:
     
     @staticmethod
     def _get_user_context() -> Dict[str, Any]:
-        """Extract user context from current request/session"""
+        """Extract simplified user context from current request/session"""
         context = {}
         
         try:
-            # Get admin ID from session if available
+            # Get admin ID and username from session if available
             if 'admin_id' in session:
                 context['admin_id'] = session['admin_id']
+                context['admin_username'] = session.get('admin_username', 'UnknownAdmin')
+                
         except RuntimeError:
-            # Working outside of request context (e.g., in tests)
+            # Outside request context
             pass
-        
-        try:
-            # Get IP address from request if available
-            if request:
-                context['ip_address'] = request.remote_addr
-                context['session_id'] = session.get('_id', 'unknown')
-        except RuntimeError:
-            # Working outside of request context (e.g., in tests)
-            pass
-        
+            
         return context
     
     @staticmethod

@@ -73,13 +73,17 @@ services:
       - ENABLE_LOCKER_SENSOR_DATA_FEATURE=true
       - DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE=false
       
+      # Locker Configuration
+      - ENABLE_DEFAULT_LOCKER_SEEDING=true
+      - LOCKER_SIMPLE_CONFIG=count:15,size_small:5,size_medium:5,size_large:5,location_prefix:HWR Locker {locker_id}
+      
       # Logging
       - LOG_LEVEL=INFO
       - LOG_FILE=/app/logs/campus_locker.log
     
     volumes:
       - app_logs:/app/logs
-      - app_databases:/app/databases
+      - ./campus_locker_system/databases:/app/databases
       - app_data:/app/data
     
     depends_on:
@@ -121,8 +125,6 @@ volumes:
   redis_data:
     driver: local
   app_logs:
-    driver: local
-  app_databases:
     driver: local
   app_data:
     driver: local

@@ -1,0 +1,32 @@
+{
+  "metadata": {
+    "description": "HWR Campus Locker Configuration - 15 Lockers",
+    "version": "1.0",
+    "location": "HWR",
+    "total_count": 15,
+    "size_distribution": {
+      "small": 5,
+      "medium": 5,
+      "large": 5
+    }
+  },
+  "lockers": [
+    {"id": 1, "location": "HWR Locker 1", "size": "small", "status": "free"},
+    {"id": 2, "location": "HWR Locker 2", "size": "small", "status": "free"},
+    {"id": 3, "location": "HWR Locker 3", "size": "small", "status": "free"},
+    {"id": 4, "location": "HWR Locker 4", "size": "small", "status": "free"},
+    {"id": 5, "location": "HWR Locker 5", "size": "small", "status": "free"},
+    
+    {"id": 6, "location": "HWR Locker 6", "size": "medium", "status": "free"},
+    {"id": 7, "location": "HWR Locker 7", "size": "medium", "status": "free"},
+    {"id": 8, "location": "HWR Locker 8", "size": "medium", "status": "free"},
+    {"id": 9, "location": "HWR Locker 9", "size": "medium", "status": "free"},
+    {"id": 10, "location": "HWR Locker 10", "size": "medium", "status": "free"},
+    
+    {"id": 11, "location": "HWR Locker 11", "size": "large", "status": "free"},
+    {"id": 12, "location": "HWR Locker 12", "size": "large", "status": "free"},
+    {"id": 13, "location": "HWR Locker 13", "size": "large", "status": "free"},
+    {"id": 14, "location": "HWR Locker 14", "size": "large", "status": "free"},
+    {"id": 15, "location": "HWR Locker 15", "size": "large", "status": "free"}
+  ]
+} 

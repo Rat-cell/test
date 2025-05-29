@@ -12,6 +12,9 @@ class Config:
     
     # Main database configuration
     MAIN_DB_FILENAME = 'campus_locker.db'
+    # Database directory - container uses /app/databases, local development uses relative path
+    DATABASE_DIR = os.environ.get('DATABASE_DIR') or os.path.join(basedir, '..', 'databases')
+    
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
         'sqlite:///' + os.path.join(basedir, '..', 'databases', MAIN_DB_FILENAME) # In databases folder
     
@@ -52,3 +55,24 @@ class Config:
     ENABLE_EMAIL_BASED_PIN_GENERATION = os.environ.get('ENABLE_EMAIL_BASED_PIN_GENERATION', 'true').lower() == 'true'
 
     LOG_DIR = os.environ.get('LOG_DIR') or os.path.abspath(os.path.join(basedir, '..', 'logs'))
+
+    # 🏗️ LOCKER CONFIGURATION (Client Configurable)
+    # ==============================================
+    
+    # Locker configuration file path (JSON format) - stored in persistent databases directory
+    LOCKER_CONFIG_FILE = os.environ.get('LOCKER_CONFIG_FILE') or os.path.join(basedir, '..', 'databases', 'lockers-hwr.json')
+    
+    # Simple environment variable setup for quick deployment
+    # Format: "count:15,size_small:5,size_medium:5,size_large:5,location_prefix:HWR Locker {unit}"
+    LOCKER_SIMPLE_CONFIG = os.environ.get('LOCKER_SIMPLE_CONFIG')
+    
+    # Locker size physical dimensions (client configurable)
+    LOCKER_SIZE_DIMENSIONS = {
+        'small': {'height': 30, 'width': 40, 'depth': 45},   # cm
+        'medium': {'height': 50, 'width': 40, 'depth': 45},  # cm  
+        'large': {'height': 80, 'width': 40, 'depth': 45}    # cm
+    }
+    
+    # Default locker seeding behavior (clients can override via env vars)
+    # DISABLED: Using explicit HWR configuration only
+    ENABLE_DEFAULT_LOCKER_SEEDING = os.environ.get('ENABLE_DEFAULT_LOCKER_SEEDING', 'false').lower() == 'true'

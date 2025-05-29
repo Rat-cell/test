@@ -1,15 +1,21 @@
 from app import db
 from flask import current_app
+import json
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Locker(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    location = db.Column(db.String(100), nullable=False)  # Physical location of the locker
     size = db.Column(db.String(50), nullable=False)  # e.g., 'small', 'medium', 'large'
     # Possible statuses: 'free', 'occupied', 'out_of_service', 'disputed_contents', 'awaiting_collection'
     status = db.Column(db.String(50), nullable=False, default='free')
     parcels = db.relationship('Parcel', backref='locker', lazy=True)
 
     def __repr__(self):
-        return f'<Locker {self.id} ({self.size}) - {self.status}>'
+        return f'<Locker {self.id} at {self.location} ({self.size}) - {self.status}>'
 
 
 class LockerManager:
@@ -97,4 +103,120 @@ class LockerManager:
             'available': total_lockers - occupied_lockers - out_of_service_lockers,
             'out_of_service': out_of_service_lockers,
             'utilization_rate': (occupied_lockers / total_lockers * 100) if total_lockers > 0 else 0
+        }
+    
+    @staticmethod
+    def validate_locker_configuration(config: dict) -> tuple[bool, str]:
+        """
+        Validate locker configuration structure and business rules
+        Returns (is_valid, error_message)
+        """
+        try:
+            if not isinstance(config, dict):
+                return False, "Configuration must be a JSON object"
+            
+            if "lockers" not in config:
+                return False, "Configuration must contain 'lockers' array"
+            
+            if not isinstance(config["lockers"], list):
+                return False, "'lockers' must be an array"
+            
+            for i, locker in enumerate(config["lockers"]):
+                if not isinstance(locker, dict):
+                    return False, f"Locker {i} must be an object"
+                
+                # Check required fields
+                required_fields = ['location', 'size']
+                for field in required_fields:
+                    if field not in locker:
+                        return False, f"Locker {i} missing required field '{field}'"
+                
+                # Validate size using business rules
+                if not LockerManager.is_valid_size(locker['size']):
+                    return False, f"Locker {i} has invalid size '{locker['size']}'. Must be one of: {LockerManager.VALID_SIZES}"
+                
+                # Validate status if provided
+                if 'status' in locker and not LockerManager.is_valid_status(locker['status']):
+                    return False, f"Locker {i} has invalid status '{locker['status']}'. Must be one of: {LockerManager.VALID_STATUSES}"
+                
+                # Set default status if not provided
+                if 'status' not in locker:
+                    locker['status'] = 'free'
+            
+            return True, "Configuration is valid"
+            
+        except Exception as e:
+            return False, f"Configuration validation error: {str(e)}"
+    
+    @staticmethod
+    def create_locker_from_config(locker_config: dict) -> Locker:
+        """
+        Create a Locker instance from configuration data
+        Business logic for locker creation
+        """
+        # Apply business defaults
+        status = locker_config.get('status', 'free')
+        
+        # Validate business rules
+        if not LockerManager.is_valid_size(locker_config['size']):
+            raise ValueError(f"Invalid locker size: {locker_config['size']}")
+        
+        if not LockerManager.is_valid_status(status):
+            raise ValueError(f"Invalid locker status: {status}")
+        
+        return Locker(
+            location=locker_config['location'],
+            size=locker_config['size'],
+            status=status
+        )
+    
+    @staticmethod
+    def generate_default_locker_configuration() -> dict:
+        """
+        Generate default locker configuration using business rules and app config
+        """
+        config = current_app.config
+        total_count = config.get('DEFAULT_LOCKER_COUNT', 5)
+        location_pattern = config.get('DEFAULT_LOCATION_PATTERN', 'Building A, Floor {floor}, Row {row}')
+        size_distribution = config.get('DEFAULT_SIZE_DISTRIBUTION', {
+            'small': 40, 'medium': 40, 'large': 20
+        })
+        
+        # Calculate how many of each size to create
+        small_count = int(total_count * size_distribution['small'] / 100)
+        medium_count = int(total_count * size_distribution['medium'] / 100)
+        large_count = total_count - small_count - medium_count  # Remainder goes to large
+        
+        lockers = []
+        locker_id = 1
+        
+        # Create lockers by size
+        for size, count in [('small', small_count), ('medium', medium_count), ('large', large_count)]:
+            for _ in range(count):
+                # Simple floor/row calculation
+                floor = ((locker_id - 1) // 3) + 1
+                row = ((locker_id - 1) % 3) + 1
+                
+                location = location_pattern.format(
+                    locker_id=locker_id,
+                    floor=floor,
+                    row=row
+                )
+                
+                lockers.append({
+                    "id": locker_id,
+                    "location": location,
+                    "size": size,
+                    "status": "free"
+                })
+                locker_id += 1
+        
+        return {
+            "lockers": lockers,
+            "metadata": {
+                "total_count": total_count,
+                "size_distribution": size_distribution,
+                "location_pattern": location_pattern,
+                "source": "default_generation"
+            }
         } 

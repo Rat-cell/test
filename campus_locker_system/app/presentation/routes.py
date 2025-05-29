@@ -21,19 +21,38 @@ from app.services.pin_service import (
 
 @main_bp.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint for Docker and load balancers"""
+    """Enhanced health check endpoint with comprehensive database status"""
     try:
-        # Basic database connectivity check
-        from app import db
-        db.session.execute(db.text('SELECT 1'))
-        return jsonify({
-            'status': 'healthy',
+        from app.services.database_service import DatabaseService
+        
+        # Perform comprehensive database health check
+        is_healthy, health_data = DatabaseService.health_check()
+        
+        # Get database statistics
+        stats = DatabaseService.get_database_statistics()
+        
+        response_data = {
+            'status': 'healthy' if is_healthy else 'degraded',
             'service': 'campus-locker-system',
-            'version': '2.1.1'
-        }), 200
+            'version': '2.1.1',
+            'database': {
+                'main_database': health_data.get('main_database', 'unknown'),
+                'audit_database': health_data.get('audit_database', 'unknown'),
+                'record_counts': health_data.get('record_counts', {}),
+                'issues': health_data.get('issues', [])
+            },
+            'statistics': stats if not stats.get('error') else {'error': stats.get('error')}
+        }
+        
+        # Return appropriate status code
+        status_code = 200 if is_healthy else 503
+        return jsonify(response_data), status_code
+        
     except Exception as e:
+        current_app.logger.error(f"Health check error: {str(e)}")
         return jsonify({
             'status': 'unhealthy',
+            'service': 'campus-locker-system',
             'error': str(e)
         }), 503
 
@@ -157,6 +176,17 @@ def admin_logout():
 @main_bp.route('/admin/audit-logs')
 @admin_required
 def audit_logs_view():
+    # 🔥 ENHANCED AUDIT LOGGING: Track admin accessing audit logs
+    admin_id = session.get('admin_id')
+    admin_user = db.session.get(AdminUser, admin_id)
+    admin_username = admin_user.username if admin_user else "UnknownAdmin"
+    
+    AuditService.log_event("ADMIN_ACCESSED_AUDIT_LOGS", {
+        "admin_id": admin_id,
+        "admin_username": admin_username,
+        "logs_requested": 100  # Default limit
+    })
+    
     # Use the new audit service to get logs
     logs = AuditService.get_audit_logs(limit=100)
     return render_template('admin/audit_logs.html', logs=logs)
@@ -164,10 +194,28 @@ def audit_logs_view():
 @main_bp.route('/admin/lockers', methods=['GET'])
 @admin_required
 def manage_lockers():
+    # 🔥 ENHANCED AUDIT LOGGING: Track admin accessing locker management
+    admin_id = session.get('admin_id')
+    admin_user = db.session.get(AdminUser, admin_id)
+    admin_username = admin_user.username if admin_user else "UnknownAdmin"
+    
     enable_sensor_feature = current_app.config.get('ENABLE_LOCKER_SENSOR_DATA_FEATURE', True)
     default_sensor_state = current_app.config.get('DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE', False)
 
     lockers = Locker.query.order_by(Locker.id).all()
+    
+    # Count locker statuses for audit logging
+    occupied_count = sum(1 for locker in lockers if locker.status == 'occupied')
+    out_of_service_count = sum(1 for locker in lockers if locker.status == 'out_of_service')
+    
+    AuditService.log_event("ADMIN_ACCESSED_LOCKER_MANAGEMENT", {
+        "admin_id": admin_id,
+        "admin_username": admin_username,
+        "total_lockers_viewed": len(lockers),
+        "occupied_lockers": occupied_count,
+        "out_of_service_lockers": out_of_service_count
+    })
+    
     lockers_with_parcels = []
     for locker in lockers:
         parcel_in_locker = None
@@ -204,6 +252,21 @@ def view_parcel_admin(parcel_id):
     if not parcel:
         flash(f"Parcel ID {parcel_id} not found.", "error")
         return redirect(url_for('main.manage_lockers'))
+    
+    # 🔥 ENHANCED AUDIT LOGGING: Track admin parcel viewing
+    admin_id = session.get('admin_id')
+    admin_user = db.session.get(AdminUser, admin_id)
+    admin_username = admin_user.username if admin_user else "UnknownAdmin"
+    
+    AuditService.log_event("ADMIN_VIEWED_PARCEL", {
+        "admin_id": admin_id,
+        "admin_username": admin_username,
+        "parcel_id": parcel_id,
+        "parcel_status": parcel.status,
+        "locker_id": parcel.locker_id,
+        "recipient_email_domain": parcel.recipient_email.split('@')[1] if '@' in parcel.recipient_email else 'unknown'  # Privacy-friendly logging
+    })
+    
     locker = db.session.get(Locker, parcel.locker_id) if parcel.locker_id else None
     return render_template('admin/view_parcel.html', parcel=parcel, locker=locker)
 
@@ -293,7 +356,29 @@ def admin_mark_locker_emptied_action(locker_id):
 @main_bp.route('/admin/parcels/process-overdue', methods=['POST'])
 @admin_required
 def admin_process_overdue_parcels_action():
+    # 🔥 ENHANCED AUDIT LOGGING: Track admin bulk operations
+    admin_id = session.get('admin_id')
+    admin_user = db.session.get(AdminUser, admin_id)
+    admin_username = admin_user.username if admin_user else "UnknownAdmin"
+    
+    # Log the initiation of bulk operation
+    AuditService.log_event("ADMIN_INITIATED_BULK_PROCESS_OVERDUE", {
+        "admin_id": admin_id,
+        "admin_username": admin_username,
+        "operation_type": "process_overdue_parcels"
+    })
+    
     processed_count, message = process_overdue_parcels()
+    
+    # Log the completion of bulk operation
+    AuditService.log_event("ADMIN_COMPLETED_BULK_PROCESS_OVERDUE", {
+        "admin_id": admin_id,
+        "admin_username": admin_username,
+        "processed_count": processed_count,
+        "operation_result": message,
+        "operation_type": "process_overdue_parcels"
+    })
+    
     flash(f"Overdue parcel processing complete. {processed_count} parcels processed. {message}", "info")
     return redirect(url_for('main.manage_lockers'))
 

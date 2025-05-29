@@ -1,158 +1,148 @@
-# 🚀 Campus Locker System v2.1.1 - Quick Start Guide
+# 🚀 Campus Locker System v2.1.3 - Quick Start Guide
 
-**Get the Campus Locker System running in under 5 minutes!**
-
-## Prerequisites
-- **Docker Desktop** (macOS/Windows) or **Docker Engine** (Linux)
-- **Git** for cloning the repository
-
-## 🏃‍♂️ Quick Start (Recommended)
-
-### 1. Clone the Repository
-```bash
-git clone <your-repository-url>
-cd <repository-name>
-git checkout v2.00  # Switch to the v2.0 branch
-```
-
-### 2. Start the System
-```bash
-make up
-```
-
-### 3. Verify Deployment
-```bash
-make test
-```
-
-### 4. Access the Application
-- **🌐 Campus Locker System**: http://localhost
-- **💊 Health Check**: http://localhost/health
-- **📧 Email Testing (MailHog)**: http://localhost:8025
-- **👤 Admin Login**: http://localhost/admin/login (admin/AdminPass123!)
-
-## 📋 Available Commands
-
-```bash
-# Production Environment
-make build          # Build Docker images
-make up             # Start production deployment
-make down           # Stop production deployment
-make logs           # View production logs
-make test           # Test deployment
-
-# Development Environment
-make dev-up         # Start development deployment
-make dev-down       # Stop development deployment
-make dev-logs       # View development logs
-
-# Maintenance
-make clean          # Clean up Docker resources
-make help           # Show all available commands
-```
-
-## 🛠️ Alternative: Local Development Setup
-
-If you prefer local development without Docker:
-
-### 1. Setup Python Environment
-```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r campus_locker_system/requirements.txt
-```
-
-### 2. Start MailHog (for email testing)
-```bash
-docker run -d -p 1025:1025 -p 8025:8025 mailhog/mailhog
-```
-
-### 3. Create Admin User
-```bash
-cd campus_locker_system
-python create_admin.py admin adminpass123
-```
-
-### 4. Run Application
-```bash
-python run.py
-```
-
-### 5. Access Application
-- **Main App**: http://localhost/
-- **MailHog**: http://localhost:8025
-
-## 🧪 Testing
-
-### Run All Tests
-```bash
-# Docker environment (recommended)
-make test
-
-# Local environment
-cd campus_locker_system
-pytest
-```
-
-### Run Tests with Coverage
-```bash
-# Docker environment
-docker-compose exec app pytest --cov=app
-
-# Local environment
-pytest --cov=app
-```
-
-## 📚 Documentation
-
-- **Complete README**: See `README.md` for comprehensive documentation
-- **Docker Deployment**: See `DOCKER_DEPLOYMENT.md` for detailed deployment guide
-- **Architecture**: Hexagonal architecture with 6 business domains
-
-## 🔧 Troubleshooting
-
-### Port Conflicts
-If port 5000 is in use (common on macOS):
-- The system automatically uses port 5001 externally
-- Access via http://localhost/health
-
-### Container Issues
-```bash
-# Check container status
-docker ps
-
-# View logs
-make logs
-
-# Restart containers
-make down && make up
-```
-
-### Reset Everything
-```bash
-make down
-make clean
-make build
-make up
-```
-
-## 🎯 What You Get
-
-✅ **91 Comprehensive Tests** - All passing  
-✅ **Hexagonal Architecture** - Clean, maintainable design  
-✅ **Docker Deployment** - Production-ready containerization  
-✅ **Security Hardened** - Non-root containers, security headers  
-✅ **Email Testing** - MailHog integration  
-✅ **Health Monitoring** - Built-in health checks  
-✅ **Complete Documentation** - Guides and troubleshooting  
-
-## 🆘 Need Help?
-
-1. Check the troubleshooting section in `README.md`
-2. Run `make logs` to view container logs
-3. Run `make test` to verify deployment
-4. Review `DOCKER_DEPLOYMENT.md` for detailed setup
+**Get the production-ready Campus Locker System running in under 5 minutes!**
 
 ---
 
-**Campus Locker System v2.1.1** - Enterprise-ready parcel management system 🚀 
+## 📋 Prerequisites
+- **Docker Desktop** (macOS/Windows) or **Docker Engine** (Linux)
+- **Docker Compose** (included with Docker Desktop)
+- **Git** for cloning the repository
+
+---
+
+## ⚡ Quick Start (Recommended)
+
+### 1. Clone and Navigate
+```bash
+git clone <repository-url>
+cd campus_locker_system
+```
+
+### 2. Deploy System
+```bash
+make up
+```
+
+### 3. Verify Health
+```bash
+make test
+```
+
+### 4. Access Application
+- **🏠 Main Application**: http://localhost
+- **💊 Health Check**: http://localhost/health  
+- **📧 Email Testing (MailHog)**: http://localhost:8025
+- **👤 Admin Login**: http://localhost/admin/login (admin/AdminPass123!)
+
+**🎉 That's it! You now have a production-ready locker system with 15 HWR lockers!**
+
+---
+
+## 🎯 What You Get Instantly
+
+✅ **15 Pre-configured HWR Lockers** (5 small, 5 medium, 5 large)  
+✅ **Safety-First Architecture** with automatic backups  
+✅ **Dual Database System** (main + audit trail)  
+✅ **91 Comprehensive Tests** - All passing  
+✅ **Production Docker Stack** (Nginx + Gunicorn + Redis)  
+✅ **Email Testing Ready** - MailHog integration  
+✅ **Complete Documentation** - Operational guides included  
+
+---
+
+## 🛠️ Essential Commands
+
+```bash
+# Production Deployment
+make up             # Start production system
+make down           # Stop production system
+make test           # Run deployment validation
+make logs           # View system logs
+make clean          # Clean up resources
+
+# System Management
+make build          # Rebuild containers
+make help           # Show all commands
+```
+
+---
+
+## 📚 Documentation Quick Access
+
+- **📖 [LOCKER_OPERATIONS_GUIDE.md](LOCKER_OPERATIONS_GUIDE.md)** - Complete operational procedures
+- **📋 [README.md](README.md)** - Comprehensive system documentation
+- **🗄️ [DATABASE_DOCUMENTATION.md](DATABASE_DOCUMENTATION.md)** - Database architecture details
+
+---
+
+## 🔧 Quick Troubleshooting
+
+### Port Conflicts
+```bash
+# If port conflicts occur, check container status
+docker ps -a
+make logs
+```
+
+### System Reset
+```bash
+# Complete reset (WARNING: Removes all data)
+make down
+make clean
+make up
+```
+
+### Health Check
+```bash
+# Verify system health
+curl http://localhost/health
+# Expected: {"status":"healthy","service":"campus-locker-system","version":"2.1.3"}
+```
+
+---
+
+## 🚀 Production Ready Features
+
+### **Safety & Security**
+- **🛡️ Automatic Backups**: All operations create safety backups
+- **🔒 Conflict Detection**: Prevents accidental data overwriting
+- **📋 Audit Trail**: Complete activity logging
+- **🔐 Secure Authentication**: Admin access with password protection
+
+### **Deployment & Monitoring**
+- **🐳 Production Docker Stack**: Nginx reverse proxy, Gunicorn WSGI, Redis caching
+- **💚 Health Monitoring**: Built-in health checks and service monitoring
+- **📊 Persistent Storage**: Database files stored with bind mounts for backup/debugging
+- **⚡ Performance Optimized**: Multi-worker deployment with caching
+
+### **Business Ready**
+- **📦 Complete Parcel Management**: Deposit, PIN generation, pickup workflow
+- **📧 Email Notifications**: Professional templates with PIN regeneration
+- **👨‍💼 Admin Dashboard**: Full management interface with audit logs
+- **🏗️ Hexagonal Architecture**: Clean, maintainable, scalable design
+
+---
+
+## 🆘 Need Help?
+
+1. **🔍 Check Logs**: `make logs` - View container logs
+2. **🧪 Run Tests**: `make test` - Verify deployment health  
+3. **📖 Operations Guide**: [LOCKER_OPERATIONS_GUIDE.md](LOCKER_OPERATIONS_GUIDE.md) - Complete troubleshooting
+4. **📋 Full Documentation**: [README.md](README.md) - Comprehensive guide
+
+---
+
+## 🎯 Next Steps
+
+After quick start deployment:
+
+1. **📖 Read Operations Guide** - Learn safe operational procedures
+2. **🔧 Configure Environment** - Customize settings via environment variables
+3. **🧪 Run Full Tests** - Validate all 91 tests pass
+4. **📊 Check Admin Dashboard** - Explore management interface
+5. **📧 Test Email Flow** - Verify email notifications via MailHog
+
+---
+
+**Campus Locker System v2.1.3** - Production-hardened parcel management with safety-first architecture 🚀 

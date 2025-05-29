@@ -1,5 +1,126 @@
 # 📋 Campus Locker System - Changelog
 
+## [2.1.3] - 2024-05-29
+
+### 🗄️ Database Infrastructure Overhaul
+- **Complete Database Testing**: Tested complete initialization and seeding process with removed databases to simulate first deployment
+- **Docker Volume Fix**: Fixed critical docker-compose.yml configuration from named volumes to bind mounts (`./campus_locker_system/databases:/app/databases`)
+  - Database files now properly created in local filesystem for debugging and backup
+  - Fixed database persistence issues where files only existed inside containers
+- **JSON Seeding Enhancement**: Improved locker seeding from JSON configurations with comprehensive validation
+- **Database Lifecycle Management**: Enhanced database creation, population, and reset processes
+
+### 🐳 Docker Deployment Improvements  
+- **Container Rebuild Testing**: Simulated complete first deployment scenarios with fresh container builds
+- **Volume Configuration Fix**: Resolved database file visibility issues on host filesystem
+- **Health Check Validation**: Enhanced container startup and health verification processes
+- **Fresh Installation Testing**: Comprehensive testing of deployment from scratch scenarios
+
+### 🧪 Comprehensive Testing Framework
+- **Deployment Flow Testing**: Created complete deployment_flow.py test with 6 critical validation steps:
+  1. Remove existing database files to simulate fresh deployment
+  2. Rebuild Docker containers with no cache for clean state
+  3. Start containers and verify fresh initialization process
+  4. Verify database files are properly created in local filesystem
+  5. Verify correct seeding with expected locker count (18 lockers)
+  6. Verify safety protection mechanisms against re-seeding
+- **Edge Case Testing Expansion**: Enhanced locker overwrite protection with comprehensive scenarios:
+  - Duplicate ID conflict detection and prevention
+  - Existing database conflict protection mechanisms
+  - Invalid JSON data validation and rejection
+  - Partial conflict scenarios and recovery procedures
+  - Database recovery mechanisms from failed operations
+- **Test Organization**: Properly organized test structure with clear separation of concerns
+
+### 📁 Project Structure Reorganization
+- **Test Directory Cleanup**: Consolidated and organized test structure
+  - Moved deployment flow test to proper location (`campus_locker_system/tests/flow/`)
+  - Consolidated all edge case tests in `campus_locker_system/tests/edge_cases/`
+  - Removed duplicate test directories between root and campus_locker_system
+- **Documentation Consolidation**: Major cleanup of duplicate documentation
+  - Updated root directory with latest versions of DATABASE_DOCUMENTATION.md and INTEGRATION_SUMMARY.md
+  - Removed outdated duplicates from campus_locker_system/ directory
+  - Ensured single source of truth for all documentation
+- **Configuration Management**: 
+  - Moved LOCKER_CONFIGURATION_GUIDE.md from config/README.md to main directory
+  - Removed empty config/ directory after relocating contents
+  - Updated all references to config files in documentation
+
+### 🔍 Comprehensive Duplicate File Audit
+- **Systematic Duplicate Detection**: Performed complete codebase scan using MD5 checksums to identify all duplicate files
+- **File Deduplication**: Removed multiple sets of duplicate files:
+  - Empty test flow placeholder files (test_pickup_flow.py, test_deposit_flow.py, test_api_flow.py, test_admin_flow.py)
+  - Duplicate seeding scripts (removed campus_locker_system/scripts/seed_lockers.py, kept main version)
+  - Empty and duplicate shell scripts (test-deployment.sh variants)
+  - Misnamed test files that were actually old management scripts
+- **Scripts Directory Organization**: 
+  - Maintained proper separation: root scripts/ for infrastructure, campus_locker_system/scripts/ for utilities
+  - Removed empty and duplicate script files
+  - Preserved functional separation of concerns
+
+### 🛠️ Development Workflow Improvements
+- **Makefile Analysis**: Documented and validated that two Makefiles serve distinct purposes:
+  - Root Makefile: Docker deployment operations (build, up, down, logs, test, clean)
+  - campus_locker_system/Makefile: Development workflow (install, test, lint, format, security)
+- **Command Structure Validation**: Verified no functional overlap between deployment and development commands
+- **Build Process Enhancement**: Improved build and deployment testing procedures
+
+### 🔧 Configuration and JSON Management
+- **JSON Configuration Processing**: Enhanced handling of locker configuration JSON files
+- **Seeding Process Improvement**: Improved database seeding with better validation and error handling
+- **Configuration File Organization**: Streamlined configuration file structure and location
+- **Environment Configuration**: Better separation of configuration concerns
+
+### 📋 Database Documentation and Safety
+- **Overwrite Protection**: Enhanced safety mechanisms for database operations
+- **Seeding Safety**: Implemented comprehensive protection against accidental data loss
+- **Database State Validation**: Added thorough validation of database states before operations
+- **Recovery Procedures**: Documented and tested database recovery scenarios
+
+### 🚀 Deployment Process Enhancement
+- **First Deployment Simulation**: Comprehensive testing of complete deployment from scratch
+- **Container Management**: Improved Docker container lifecycle management
+- **Database Initialization**: Enhanced fresh database setup and seeding processes
+- **Validation Workflows**: Added systematic validation of deployment success
+
+### 🐛 Critical Fixes
+- **Docker Volume Configuration**: Fixed fundamental issue with database file persistence
+- **Test Structure**: Resolved test organization and duplicate issues
+- **File Duplication**: Eliminated numerous duplicate files causing maintenance confusion
+- **Documentation Consistency**: Fixed outdated and conflicting documentation
+
+### ✨ Enhanced Monitoring and Validation
+- **Health Check Integration**: Improved application health monitoring during deployment
+- **Database State Monitoring**: Enhanced tracking of database file creation and population
+- **Seeding Validation**: Added comprehensive validation of seeding operations
+- **Container State Verification**: Improved verification of container health and functionality
+
+### 📚 Documentation Updates
+- **Integration Documentation**: Updated INTEGRATION_SUMMARY.md with corrected configuration references
+- **Database Documentation**: Enhanced DATABASE_DOCUMENTATION.md with latest procedures
+- **Configuration Guide**: Relocated and updated LOCKER_CONFIGURATION_GUIDE.md
+- **Deployment Procedures**: Documented comprehensive deployment and testing workflows
+
+### 🗑️ Major Cleanup Accomplished
+- **Removed Directories**: config/ (empty after file relocation)
+- **Removed Duplicate Files**: DATABASE_DOCUMENTATION.md, INTEGRATION_SUMMARY.md (campus_locker_system versions)
+- **Removed Empty Files**: Multiple empty test files and placeholder scripts
+- **Removed Misnamed Files**: test files that were actually old management scripts
+- **Removed Duplicate Scripts**: seed_lockers.py and test-deployment.sh duplicates
+
+### 📋 Files Created/Enhanced
+- `campus_locker_system/tests/flow/deployment_flow.py` - Comprehensive deployment testing
+- `campus_locker_system/tests/edge_cases/test_locker_overwrite_protection_edge_cases.py` - Enhanced edge case testing
+- `LOCKER_CONFIGURATION_GUIDE.md` - Relocated and improved configuration documentation
+
+### 🔄 Files Modified
+- `docker-compose.yml` - Critical volume configuration fix for database persistence
+- `DATABASE_DOCUMENTATION.md` - Updated with latest procedures and information
+- `INTEGRATION_SUMMARY.md` - Updated configuration references and latest practices
+- Multiple test files - Enhanced organization and functionality
+
+---
+
 ## v2.1.1 (2024-05-28) - Email Template Enhancement & System Standardization
 
 ### 🎨 Email Template Overhaul

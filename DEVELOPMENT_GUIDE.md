@@ -343,6 +343,7 @@ make up
 ## 📚 Additional Resources
 
 ### Architecture Documentation
+- `DATABASE_DOCUMENTATION.md` - Complete database architecture & operations guide
 - `README_HEXAGONAL.md` - Hexagonal architecture details
 - `ABOUT_PROJECT_STRUCTURE.md` - Detailed project structure
 

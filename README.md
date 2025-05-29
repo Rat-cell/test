@@ -1,11 +1,131 @@
-# Campus Locker System v2.1.1 - Team I
+# Campus Locker System v2.1.3 - Team I
 
-## 🚀 Version 2.1.1 - Email Template Enhancement & System Standardization
+## 🚀 Version 2.1.3 - Database Infrastructure & Project Organization Overhaul
 
-**Campus Locker System** is now fully containerized and production-ready! Version 2.1.1 introduces professional email templates, enhanced PIN regeneration, and comprehensive system standardization.
+**Campus Locker System** is now production-hardened with comprehensive testing and enhanced deployment infrastructure! Version 2.1.3 introduces major database improvements, complete project reorganization, and robust deployment validation.
 
-### 🎯 What's New in v2.1.1
+### 🗄️ Database Infrastructure Overhaul
+- **Complete Database Testing**: Tested complete initialization and seeding process with removed databases to simulate first deployment
+- **Docker Volume Fix**: Fixed critical docker-compose.yml configuration from named volumes to bind mounts (`./campus_locker_system/databases:/app/databases`)
+  - Database files now properly created in local filesystem for debugging and backup
+  - Fixed database persistence issues where files only existed inside containers
+- **JSON Seeding Enhancement**: Improved locker seeding from JSON configurations with comprehensive validation
+- **Database Lifecycle Management**: Enhanced database creation, population, and reset processes
 
+### 🐳 Docker Deployment Improvements  
+- **Container Rebuild Testing**: Simulated complete first deployment scenarios with fresh container builds
+- **Volume Configuration Fix**: Resolved database file visibility issues on host filesystem
+- **Health Check Validation**: Enhanced container startup and health verification processes
+- **Fresh Installation Testing**: Comprehensive testing of deployment from scratch scenarios
+
+### 🧪 Comprehensive Testing Framework
+- **Deployment Flow Testing**: Created complete deployment_flow.py test with 6 critical validation steps:
+  1. Remove existing database files to simulate fresh deployment
+  2. Rebuild Docker containers with no cache for clean state
+  3. Start containers and verify fresh initialization process
+  4. Verify database files are properly created in local filesystem
+  5. Verify correct seeding with expected locker count (18 lockers)
+  6. Verify safety protection mechanisms against re-seeding
+- **Edge Case Testing Expansion**: Enhanced locker overwrite protection with comprehensive scenarios:
+  - Duplicate ID conflict detection and prevention
+  - Existing database conflict protection mechanisms
+  - Invalid JSON data validation and rejection
+  - Partial conflict scenarios and recovery procedures
+  - Database recovery mechanisms from failed operations
+- **Test Organization**: Properly organized test structure with clear separation of concerns
+
+### 📁 Project Structure Reorganization
+- **Test Directory Cleanup**: Consolidated and organized test structure
+  - Moved deployment flow test to proper location (`campus_locker_system/tests/flow/`)
+  - Consolidated all edge case tests in `campus_locker_system/tests/edge_cases/`
+  - Removed duplicate test directories between root and campus_locker_system
+- **Documentation Consolidation**: Major cleanup of duplicate documentation
+  - Updated root directory with latest versions of DATABASE_DOCUMENTATION.md and INTEGRATION_SUMMARY.md
+  - Removed outdated duplicates from campus_locker_system/ directory
+  - Ensured single source of truth for all documentation
+- **Configuration Management**: 
+  - Moved LOCKER_CONFIGURATION_GUIDE.md from config/README.md to main directory
+  - Removed empty config/ directory after relocating contents
+  - Updated all references to config files in documentation
+
+### 🔍 Comprehensive Duplicate File Audit
+- **Systematic Duplicate Detection**: Performed complete codebase scan using MD5 checksums to identify all duplicate files
+- **File Deduplication**: Removed multiple sets of duplicate files:
+  - Empty test flow placeholder files (test_pickup_flow.py, test_deposit_flow.py, test_api_flow.py, test_admin_flow.py)
+  - Duplicate seeding scripts (removed campus_locker_system/scripts/seed_lockers.py, kept main version)
+  - Empty and duplicate shell scripts (test-deployment.sh variants)
+  - Misnamed test files that were actually old management scripts
+- **Scripts Directory Organization**: 
+  - Maintained proper separation: root scripts/ for infrastructure, campus_locker_system/scripts/ for utilities
+  - Removed empty and duplicate script files
+  - Preserved functional separation of concerns
+
+### 🛠️ Development Workflow Improvements
+- **Makefile Analysis**: Documented and validated that two Makefiles serve distinct purposes:
+  - Root Makefile: Docker deployment operations (build, up, down, logs, test, clean)
+  - campus_locker_system/Makefile: Development workflow (install, test, lint, format, security)
+- **Command Structure Validation**: Verified no functional overlap between deployment and development commands
+- **Build Process Enhancement**: Improved build and deployment testing procedures
+
+### 🔧 Configuration and JSON Management
+- **JSON Configuration Processing**: Enhanced handling of locker configuration JSON files
+- **Seeding Process Improvement**: Improved database seeding with better validation and error handling
+- **Configuration File Organization**: Streamlined configuration file structure and location
+- **Environment Configuration**: Better separation of configuration concerns
+
+### 📋 Database Documentation and Safety
+- **Overwrite Protection**: Enhanced safety mechanisms for database operations
+- **Seeding Safety**: Implemented comprehensive protection against accidental data loss
+- **Database State Validation**: Added thorough validation of database states before operations
+- **Recovery Procedures**: Documented and tested database recovery scenarios
+- **Architecture Integration**: Key database architecture details integrated into README with reference to complete DATABASE_DOCUMENTATION.md
+- **Safety Guide Consolidation**: Comprehensive LOCKER_OPERATIONS_GUIDE.md with step-by-step safety procedures, troubleshooting, and emergency recovery
+
+### 🚀 Deployment Process Enhancement
+- **First Deployment Simulation**: Comprehensive testing of complete deployment from scratch
+- **Container Management**: Improved Docker container lifecycle management
+- **Database Initialization**: Enhanced fresh database setup and seeding processes
+- **Validation Workflows**: Added systematic validation of deployment success
+
+### 🐛 Critical Fixes
+- **Docker Volume Configuration**: Fixed fundamental issue with database file persistence
+- **Test Structure**: Resolved test organization and duplicate issues
+- **File Duplication**: Eliminated numerous duplicate files causing maintenance confusion
+- **Documentation Consistency**: Fixed outdated and conflicting documentation
+
+### ✨ Enhanced Monitoring and Validation
+- **Health Check Integration**: Improved application health monitoring during deployment
+- **Database State Monitoring**: Enhanced tracking of database file creation and population
+- **Seeding Validation**: Added comprehensive validation of seeding operations
+- **Container State Verification**: Improved verification of container health and functionality
+
+### 📚 Documentation Updates
+- **Integration Documentation**: Updated INTEGRATION_SUMMARY.md with corrected configuration references
+- **Database Documentation**: Enhanced DATABASE_DOCUMENTATION.md with latest procedures
+- **Configuration Guide**: Relocated and updated LOCKER_CONFIGURATION_GUIDE.md
+- **Deployment Procedures**: Documented comprehensive deployment and testing workflows
+
+### 🗑️ Major Cleanup Accomplished
+- **Removed Directories**: config/ (empty after file relocation)
+- **Removed Duplicate Files**: DATABASE_DOCUMENTATION.md, INTEGRATION_SUMMARY.md (campus_locker_system versions)
+- **Removed Empty Files**: Multiple empty test files and placeholder scripts
+- **Removed Misnamed Files**: test files that were actually old management scripts
+- **Removed Duplicate Scripts**: seed_lockers.py and test-deployment.sh duplicates
+
+### 📋 Files Created/Enhanced
+- `campus_locker_system/tests/flow/deployment_flow.py` - Comprehensive deployment testing
+- `campus_locker_system/tests/edge_cases/test_locker_overwrite_protection_edge_cases.py` - Enhanced edge case testing
+- `LOCKER_CONFIGURATION_GUIDE.md` - Relocated and improved configuration documentation
+
+### 🔄 Files Modified
+- `docker-compose.yml` - Critical volume configuration fix for database persistence
+- `DATABASE_DOCUMENTATION.md` - Updated with latest procedures and information
+- `INTEGRATION_SUMMARY.md` - Updated configuration references and latest practices
+- Multiple test files - Enhanced organization and functionality
+
+---
+
+### ✨ Previous v2.1.1 Features
 - **🎨 Professional Email Templates**: Completely redesigned email templates with clean, professional formatting
 - **🔄 Enhanced PIN Regeneration**: All PIN-related emails now include regeneration links for improved user experience
 - **📅 Parcel Lifecycle Clarity**: All emails include pickup deadline information (7 days from deposit)
@@ -89,16 +209,28 @@ The Campus Locker System is a browser-based parcel management solution that enab
 
 ### Technology Stack
 - **Backend**: Python 3.12, Flask, SQLAlchemy
-- **Database**: SQLite with audit logging
+- **Database**: SQLite with audit logging and persistent storage
 - **Frontend**: HTML templates with responsive design
-- **Containerization**: Docker, Docker Compose
+- **Containerization**: Docker, Docker Compose with optimized volume configuration
 - **Reverse Proxy**: Nginx with security headers
 - **Caching**: Redis for sessions and performance
 - **Email Testing**: MailHog for development
-- **Testing**: Pytest with 91 comprehensive tests
+- **Testing**: Pytest with 91 comprehensive tests + deployment flow validation
+- **Configuration**: Safety-first architecture with persistent JSON configuration
 
 ### Team
 Developed by **Team I**: Pauline Feldhoff, Paul von Franqué, Asma Mzee, Samuel Neo, Gublan Dag as part of the Digital Literacy IV: Software Architecture course.
+
+### 🛡️ Safety-First Architecture
+
+The system implements **safety-first principles** with automatic backups, conflict detection, and multi-mode operations to prevent data loss in production environments.
+
+#### **Safety Resources**
+- **📖 [LOCKER_OPERATIONS_GUIDE.md](LOCKER_OPERATIONS_GUIDE.md)**: Comprehensive guide for safe configuration, operational procedures, troubleshooting, and emergency recovery
+
+#### **Current Production Setup**
+- **15 HWR lockers** (5 small, 5 medium, 5 large) configured and ready for production use
+- **Persistent configuration** stored in `databases/lockers-hwr.json` with automatic backup protection
 
 ---
 
@@ -203,12 +335,22 @@ make help           # Show all available commands
 
 ### Data Persistence
 
-All important data is stored in Docker volumes for persistence across container restarts:
+All important data is stored with proper persistence across container restarts:
 
-- **`app_databases`**: SQLite database files
+- **`./campus_locker_system/databases`**: SQLite database files (bind mount)
+  - `campus_locker.db` - Main business database with 15 HWR lockers
+  - `campus_locker_audit.db` - Audit trail database
+  - `lockers-hwr.json` - Persistent locker configuration
+  - `campus_locker_backup_*.db` - Automatic safety backups
 - **`app_logs`**: Application log files
 - **`redis_data`**: Redis cache and session data
 - **`app_data`**: Additional application data
+
+#### **Persistent Configuration Architecture**
+The system uses a **configuration separation strategy**:
+- **Application Code** (`app/config.py`): Python configuration structure (version controlled)
+- **User Data** (`databases/lockers-hwr.json`): Actual locker definitions (persistent storage)
+- **Safety**: All configuration changes create automatic backups before execution
 
 ### Environment Variables
 
@@ -370,16 +512,124 @@ The system follows hexagonal (ports and adapters) architecture principles:
 - **Performance Metrics**: Response time and error tracking
 - **Email Monitoring**: Delivery status tracking
 
-### Database Schema
+### Database Architecture
 
-#### Main Database (`campus_locker.db`)
-- **`locker`**: Physical locker information and status
-- **`parcel`**: Parcel details and lifecycle tracking
-- **`admin_user`**: Administrator account management
-- **`locker_sensor_data`**: IoT sensor data collection
+#### **Dual-Database Design**
+The system uses a **separation of concerns** approach with two dedicated SQLite databases:
 
-#### Audit Database (`campus_locker_audit.db`)
-- **`audit_log`**: Comprehensive activity and security logging
+- **📊 Main Database** (`campus_locker.db`) - Core business operations and data
+- **📋 Audit Database** (`campus_locker_audit.db`) - Administrative audit trail and security logs
+
+Both databases are stored in the persistent `databases/` directory with automatic backup protection.
+
+#### **Database Files Structure**
+```
+databases/
+├── campus_locker.db              # Main business database
+├── campus_locker_audit.db        # Audit trail database  
+├── lockers-hwr.json              # Locker configuration (15 HWR lockers)
+└── campus_locker_backup_*.db     # Automatic safety backups
+```
+
+#### **Main Database Schema** (`campus_locker.db`)
+
+**Entity Relationship Diagram (ERD):**
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│     LOCKER      │    │     PARCEL      │    │   ADMIN_USER    │
+├─────────────────┤    ├─────────────────┤    ├─────────────────┤
+│ id (PK)         │◄──┐│ id (PK)         │    │ id (PK)         │
+│ location        │   ││ locker_id (FK)  │    │ username        │
+│ size            │   ││ pin_hash        │    │ password_hash   │
+│ status          │   ││ otp_expiry      │    │ last_login      │
+└─────────────────┘   ││ recipient_email │    └─────────────────┘
+                      ││ status          │
+┌─────────────────┐   ││ deposited_at    │
+│ LOCKER_SENSOR   │   ││ picked_up_at    │
+│     _DATA       │   ││ pin_generation_*│
+├─────────────────┤   │└─────────────────┘
+│ id (PK)         │   │
+│ locker_id (FK)  │◄──┘
+│ timestamp       │
+│ has_contents    │
+└─────────────────┘
+```
+
+**Core Tables:**
+- **`locker`**: Physical locker definitions with location, size (small/medium/large), and status
+- **`parcel`**: Parcel lifecycle tracking with PIN security, recipient details, and timestamps
+- **`admin_user`**: Administrator account management with secure password hashing
+- **`locker_sensor_data`**: IoT sensor data collection for hardware integration
+
+**Key Relationships:**
+```
+LOCKER (15 HWR lockers)
+├── id, location, size, status
+├── → PARCEL (1:many) - parcels stored in lockers
+└── → LOCKER_SENSOR_DATA (1:many) - sensor readings
+
+PARCEL
+├── locker_id (FK), recipient_email, status
+├── pin_hash, otp_expiry, deposited_at, picked_up_at
+└── PIN regeneration fields (token, expiry, count)
+
+ADMIN_USER
+└── username, password_hash, last_login
+```
+
+#### **Audit Database Schema** (`campus_locker_audit.db`)
+
+**Audit ERD:**
+```
+┌─────────────────┐
+│   AUDIT_LOG     │
+├─────────────────┤
+│ id (PK)         │
+│ timestamp       │
+│ action          │
+│ details         │
+│ admin_id (FK)   │──────────► References admin_user.id 
+│ admin_username  │            in main database
+└─────────────────┘
+```
+
+**Audit Trail:**
+- **`audit_log`**: Complete activity logging with timestamps, actions, admin tracking, and detailed event information
+
+#### **Data Flow Overview**
+
+**Business Operations:**
+```
+1. LOCKER (configured from JSON) 
+   ↓
+2. PARCEL (deposited into locker)
+   ↓  
+3. SENSOR_DATA (monitors locker contents)
+   ↓
+4. PARCEL (picked up, status updated)
+```
+
+**Administrative Operations:**
+```
+1. ADMIN_USER (authenticates)
+   ↓
+2. AUDIT_LOG (action recorded)
+   ↓
+3. Business Operations (lockers, parcels)
+   ↓
+4. AUDIT_LOG (results recorded)
+```
+
+#### **Production Data Overview**
+- **15 HWR lockers** configured from `databases/lockers-hwr.json`
+- **Equal distribution**: 5 small, 5 medium, 5 large lockers
+- **Simple naming**: "HWR Locker 1" through "HWR Locker 15"
+- **Safety features**: Automatic backups, conflict detection, audit trail
+
+#### **Database Resources**
+For detailed database documentation including complete schemas, performance optimization, maintenance procedures, and monitoring queries, see:
+
+**📖 [DATABASE_DOCUMENTATION.md](DATABASE_DOCUMENTATION.md)** - Complete database guide
 
 ---
 
@@ -467,22 +717,48 @@ jobs:
 
 ---
 
+## 🚀 Production Operations
+
+### **Quick Deployment**
+```bash
+# Deploy and verify system health
+make up
+make test
+```
+
+### **Operational Procedures**
+For detailed operational procedures including safe configuration management, adding lockers, troubleshooting, and emergency recovery, see:
+
+**📖 [LOCKER_OPERATIONS_GUIDE.md](LOCKER_OPERATIONS_GUIDE.md)** - Complete operational guide
+
+### **Production Readiness Checklist**
+
+#### ✅ **System Status**
+- [x] 15 HWR lockers configured and ready for production use
+- [x] Safety-first operational procedures with automatic backups
+- [x] Comprehensive testing and monitoring capabilities
+
+#### ✅ **Infrastructure**
+- [x] Docker containerization with persistent storage
+- [x] Dual-database architecture (main + audit)
+- [x] Health monitoring and automated recovery
+
+---
+
 ## ⚙️ Configuration
 
-### Environment Configuration
-
-The system supports multiple configuration methods:
-
-#### 1. Environment Variables
+### **Essential Environment Variables**
 ```bash
 # Production settings
 export FLASK_ENV=production
-export SECRET_KEY=your-production-secret
-export DATABASE_URL=sqlite:////app/databases/campus_locker.db
+export SECRET_KEY=your-generated-secret-key
+export PARCEL_MAX_PICKUP_DAYS=7
+export MAIL_SERVER=mailhog
+export MAIL_PORT=1025
 ```
 
-#### 2. Docker Compose Override
-Create `docker-compose.override.yml`:
+### **Docker Compose Override**
+For custom environment variables, create `docker-compose.override.yml`:
 ```yaml
 version: '3.8'
 services:
@@ -492,60 +768,10 @@ services:
       - PARCEL_MAX_PICKUP_DAYS=14
 ```
 
-#### 3. Configuration Files
-Modify `campus_locker_system/app/config.py` for advanced settings.
+### **Detailed Configuration**
+For comprehensive configuration options including locker setup, JSON configuration files, environment variables, and advanced settings, see:
 
-### Key Configuration Options
-
-#### Application Settings
-- **`SECRET_KEY`**: Flask secret key for sessions and security
-- **`PARCEL_MAX_PICKUP_DAYS`**: Maximum days for parcel pickup (default: 7)
-- **`PARCEL_DEFAULT_PIN_VALIDITY_DAYS`**: PIN validity period (default: 7)
-- **`ENABLE_LOCKER_SENSOR_DATA_FEATURE`**: Enable IoT sensor integration
-
-#### Database Settings
-- **`DATABASE_URL`**: Main database connection string
-- **`AUDIT_DATABASE_URL`**: Audit database connection string
-- **`SQLALCHEMY_DATABASE_URI`**: SQLAlchemy database URI
-
-#### Email Settings
-- **`MAIL_SERVER`**: SMTP server hostname
-- **`MAIL_PORT`**: SMTP server port
-- **`MAIL_USE_TLS`**: Enable TLS encryption
-- **`MAIL_DEFAULT_SENDER`**: Default sender email address
-
-#### Logging Settings
-- **`LOG_LEVEL`**: Logging level (DEBUG, INFO, WARNING, ERROR)
-- **`LOG_FILE`**: Log file path
-- **`LOG_DIR`**: Log directory path
-
-### Production Configuration
-
-For production deployment:
-
-1. **Generate Strong Secret Key**:
-```python
-import secrets
-print(secrets.token_hex(32))
-```
-
-2. **Configure SSL Certificates**:
-```bash
-# Place certificates in ssl/ directory
-mkdir ssl
-cp your-cert.pem ssl/cert.pem
-cp your-key.pem ssl/key.pem
-```
-
-3. **Enable HTTPS in nginx.conf**:
-Uncomment the SSL server block and configure certificates.
-
-4. **Set Production Environment Variables**:
-```bash
-export FLASK_ENV=production
-export SECRET_KEY=your-generated-secret-key
-export DATABASE_URL=your-production-database-url
-```
+**📖 [LOCKER_OPERATIONS_GUIDE.md](LOCKER_OPERATIONS_GUIDE.md)** - Complete configuration guide
 
 ---
 
@@ -805,6 +1031,129 @@ This project is developed as part of an academic course. Please respect intellec
 
 ---
 
+## 📚 Appendices
+
+### Version History & Major Milestones
+
+#### **Version 2.1.3** (Current) - Database Infrastructure & Project Organization Overhaul
+**Release Date**: November 2024
+
+**🗄️ Database Infrastructure Overhaul:**
+- Fixed critical Docker volume configuration for database persistence
+- Complete database initialization and seeding testing
+- Enhanced JSON seeding with comprehensive validation
+- Database lifecycle management improvements
+
+**🧪 Comprehensive Testing Framework:**
+- 6-step deployment flow validation test
+- Edge case testing expansion for locker overwrite protection
+- Complete project structure reorganization
+- Systematic duplicate file audit and cleanup
+
+**📁 Documentation & Safety:**
+- Consolidated LOCKER_OPERATIONS_GUIDE.md (configuration + safety)
+- Enhanced DATABASE_DOCUMENTATION.md with ERD integration
+- Safety-first operational procedures with automatic backups
+- Project cleanup: removed 20+ duplicate/obsolete files
+
+---
+
+#### **Version 2.1.1** - Email Template Enhancement & System Standardization
+**Release Date**: January 2025
+
+**🎨 Email System Overhaul:**
+- Professional email template redesign with consistent formatting
+- Universal PIN regeneration links in all emails
+- Dynamic parcel lifecycle information (7-day pickup deadline)
+- Removed excessive emojis for better readability
+
+**🌐 Technical Standardization:**
+- Flask port migration from 5000 to 80 for consistency
+- Nginx upstream configuration fixes
+- URL standardization across entire codebase
+- Database optimization with additional test lockers
+
+---
+
+#### **Version 2.0.0** - Docker Production Deployment
+**Release Date**: December 2024
+
+**🐳 Full Containerization:**
+- Production Docker environment with Gunicorn + Nginx + Redis
+- Complete service orchestration with health monitoring
+- Security hardening: non-root containers, security headers
+- Persistent data volumes with proper bind mounts
+
+**🏗️ Architecture Transformation:**
+- Complete hexagonal architecture implementation
+- 6 distinct business domains: Parcel, Locker, PIN, Notification, Admin, Audit
+- Clean separation with adapters pattern and repository pattern
+- Service layer orchestration for business logic
+
+**🧪 Testing & Quality:**
+- 91 comprehensive tests (unit, integration, edge case, security)
+- CI/CD pipeline with automated quality checks
+- Containerized test environment with MailHog integration
+- Code quality tools: flake8, black, isort, safety, bandit
+
+---
+
+#### **Version 1.8.5** - Hexagonal Architecture Foundation
+
+**🎯 Architectural Migration:**
+- Complete migration from monolithic to hexagonal design
+- Systematic domain extraction into 6 business areas
+- Implementation of clean adapter patterns
+- Professional CI/CD pipeline establishment
+
+**🔌 Key Implementations:**
+- Email Adapter: Flask-Mail abstraction with mock testing
+- Database Adapter: SQLAlchemy repository pattern
+- Audit Adapter: Centralized logging with retention policies
+- 85% minimum test coverage threshold
+
+---
+
+#### **Version 1.8.4** - Legacy Monolithic Application
+
+**📋 Foundation Features:**
+- Initial Flask web application with core parcel management
+- Basic deposit/pickup functionality with 6-digit PIN system
+- SQLite database with admin dashboard
+- Email notifications via Flask-Mail
+- Secure PIN storage with SHA-256 hashing
+
+**🔧 Technical Foundation:**
+- Monolithic architecture with single services.py file
+- Basic HTML templates and admin authentication
+- Foundation for all subsequent architectural improvements
+
+---
+
+### Development Evolution Summary
+
+**🏛️ Architectural Journey:**
+```
+v1.8.4: Monolithic Flask App
+    ↓
+v1.8.5: Hexagonal Architecture Migration  
+    ↓
+v2.0.0: Docker Production Deployment
+    ↓
+v2.1.1: Email & Standardization
+    ↓
+v2.1.3: Database Infrastructure & Organization (Current)
+```
+
+**📊 System Growth:**
+- **Tests**: 0 → 91 comprehensive tests with CI/CD
+- **Architecture**: Monolithic → Hexagonal with 6 domains
+- **Deployment**: Local Python → Full Docker production stack
+- **Database**: Single SQLite → Dual-database with audit trail
+- **Documentation**: Basic README → Comprehensive operational guides
+
+---
+
 ### Team Contact
 **Team I - Digital Literacy IV: Software Architecture**
 - Pauline Feldhoff
@@ -812,409 +1161,3 @@ This project is developed as part of an academic course. Please respect intellec
 - Asma Mzee
 - Samuel Neo
 - Gublan Dag
-
----
-
-## 📚 Appendices
-
-### Appendix A: Version History & Changelog
-
-#### Version 2.1.1 (Current) - Email Template Enhancement & System Standardization
-**Release Date**: January 2025
-
-**🎨 Email Template Overhaul:**
-- **Professional Email Design**: Completely redesigned all email templates with clean, professional formatting
-- **Removed Clutter**: Eliminated excessive emojis and verbose text for better readability
-- **Consistent Styling**: Standardized formatting across all email types with clear section headers
-- **Dynamic Configuration**: All templates now use configurable PIN expiry and parcel lifecycle values
-
-**🔄 PIN Regeneration Enhancement:**
-- **Universal Regeneration Links**: All PIN-related emails now include "🔄 NEED A NEW PIN?" section
-- **Always Available**: Recipients can regenerate PINs from any PIN-related email, not just the initial notification
-- **Improved User Experience**: Clear instructions and accessible regeneration throughout the PIN lifecycle
-
-**📅 Parcel Lifecycle Information:**
-- **Pickup Deadline Clarity**: All emails now include "7 days from deposit" pickup deadline information
-- **Dynamic Configuration**: Parcel pickup deadlines read from `PARCEL_MAX_PICKUP_DAYS` configuration
-- **Security Notes**: Enhanced security information about timeframes and PIN validity
-
-**🌐 URL Configuration Standardization:**
-- **Consistent URL Structure**: Standardized all URL references throughout the codebase to use `localhost` (port 80)
-- **Flask Port Migration**: Migrated Flask application from port 5000 to port 80 internally for consistency
-- **Nginx Upstream Fix**: Updated nginx configuration to properly proxy to Flask on port 80
-- **Documentation Updates**: Updated all documentation files with correct URLs
-
-**🗄️ Database & Configuration Improvements:**
-- **Locker Availability**: Added additional test lockers to ensure sufficient availability for all sizes
-- **Database Cleanup**: Freed occupied lockers and added new lockers for comprehensive testing
-- **Configuration Files**: Updated Flask, Docker Compose, and Nginx configurations for consistency
-
----
-
-#### Version 2.0.0 - Docker Production Deployment
-**Release Date**: December 2024
-
-**🎯 Major Features:**
-- **🐳 Full Docker Containerization**: Production and development environments
-- **🔄 Nginx Reverse Proxy**: Load balancing, security headers, SSL-ready
-- **📧 Integrated Email Testing**: MailHog for development and testing
-- **⚡ Redis Caching**: Session storage and performance optimization
-- **🏥 Health Monitoring**: Automated health checks and service dependencies
-- **🔒 Security Hardened**: Non-root containers, security headers, proper secrets management
-- **📊 Comprehensive Logging**: Structured logging with rotation and monitoring
-- **🧪 Enhanced Testing**: Containerized test environment with 91 passing tests
-- **📚 Complete Documentation**: Deployment guides, troubleshooting, and best practices
-
-**🏗️ Architecture Improvements:**
-- Complete hexagonal architecture implementation
-- 6 distinct business domains (Parcel, Locker, PIN, Notification, Admin, Audit)
-- Clean separation of concerns with adapters pattern
-- Repository pattern for data access
-- Service layer orchestration
-
-**🔧 Technical Enhancements:**
-- Python 3.12 support
-- Gunicorn WSGI server with 4 workers
-- Nginx reverse proxy with security headers
-- Redis for caching and session management
-- SQLite with audit database separation
-- Comprehensive health checks
-- Docker Compose for orchestration
-- Makefile for deployment automation
-
-**🛡️ Security Improvements:**
-- Non-root container execution
-- Security headers implementation
-- Proper secrets management
-- Input validation and sanitization
-- Audit logging enhancement
-
-**📋 Migration Notes:**
-- Migrated from monolithic Flask app to hexagonal architecture
-- Database path updated for containerization
-- Port configuration changed (5001 external, 5000 internal)
-- Environment variable configuration
-- Volume-based data persistence
-
----
-https://www.plantuml.com/plantuml/uml/SyfFKj2rKt3CoKnELR1Io4ZDoSa70000
----
-####OLD VERSIONS
-
-
-### Version 1.8.5 - Hexagonal Architecture Foundation
-
-**🎯 Major Features:**
-- Complete hexagonal architecture migration
-- 91 comprehensive tests (100% passing)
-- 6 business domain extraction
-- Clean adapter pattern implementation
-- Professional CI/CD pipeline
-
-**🏗️ Architecture Migration:**
-- **Phase 1**: Repository skeleton with proper folder layout
-- **Phase 2**: Domain extraction into 6 domains
-- **Phase 3**: Adapter implementation (SQL, MailHog)
-- **Phase 4**: CI & tests with GitHub Actions pipeline
-- **Phase 5**: Code cleanup and legacy removal
-
-**📦 Business Domains:**
-1. **Parcel Management**: Deposit, pickup, tracking, dispute handling
-2. **Locker Management**: Status control, availability, maintenance
-3. **PIN Management**: Generation, validation, expiry, reissue
-4. **Notification Management**: Email templates, delivery orchestration
-5. **Admin & Authentication**: Login, sessions, permissions
-6. **Audit Logging**: Activity tracking, security logging
-
-**🔌 Adapters Implemented:**
-- **Email Adapter**: Flask-Mail abstraction with mock testing
-- **Database Adapter**: SQLAlchemy repository pattern
-- **Audit Adapter**: Centralized logging with retention policies
-
-**🧪 Testing Excellence:**
-- 91 comprehensive tests covering all domains
-- Unit, integration, and edge case testing
-- Security and authentication testing
-- CI/CD pipeline with multi-Python version support
-- Code quality checks (flake8, black, isort)
-- Security scanning (safety, bandit)
-- 85% minimum coverage threshold
-
----
-
-
-
-###Version 1.8.4 - Legacy Monolithic Application
-
-**🎯 Core Features:**
-- Basic Flask web application
-- Parcel deposit and pickup functionality
-- PIN-based security system
-- Admin dashboard
-- Email notifications
-- SQLite database storage
-
-**📋 Original Implementation:**
-- Monolithic Flask application structure
-- Single `services.py` file with all business logic
-- Basic HTML templates
-- Simple SQLite database
-- Flask-Mail for email notifications
-- Basic admin authentication
-
-**🔧 Technical Stack:**
-- Python 3.7+
-- Flask web framework
-- SQLAlchemy ORM
-- SQLite database
-- Flask-Mail for emails
-- HTML/CSS frontend
-- Basic logging
-
-**📊 Features:**
-- Parcel deposit with automatic locker assignment
-- 6-digit PIN generation and validation
-- Email notifications to recipients
-- Admin dashboard for system management
-- Locker status management
-- Basic audit logging
-- Pickup process with PIN validation
----
-###Version 1.81 (Changelog)
-Log Management Improvements:
-Standardized all application logs to the root-level logs/ folder. Why/How: Prevents confusion and ensures all logs are in one place by updating the logging config and cleaning up duplicates.
-Documented log rotation policy (10 KB per file, 10 backups, oldest deleted on rotation). Why/How: Ensures logs don't grow indefinitely and are easy to manage; added clear documentation for maintainers.
-Added best practices for log monitoring and configuration. Why/How: Helps future developers/admins understand how to monitor and tune logging for their needs.
-Removed duplicate/legacy log folders and files. Why/How: Reduces clutter and risk of confusion or missed logs.
-Clearly labeled that only main application logs are stored in logs/; audit logs are in the database. Why/How: Clarifies log purpose and storage for maintainers and auditors.
-Testing and Structure:
-Split and reorganized tests by user flow and edge cases for clarity and maintainability. Why/How: Makes it easier to find, run, and extend tests for specific flows or features.
-Added a dedicated admin log flow test to ensure audit logging of admin actions. Why/How: Verifies that admin actions are properly recorded for security and traceability.
-Confirmed all test files are connected and documented. Why/How: Ensures no orphaned or untested flows remain after restructuring.
-Fixed all expired vs return_to_sender test issues: Why/How: Updated tests to expect the correct status (return_to_sender and awaiting_collection) for overdue parcels, matching the current application logic and ensuring all tests pass.
-Documentation:
-Updated the main README to include all log and test documentation in one place. Why/How: Centralizes project knowledge for easier onboarding and reference.
-Removed the separate logs/README.md for simplicity and clarity. Why/How: Avoids duplication and ensures all documentation is up to date.
-Added detailed explanations of log types, rotation, and best practices. Why/How: Helps maintainers understand and manage logs effectively.
-Known Issues:
-Some tests expect a parcel status of expired after overdue, but the system now uses return_to_sender. This is a known mismatch between code and test expectations.
----
-###V.1.80b
-
-Refactored tests for robustness and best practices:
-Split admin/anonymous access tests for session isolation.
-Used substring assertions for flashed messages and sensor data to avoid issues with HTML formatting/escaping.
-Matched error codes and messages to actual Flask/API behavior.
-Ensured all tests pass with the current codebase and configuration.
-Improved test coverage and reliability for admin locker management, sensor data display, and error handling.
-Updated test and code comments for clarity and maintainability.
-Added MailHog Docker Compose configuration for local email testing.
-Cleaned up impossible code paths and tests (e.g., deposited_at is None for parcels).
-For a detailed commit history, see the project's git log.
----
-
-### Appendix B: Original README (v1.81)
-1. Project Overview
-Purpose: This project is a browser-based campus locker system. It allows senders (like students or couriers) to deposit parcels and recipients to pick them up 24/7 using a one-time PIN.
-Technology Stack: The core system is built with Python and the Flask web framework. It uses an SQLite database for storage and MailHog for local email testing (to simulate sending PINs).
-Team: Developed by Team I (Pauline Feldhoﬀ, Paul von Franqué, Asma Mzee, Samuel Neo, Gublan Dag) as part of the Digital Literacy IV: Software Architecture course.
-Note: This is an initial implementation focusing on core deposit and pickup functionalities. All locker hardware is simulated.
-2. OLDDDDDDDDDD Getting Started: Setup & Running the Application
-Follow these steps to get the application running on your local machine (macOS is the primary demo environment, but it should work on other systems with Python).
-
-Prerequisites:
-Python 3.7+: Ensure you have Python installed. You can check by opening a terminal and typing python --version or python3 --version.
-pip: Python's package installer, usually comes with Python.
-MailHog (for email testing):
-MailHog is a tool that catches emails sent by the application locally, so you don't need a real email server for development.
-The easiest way to run MailHog is using Docker:
-docker run -d -p 1025:1025 -p 8025:8025 mailhog/mailhog
-After running this, you can view received emails by opening your web browser and going to http://localhost:8025.
-If you don't have Docker, you can download MailHog directly from its GitHub releases page.
-OLDDDDDDDD Setup Steps:
-Clone/Download the Code:
-
-If you have git, clone the repository. Otherwise, download the source code files and place them in a directory, let's call it campus_locker_system.
-Navigate to Project Directory:
-
-Open your terminal and change to the project directory:
-cd path/to/campus_locker_system
-Create a Virtual Environment (Recommended):
-
-It's good practice to keep project dependencies separate.
-python3 -m venv venv
-source venv/bin/activate
-You should see (venv) at the beginning of your terminal prompt.
-Install Dependencies:
-
-Install all the required Python packages:
-pip install -r requirements.txt
-This will install Flask, SQLAlchemy (for the database), Bcrypt (for password hashing), Flask-Mail, and Pytest (for testing).
-Database Setup:
-
-The application uses SQLite databases. The app will create campus_locker.db and campus_locker_audit.db in the databases/ folder on first run.
-The necessary tables within these databases will also be created automatically.
-Create an Admin User:
-
-To access admin functionalities (though limited in this version), you need an admin user.
-Run the provided script from the campus_locker_system directory:
-python create_admin.py your_admin_username your_admin_password
-Replace your_admin_username and your_admin_password with your desired credentials. For example: python create_admin.py admin adminpass123.
-Note: The admin password must be at least 8 characters long.
-Run the Application:
-
-Start the Flask development server:
-python run.py
-You should see output indicating the server is running, usually on http://localhost/.
-Access the Application:
-
-Open your web browser and go to http://localhost/deposit to deposit a parcel.
-Go to http://localhost/pickup to pick up a parcel.
-Go to http://localhost/admin/login to log in as an admin.
-3. Project Structure Explained
-The project code is organized into several main parts within the campus_locker_system directory:
-
-app/: This is the heart of the Flask application.
-__init__.py: Initializes the Flask application, database, mail system, and ties different parts together.
-config.py: Contains configuration settings (like database location, mail server settings).
-application/: Contains the "business logic" or "brains" of the system.
-services.py: Functions that perform core tasks like assigning a locker, generating PINs, processing pickups, and verifying admin users.
-persistence/: Manages data storage.
-models.py: Defines the structure of the database tables (Lockers, Parcels, Admin Users, Audit Logs) using SQLAlchemy.
-presentation/: Handles what the user sees and interacts with (the user interface).
-routes.py: Defines the web page URLs (like /deposit, /pickup) and connects them to Python functions that decide what to do and what HTML to show.
-templates/: Contains HTML files that structure the web pages.
-admin/: HTML files specific to admin pages.
-tests/: Contains automated tests written using Pytest to check if different parts of the application work correctly.
-create_admin.py: The script mentioned earlier to create an admin user.
-run.py: A simple script to start the Flask development server.
-requirements.txt: Lists all the Python packages the project depends on.
-**databases/: Contains all database files (campus_locker.db, campus_locker_audit.db).
-logs/: Contains log files (e.g., campus_locker.log) that record application activity and errors. (This directory is created when the app runs).
-4. Key Features Implemented
-Parcel Deposit: Senders can specify parcel size and recipient email. The system assigns a locker and generates a unique 6-digit PIN.
-PIN Display & Email: The PIN is shown on-screen to the sender and also emailed to the recipient (via MailHog for local viewing).
-Parcel Pickup: Recipients use the 6-digit PIN to pick up their parcel. PINs expire after 24 hours.
-Secure PIN Storage: PINs are not stored directly. Instead, a secure hash (salted SHA-256) of the PIN is stored, making it very difficult to reverse.
-Admin Login: A basic login system for administrators. Admin passwords are also securely hashed (using bcrypt).
-Audit Trail: Records key system events like parcel deposits, pickups (successful and failed attempts), admin logins/logouts, and email notification status. These logs are viewable by administrators.
-Locker Status Management (Admin): Administrators can view all lockers and change their status (e.g., mark as 'out_of_service' or return to 'free' if empty). This helps manage faulty or reserved lockers.
-Parcel Interaction Confirmation (Backend Logic): Supports backend logic for a locker client to allow senders to retract a mistaken deposit or recipients to dispute a pickup within a short window. This introduces new parcel statuses ('retracted_by_sender', 'pickup_disputed') and a locker status ('disputed_contents'). These new states currently require administrative follow-up for full resolution.
-Report Missing Item (FR-06): Allows administrators to mark a parcel as 'missing'. Also provides an API endpoint for a locker client to signal a recipient reporting a parcel as missing immediately after a pickup attempt. This sets the parcel status to 'missing' and typically takes the associated locker out of service for investigation.
-Automated Tests: Basic tests ensure core features are working as expected.
-4.1. Viewing Audit Logs
-Logged-in administrators can view a trail of system events to monitor activity. This includes records of:
-
-Parcel deposits (initiated, successful, failed)
-Parcel pickups (initiated, successful, failed due to invalid PIN or expiry)
-Admin logins (successful, failed) and logouts
-Email notification sending status
-To view the audit logs, navigate to: /admin/audit-logs
-
-The log displays the timestamp (UTC), the type of action, and a details field (in JSON format) providing more context about the event. The page shows the latest 100 entries.
-
-4.2. Managing Locker Statuses (FR-08)
-Administrators have the ability to manage the operational status of individual lockers. This is useful for handling maintenance, reservations, or other situations requiring a locker to be temporarily unavailable.
-
-Access: Logged-in administrators can navigate to /admin/lockers to view a list of all lockers, their sizes, and their current operational statuses (e.g., 'free', 'occupied', 'out_of_service').
-Actions Available:
-Mark as 'Out of Service': Any locker can be marked as 'out_of_service'. If it was 'free', it will no longer be assigned for new parcel deposits. If it was 'occupied', it remains 'out_of_service' (and the parcel can still be picked up; the locker will then be 'out_of_service' and empty).
-Mark as 'Free': A locker currently marked 'out_of_service' can be returned to 'free' status, making it available for new deposits. This action is only permitted if the locker does not contain an active ('deposited') parcel.
-Auditing: All changes to locker statuses made by administrators are recorded in the audit log.
-4.3. API Endpoints for Locker Client Interaction
-The system now includes a set of API endpoints under the /api/v1/ prefix, intended for use by a separate locker hardware client system:
-
-POST /api/v1/deposit/<parcel_id>/retract: Called by the locker client if a sender indicates they made a mistake immediately after depositing a parcel. This marks the parcel as 'retracted_by_sender' and frees the locker (if it was not 'out_of_service').
-POST /api/v1/pickup/<parcel_id>/dispute: Called by the locker client if a recipient indicates an issue (e.g., wrong item, empty locker) immediately after a pickup attempt. This marks the parcel as 'pickup_disputed' and the locker as 'disputed_contents', requiring admin attention.
-POST /api/v1/parcel/<int:parcel_id>/report-missing: Called by the locker client if a recipient, immediately after opening a locker with a valid PIN, reports that the parcel is not there or is incorrect. This sets the parcel status to 'missing' and may take the locker out of service.
-These endpoints are designed for machine-to-machine communication and do not have a direct user interface in this web application. Authentication for these endpoints would be required in a production system.
-
-4.4. Managing and Reporting Missing Parcels (FR-06)
-Administrators can manage parcels that are reported or suspected to be missing. This complements the API endpoint that allows a locker client to report a missing parcel on behalf of a recipient.
-
-Viewing Parcel Details: Admins can view detailed information for any parcel by navigating to /admin/parcel/<parcel_id>/view. This page can be accessed via links from the main /admin/lockers page if a parcel is associated with a locker.
-Marking a Parcel as Missing: From the parcel detail page, if a parcel is in a state like 'deposited' or 'pickup_disputed', an admin can mark it as 'missing'.
-This action changes the parcel's status to 'missing'.
-If the parcel was 'deposited' in a locker, or its pickup was disputed, the associated locker will typically be set to 'out_of_service' to allow for inspection.
-This administrative action is recorded in the audit log.
-5. Architectural Choices (Why things are built this way)
-Flask Framework: A lightweight and flexible Python web framework, good for building web applications quickly.
-Layered Architecture: The code is divided into layers (Presentation, Application, Persistence). This helps keep things organized:
-Presentation handles user interaction.
-Application handles the main logic and tasks.
-Persistence handles database interactions. This separation makes the code easier to understand, test, and modify.
-SQLAlchemy ORM: Used for interacting with the SQLite database. It allows developers to work with database records as Python objects, simplifying database operations.
-SQLite Database: A simple file-based database, easy to set up and use for local development and small applications.
-MailHog: For testing email functionality locally without needing a real email server. This is very convenient for development.
-Security: PINs and admin passwords are not stored as plain text. They are "hashed" using strong algorithms (SHA-256 for PINs, bcrypt for admin passwords) to protect them even if the database file is compromised.
-6. How to Run Tests
-Make sure you have activated your virtual environment (source venv/bin/activate).
-Navigate to the project root directory (campus_locker_system).
-Run pytest from the terminal:
-python -m pytest
-Or simply:
-pytest
-You should see output indicating the number of tests passed.
-6.1. Test Overview
-The tests/edge_cases/ directory contains edge case tests for the most critical user and API flows. Each test is commented for clarity:
-
-test_retract_edge_cases.py
-test_api_retract_deposit_parcel_not_found: API should return 404 or 400 when trying to retract a non-existent parcel.
-test_api_retract_deposit_not_deposited: API should return 400 or 409 when trying to retract a parcel that is not in 'deposited' state (already picked up).
-test_api_retract_deposit_locker_was_oos: Retracting a deposit when the locker is out_of_service should succeed, but locker remains out_of_service.
-test_dispute_edge_cases.py
-test_dispute_pickup_parcel_not_found: Disputing pickup for a non-existent parcel should return an error.
-test_dispute_pickup_parcel_not_picked_up: Disputing pickup for a parcel that has not been picked up should return an error.
-test_pickup_edge_cases.py
-test_process_pickup_fails_for_retracted_parcel: Picking up a parcel that has already been retracted should fail with 'Invalid PIN'.
-test_process_pickup_fails_for_disputed_parcel: Picking up a parcel that has been disputed should fail with 'Invalid PIN'.
-test_missing_edge_cases.py
-test_report_missing_by_recipient_fail_not_found: Reporting a missing parcel with a non-existent ID should return an error.
-test_report_missing_by_recipient_fail_wrong_state: Reporting a missing parcel in the wrong state (picked_up or expired) should return an error.
-test_sensor_edge_cases.py
-test_sensor_data_missing_has_contents: Submitting sensor data with missing 'has_contents' field should return 400.
-test_sensor_data_invalid_type: Submitting sensor data with non-boolean 'has_contents' should return 400.
-test_sensor_data_nonexistent_locker: Submitting sensor data for a non-existent locker should return 404 or 400.
-test_pin_reissue_edge_cases.py
-test_old_pin_invalid_after_regeneration: After PIN regeneration, the old PIN should be invalid and only the new PIN works.
-Edge Case Coverage vs. Requirements
-
-The following edge case requirements are not yet directly covered by the current tests and should be considered for future test development:
-
-Configurable system behaviors (e.g., changing pickup time limit, locker dimensions, notification preferences via config)
-Direct locker status updates via API or sensor integration
-Email/mobile confirmation before sending PINs/codes
-PIN reissue logic (ensuring new PIN invalidates old, only within pickup window)
-Return-to-sender process after pickup window expiry
-Explicit test that new PIN expires old PINs
-The current edge case tests focus on invalid state transitions and error handling for the main user and API flows.
-
-See the comments in each test file for more details on the scenarios covered.
-
-6.2 Application Logs
-All application logs are stored in the root-level logs/ folder. This includes:
-
-campus_locker.log and its rotated versions: Main application logs (info, warnings, errors) from the Flask app and its services.
-Log rotation policy:
-Each log file is capped at 10 KB (10,240 bytes).
-Up to 10 backup log files are kept (campus_locker.log.1 through .10).
-When the main log exceeds 10 KB, it is rotated and the oldest log is deleted.
-Best practices:
-Monitor log file sizes and adjust maxBytes and backupCount in the logging configuration as needed for your deployment (e.g., increase for production).
-Regularly review logs for errors and warnings.
-Only main application logs are stored here. Audit logs are stored in the database table audit_log and are not written to files.
-7. OLDDDDDDPotential Next Steps & Future Improvements
-This initial version covers the core requirements. Based on the original project charter, future enhancements could include:
-
-Full Audit Trail (FR-07): Logging every deposit, pickup, and admin action (currently partially implemented).
-Advanced Admin Functions:
-Re-issuing PINs (FR-05).
-Flagging lockers as "out_of_service" (FR-08 - basic version implemented).
-Reporting missing items (FR-06).
-Admin resolution workflows for new parcel/locker states (e.g., 'retracted_by_sender', 'pickup_disputed', 'disputed_contents').
-Web-Push Notifications (FR-03): Real-time notifications in the browser, in addition to email.
-Reminder Notifications (FR-04): Automatic reminders after 24 hours of occupancy.
-Nightly Backups: Regular backups of the SQLite database.
-Enhanced UI/UX: Improving the user interface and experience, including keyboard-only navigation.
-More Comprehensive Testing: Adding more unit and end-to-end tests.
-Dockerization: Packaging the entire application with Docker Compose for easy one-command deployment (docker-compose up).
