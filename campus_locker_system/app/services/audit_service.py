@@ -7,11 +7,17 @@ from app.adapters.audit_adapter import create_audit_adapter
 import json
 
 class AuditService:
-    """Service layer for audit logging orchestration"""
+    """
+    FR-07: Audit Trail - Service for comprehensive audit logging of system events
+    NFR-03: Security - Security event monitoring and compliance logging
+    """
     
     @staticmethod
-    def log_event(action: str, details: Dict[str, Any] = None) -> Tuple[bool, Optional[str]]:
-        """Log an audit event using business rules"""
+    def log_event(action: str, details: dict = None, admin_id: int = None) -> Tuple[bool, Optional[str]]:
+        """
+        FR-07: Audit Trail - Log system events with timestamps and details
+        NFR-03: Security - Log security events for monitoring and investigation
+        """
         try:
             # Get user context
             user_context = AuditService._get_user_context()

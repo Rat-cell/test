@@ -52,8 +52,22 @@ test:
 		./scripts/test-deployment.sh; \
 	else \
 		echo "❌ Test script not found. Running basic health check..."; \
+		echo "🔗 Service URLs:"; \
+		echo "  📱 Main App: http://localhost"; \
+		echo "  📧 MailHog: http://localhost:8025"; \
+		echo "  🏥 Health: http://localhost/health"; \
 		curl -f http://localhost/health || echo "❌ Health check failed"; \
 	fi
+
+# Safe testing (doesn't delete databases)
+safe-test:
+	@echo "🧪 Running safe tests (databases preserved)..."
+	@echo "✅ Running basic health check..."
+	@curl -s -f http://localhost/health > /dev/null && echo "✅ Application is healthy" || echo "❌ Health check failed"
+	@echo "✅ Running application tests..."
+	@curl -s -o /dev/null -w "%{http_code}" http://localhost/ | grep -q "200" && echo "✅ Main page loads" || echo "❌ Main page failed"
+	@echo "✅ Running email service check..."
+	@curl -s -f http://localhost:8025 > /dev/null && echo "✅ MailHog is accessible" || echo "❌ MailHog failed"
 
 # Cleanup
 clean:

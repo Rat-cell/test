@@ -6,123 +6,17 @@ from app.business.parcel import Parcel
 from app.services.audit_service import AuditService
 from typing import Tuple, Optional
 
-def reissue_pin(parcel_id: int):
-    """
-    FR-05: Re-issue PIN - Admin-initiated PIN re-issue when old PIN expired or unusable
-    """
-    try:
-        parcel = db.session.get(Parcel, parcel_id)
-        if not parcel:
-            return None, "Parcel not found."
-        
-        if parcel.status != 'deposited':
-            return None, f"Parcel is not in 'deposited' state (current status: {parcel.status}). Cannot reissue PIN."
-        
-        # FR-05: Generate new PIN and hash
-        new_pin, new_pin_hash = PinManager.generate_pin_and_hash()
-        
-        # FR-05: Update parcel with new PIN info (invalidates previous PIN)
-        parcel.pin_hash = new_pin_hash
-        parcel.otp_expiry = PinManager.generate_expiry_time()
-        
-        db.session.commit()
-        
-        # Generate PIN generation URL for regeneration link
-        pin_generation_url = url_for('main.generate_pin_by_token_route', 
-                                   token=parcel.pin_generation_token, 
-                                   _external=True)
-        
-        # Send new PIN via email using notification service
-        from app.services.notification_service import NotificationService
-        notification_success, notification_message = NotificationService.send_pin_reissue_notification(
-            recipient_email=parcel.recipient_email,
-            parcel_id=parcel.id,
-            locker_id=parcel.locker_id,
-            pin=new_pin,
-            expiry_time=parcel.otp_expiry,
-            pin_generation_url=pin_generation_url
-        )
-        
-        # FR-07: Audit Trail - Record admin override action with timestamp and admin identity  
-        # Log the reissue for audit trail
-        AuditService.log_event(f"PIN reissued for parcel {parcel.id} by admin")
-        
-        # Check notification result
-        if notification_success:
-            return parcel, f"New PIN issued and sent to {parcel.recipient_email}"
-        else:
-            current_app.logger.warning(f"PIN reissued but notification failed: {notification_message}")
-            return parcel, f"New PIN issued for parcel {parcel.id}. Note: Email notification may have failed."
-        
-    except Exception as e:
-        db.session.rollback()
-        current_app.logger.error(f"Error reissuing PIN for parcel {parcel_id}: {str(e)}")
-        return None, "An error occurred while reissuing the PIN."
-
-def request_pin_regeneration_by_recipient(parcel_id: int, provided_email: str):
-    """
-    FR-05: Re-issue PIN - User-initiated PIN regeneration when PIN expired or unusable
-    """
-    try:
-        parcel = db.session.get(Parcel, parcel_id)
-        if not parcel:
-            return None, "Parcel not found."
-        
-        if parcel.recipient_email.lower() != provided_email.lower():
-            return None, "Email does not match parcel recipient."
-        
-        if parcel.status != 'deposited':
-            return None, f"Parcel is not in 'deposited' state (current status: {parcel.status}). Cannot regenerate PIN."
-        
-        # FR-05: Generate new PIN and hash
-        new_pin, new_pin_hash = PinManager.generate_pin_and_hash()
-        
-        # FR-05: Update parcel with new PIN info (invalidates previous PIN)
-        parcel.pin_hash = new_pin_hash
-        parcel.otp_expiry = PinManager.generate_expiry_time()
-        
-        db.session.commit()
-        
-        # Generate PIN generation URL for regeneration link
-        pin_generation_url = url_for('main.generate_pin_by_token_route', 
-                                   token=parcel.pin_generation_token, 
-                                   _external=True)
-        
-        # Send new PIN via email using notification service
-        from app.services.notification_service import NotificationService
-        notification_success, notification_message = NotificationService.send_pin_regeneration_notification(
-            recipient_email=parcel.recipient_email,
-            parcel_id=parcel.id,
-            locker_id=parcel.locker_id,
-            pin=new_pin,
-            expiry_time=parcel.otp_expiry,
-            pin_generation_url=pin_generation_url
-        )
-        
-        # FR-05: Log the regeneration for audit trail
-        AuditService.log_event(f"PIN regenerated for parcel {parcel.id} by recipient request")
-        
-        # Check notification result
-        if notification_success:
-            return parcel, f"New PIN generated and sent to {parcel.recipient_email}"
-        else:
-            current_app.logger.warning(f"PIN regenerated but notification failed: {notification_message}")
-            return parcel, f"New PIN generated for parcel {parcel.id}. Note: Email notification may have failed."
-        
-    except Exception as e:
-        db.session.rollback()
-        current_app.logger.error(f"Error regenerating PIN for parcel {parcel_id}: {str(e)}")
-        return None, "An error occurred while regenerating the PIN."
-
 def generate_pin_by_token(token: str) -> Tuple[Optional[Parcel], str]:
     """
     FR-02: Generate PIN - Create a 6-digit PIN and store its salted SHA-256 hash (email-based system)
+    NFR-03: Security - Token-based PIN generation with rate limiting and audit logging
     """
     try:
         # Find parcel with matching token
         parcel = Parcel.query.filter_by(pin_generation_token=token).first()
         
         if not parcel:
+            # NFR-03: Security - Log invalid token attempts for security monitoring
             AuditService.log_event("PIN_GENERATION_FAIL_INVALID_TOKEN", details={
                 "token_prefix": token[:8] + "..." if len(token) > 8 else token,
                 "reason": "Token not found"
@@ -147,7 +41,7 @@ def generate_pin_by_token(token: str) -> Tuple[Optional[Parcel], str]:
             })
             return None, "Token has expired. Please request a new PIN generation link."
         
-        # Check rate limiting
+        # NFR-03: Security - Check rate limiting to prevent abuse
         max_daily_generations = current_app.config.get('MAX_PIN_GENERATIONS_PER_DAY', 3)
         if not parcel.can_generate_pin(max_daily_generations):
             AuditService.log_event("PIN_GENERATION_FAIL_RATE_LIMIT", details={
@@ -157,10 +51,10 @@ def generate_pin_by_token(token: str) -> Tuple[Optional[Parcel], str]:
             })
             return None, f"Daily PIN generation limit reached ({max_daily_generations} per day). Please try again tomorrow."
         
-        # FR-02: Generate new 6-digit PIN with salted SHA-256 hash
+        # FR-02 & NFR-03: Generate new 6-digit PIN with salted SHA-256 hash
         new_pin, new_pin_hash = PinManager.generate_pin_and_hash()
         
-        # FR-02: Store salted hash (invalidates previous PIN for same parcel)
+        # NFR-03: Security - Store salted hash (invalidates previous PIN for same parcel)
         parcel.pin_hash = new_pin_hash
         parcel.otp_expiry = PinManager.generate_expiry_time()
         parcel.pin_generation_count += 1
@@ -208,7 +102,7 @@ def generate_pin_by_token(token: str) -> Tuple[Optional[Parcel], str]:
         })
         return None, "An error occurred while generating the PIN."
 
-def regenerate_pin_token(parcel_id: int, recipient_email: str) -> Tuple[bool, str]:
+def regenerate_pin_token(parcel_id: int, recipient_email: str, admin_reset: bool = False) -> Tuple[bool, str]:
     """
     FR-05: Re-issue PIN - Regenerate PIN generation token for expired links
     """
@@ -227,9 +121,11 @@ def regenerate_pin_token(parcel_id: int, recipient_email: str) -> Tuple[bool, st
         # Generate new token
         token = parcel.generate_pin_token()
         
-        # Reset generation count if it's a new day
-        if parcel.last_pin_generation and (datetime.utcnow() - parcel.last_pin_generation).days >= 1:
-            parcel.pin_generation_count = 0
+        # Reset generation count if it's a new day OR if admin is resetting
+        if admin_reset:
+            parcel.pin_generation_count = 0  # Admin reset always resets the limit
+        elif parcel.last_pin_generation and (datetime.utcnow() - parcel.last_pin_generation).days >= 1:
+            parcel.pin_generation_count = 0  # Natural daily reset
         
         db.session.commit()
         
@@ -252,7 +148,8 @@ def regenerate_pin_token(parcel_id: int, recipient_email: str) -> Tuple[bool, st
         AuditService.log_event("PIN_TOKEN_REGENERATED", details={
             "parcel_id": parcel.id,
             "recipient_email": recipient_email,
-            "notification_sent": notification_success
+            "notification_sent": notification_success,
+            "admin_reset": admin_reset
         })
         
         if notification_success:
@@ -265,48 +162,41 @@ def regenerate_pin_token(parcel_id: int, recipient_email: str) -> Tuple[bool, st
         current_app.logger.error(f"Error regenerating PIN token: {str(e)}")
         return False, "An error occurred while regenerating the PIN token."
 
-def request_pin_regeneration_by_recipient_email_and_locker(recipient_email: str, locker_id: str):
+def request_pin_regeneration_by_recipient_email_and_locker(recipient_email: str, locker_id: str, admin_override_parcel_id: int = None):
     """
     FR-05: Re-issue PIN - User form handler for PIN regeneration requests
     """
     try:
-        # Find the parcel by email and locker ID
-        parcel = Parcel.query.filter(
-            Parcel.recipient_email.ilike(recipient_email),
-            Parcel.locker_id == int(locker_id),
-            Parcel.status == 'deposited'
-        ).first()
+        # Find the parcel by email and locker ID, or by admin override parcel ID
+        if admin_override_parcel_id:
+            # Admin override - find parcel by ID directly
+            parcel = Parcel.query.filter(
+                Parcel.id == admin_override_parcel_id,
+                Parcel.status == 'deposited'
+            ).first()
+        else:
+            # Normal user request - find by email and locker ID
+            parcel = Parcel.query.filter(
+                Parcel.recipient_email.ilike(recipient_email),
+                Parcel.locker_id == int(locker_id),
+                Parcel.status == 'deposited'
+            ).first()
         
         if not parcel:
             # Return generic message for security (prevent fishing)
             return None, "If your details matched an active parcel, a new PIN would have been sent."
         
-        # Check if email-based PIN generation is enabled
-        use_email_pin = current_app.config.get('ENABLE_EMAIL_BASED_PIN_GENERATION', True)
+        # Use email-based PIN regeneration (admin override means admin is resetting)
+        success, message = regenerate_pin_token(parcel.id, parcel.recipient_email, admin_reset=(admin_override_parcel_id is not None))
         
-        if use_email_pin and parcel.pin_generation_token:
-            # Use email-based PIN regeneration (regenerate token)
-            success, message = regenerate_pin_token(parcel.id, recipient_email)
-            
-            # Log the regeneration request
-            AuditService.log_event("PIN_TOKEN_REGENERATION_REQUESTED", details={
-                "parcel_id": parcel.id,
-                "recipient_email": recipient_email,
-                "locker_id": locker_id,
-                "success": success
-            })
-            
-            if success:
-                return parcel, "If your details matched an active parcel, a new PIN generation link has been sent to your email."
-            else:
-                return None, "If your details matched an active parcel, a new PIN would have been sent."
+        if success:
+            return parcel, "PIN generation link has been regenerated and sent to your email."
         else:
-            # Use traditional PIN regeneration
-            return request_pin_regeneration_by_recipient(parcel.id, recipient_email)
-        
+            return None, message
+            
     except ValueError:
-        # Invalid locker_id (not a number)
-        return None, "If your details matched an active parcel, a new PIN would have been sent."
+        # Invalid locker_id conversion
+        return None, "Invalid locker ID format."
     except Exception as e:
-        current_app.logger.error(f"Error in recipient PIN regeneration request: {str(e)}")
-        return None, "If your details matched an active parcel, a new PIN would have been sent." 
+        current_app.logger.error(f"Error in request_pin_regeneration_by_recipient_email_and_locker: {str(e)}")
+        return None, "An error occurred while processing your request." 

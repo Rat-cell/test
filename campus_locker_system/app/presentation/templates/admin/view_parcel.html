@@ -55,7 +55,6 @@
     <p><strong>Deposited At:</strong> {{ parcel.deposited_at.strftime('%Y-%m-%d %H:%M:%S') if parcel.deposited_at else 'N/A' }} UTC</p>
     
     <!-- Email-based PIN Generation Information -->
-    {% if parcel.pin_generation_token %}
     <div class="email-pin-info">
         <h3>📧 Email-based PIN Generation</h3>
         <p><strong>PIN Generation Token:</strong> {{ parcel.pin_generation_token[:16] }}... (truncated for security)</p>
@@ -70,12 +69,6 @@
             {% endif %}
         </p>
     </div>
-    {% else %}
-    <div class="traditional-pin-info">
-        <h3>🔑 Traditional PIN System</h3>
-        <p>This parcel uses the traditional immediate PIN generation system.</p>
-    </div>
-    {% endif %}
     
     <!-- PIN Information -->
     {% if parcel.pin_hash %}
@@ -95,17 +88,10 @@
     {% endif %}
 
     {% if parcel and parcel.status == 'deposited' %}
-        {% if parcel.pin_generation_token %}
-            <!-- Email-based PIN system actions -->
-            <form method="POST" action="{{ url_for('main.regenerate_pin_token_admin_action', parcel_id=parcel.id) }}" style="display: inline; margin-top: 20px;">
-                <button type="submit" class="btn btn-info" onclick="return confirm('Are you sure you want to regenerate the PIN generation link? A new email with a fresh link will be sent to the recipient.');">Regenerate PIN Link</button>
-            </form>
-        {% else %}
-            <!-- Traditional PIN system actions -->
-            <form method="POST" action="{{ url_for('main.reissue_pin_admin_action', parcel_id=parcel.id) }}" style="display: inline; margin-top: 20px;">
-                <button type="submit" class="btn btn-warning" onclick="return confirm('Are you sure you want to reissue the PIN for this parcel? A new PIN will be generated and sent to the recipient.');">Reissue PIN</button>
-            </form>
-        {% endif %}
+        <!-- Email-based PIN system actions -->
+        <form method="POST" action="{{ url_for('main.regenerate_pin_token_admin_action', parcel_id=parcel.id) }}" style="display: inline; margin-top: 20px;">
+            <button type="submit" class="btn btn-info" onclick="return confirm('Are you sure you want to regenerate the PIN generation link? A new email with a fresh link will be sent to the recipient.');">Regenerate PIN Link</button>
+        </form>
     {% endif %}
 
     <p style="margin-top: 30px;">

@@ -15,10 +15,7 @@ from .decorators import admin_required # Add admin_required decorator
 from app import db # Add db for session.get
 from app.services.locker_service import set_locker_status, mark_locker_as_emptied
 from app.services.pin_service import (
-    reissue_pin, 
-    request_pin_regeneration_by_recipient, 
     generate_pin_by_token,
-    regenerate_pin_token,
     request_pin_regeneration_by_recipient_email_and_locker
 )
 from app.services.notification_service import NotificationService
@@ -147,7 +144,6 @@ def pickup_parcel():
         
         parcel = result[0]
         success_message = result[1]
-        flash(success_message, 'success')
         return render_template('pickup_confirmation.html', 
                                parcel=parcel, 
                                message=success_message)
@@ -452,51 +448,27 @@ def admin_process_overdue_parcels_action():
     flash(f"Overdue parcel processing complete. {processed_count} parcels processed. {message}", "info")
     return redirect(url_for('main.manage_lockers'))
 
-@main_bp.route('/admin/parcel/<int:parcel_id>/reissue-pin', methods=['POST'])
-@admin_required
-def reissue_pin_admin_action(parcel_id):
-    # Admin ID and username could be fetched from session for logging if needed by reissue_pin,
-    # but the current reissue_pin service doesn't require them as direct params.
-    # It logs events internally.
-    
-    parcel, message = reissue_pin(parcel_id)
-
-    if parcel: # Success is indicated by the parcel object being returned
-        flash(f"Successfully reissued PIN for parcel {parcel_id}. {message}", "success")
-    else: # An error occurred
-        flash(f"Error reissuing PIN for parcel {parcel_id}: {message}", "error")
-    
-    return redirect(url_for('main.view_parcel_admin', parcel_id=parcel_id))
-
-@main_bp.route('/admin/parcel/<int:parcel_id>/regenerate-pin-token', methods=['POST'])
+@main_bp.route('/admin/regenerate_pin_token/<int:parcel_id>', methods=['POST'])
 @admin_required
 def regenerate_pin_token_admin_action(parcel_id):
-    """Admin action to regenerate PIN generation token for email-based PIN parcels"""
+    """Admin action to regenerate PIN generation token for a parcel"""
     try:
-        parcel = db.session.get(Parcel, parcel_id)
-        if not parcel:
-            flash(f"Parcel ID {parcel_id} not found.", "error")
-            return redirect(url_for('main.manage_lockers'))
+        # Use email-based PIN regeneration
+        parcel, message = request_pin_regeneration_by_recipient_email_and_locker(
+            recipient_email=None,  # Admin override - will find parcel by ID
+            locker_id=None,
+            admin_override_parcel_id=parcel_id
+        )
         
-        # Check if this parcel uses email-based PIN generation
-        if not current_app.config.get('ENABLE_EMAIL_BASED_PIN_GENERATION', True):
-            flash("Email-based PIN generation is not enabled.", "error")
-            return redirect(url_for('main.view_parcel_admin', parcel_id=parcel_id))
-        
-        # Regenerate PIN token
-        success, message = regenerate_pin_token(parcel_id, parcel.recipient_email)
-        
-        if success:
-            flash(f"Successfully regenerated PIN generation link for parcel {parcel_id}. {message}", "success")
+        if parcel:
+            flash(f'PIN generation link regenerated successfully for parcel {parcel_id}. New email sent to recipient.', 'success')
         else:
-            flash(f"Error regenerating PIN generation link for parcel {parcel_id}: {message}", "error")
-        
-        return redirect(url_for('main.view_parcel_admin', parcel_id=parcel_id))
-        
+            flash(f'Failed to regenerate PIN link: {message}', 'error')
+            
     except Exception as e:
-        current_app.logger.error(f"Error in regenerate PIN token admin action: {str(e)}")
-        flash(f"An unexpected error occurred while regenerating PIN token for parcel {parcel_id}.", "error")
-        return redirect(url_for('main.view_parcel_admin', parcel_id=parcel_id))
+        flash(f'Error regenerating PIN link: {str(e)}', 'error')
+    
+    return redirect(url_for('main.view_parcel_admin', parcel_id=parcel_id))
 
 @main_bp.route('/admin/locker/<int:locker_id>/set-status', methods=['POST'])
 @admin_required
