@@ -9,9 +9,25 @@ class PinManager:
     
     @staticmethod
     def generate_pin_and_hash():
-        """Generate a 6-digit PIN and return both plain PIN and salted hash"""
+        """
+        FR-02: Generate PIN - Create a 6-digit PIN and store its salted SHA-256 hash
+        
+        Implements FR-02 requirements:
+        - System generates cryptographically secure 6-digit numeric PIN
+        - PIN is hashed using salted SHA-256 before storage
+        - Original PIN is never stored in plain text
+        - Salt is unique per PIN for enhanced security
+        
+        Returns:
+            Tuple[str, str]: (plain_pin, salted_hash) where hash format is "salt_hex:hash_hex"
+        """
+        # FR-02: Generate cryptographically secure 6-digit numeric PIN
         pin = "{:06d}".format(int.from_bytes(os.urandom(3), 'big') % 1000000)  # Generate 6-digit PIN
+        
+        # FR-02: Create unique salt per PIN for enhanced security
         salt = os.urandom(16)
+        
+        # FR-02: Hash PIN using salted SHA-256 before storage (original PIN never stored)
         hashed_pin = hashlib.pbkdf2_hmac('sha256', pin.encode('utf-8'), salt, 100000, dklen=64)
         return pin, salt.hex() + ":" + hashed_pin.hex()
     

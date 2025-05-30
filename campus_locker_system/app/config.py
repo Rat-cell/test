@@ -38,6 +38,9 @@ class Config:
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@campuslocker.local')
 
+    # Admin notification configuration
+    ADMIN_NOTIFICATION_EMAIL = os.environ.get('ADMIN_NOTIFICATION_EMAIL', 'admin@campuslocker.local')
+
     # Sensor Data Feature Configuration
     ENABLE_LOCKER_SENSOR_DATA_FEATURE = True
     DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE = False
@@ -48,6 +51,12 @@ class Config:
 
     # PIN Configuration
     PIN_EXPIRY_HOURS = int(os.environ.get('PIN_EXPIRY_HOURS', 24))  # PIN validity in hours
+    
+    # FR-04: Send Reminder After 24h of Occupancy - Configurable timing
+    REMINDER_HOURS_AFTER_DEPOSIT = int(os.environ.get('REMINDER_HOURS_AFTER_DEPOSIT', 24))  # Hours to wait before sending reminder
+    
+    # FR-04: Automatic reminder processing interval (how often to check for reminders)
+    REMINDER_PROCESSING_INTERVAL_HOURS = int(os.environ.get('REMINDER_PROCESSING_INTERVAL_HOURS', 1))  # Check every hour
     
     # Email-based PIN Generation Configuration
     PIN_GENERATION_TOKEN_EXPIRY_HOURS = int(os.environ.get('PIN_GENERATION_TOKEN_EXPIRY', 24))  # hours

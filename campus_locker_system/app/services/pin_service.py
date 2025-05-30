@@ -110,7 +110,15 @@ def request_pin_regeneration_by_recipient(parcel_id: int, provided_email: str):
         return None, "An error occurred while regenerating the PIN."
 
 def generate_pin_by_token(token: str) -> Tuple[Optional[Parcel], str]:
-    """Generate a PIN using a valid email token (email-based PIN system)"""
+    """
+    FR-02: Generate PIN - Create a 6-digit PIN and store its salted SHA-256 hash (email-based system)
+    
+    Implements FR-02 requirements for email-based PIN generation:
+    - System generates cryptographically secure 6-digit numeric PIN
+    - PIN is hashed using salted SHA-256 before storage
+    - Each PIN generation invalidates previous PIN for same parcel
+    - PIN generation supports email-based delivery system
+    """
     try:
         # Find parcel with matching token
         parcel = Parcel.query.filter_by(pin_generation_token=token).first()
@@ -150,10 +158,10 @@ def generate_pin_by_token(token: str) -> Tuple[Optional[Parcel], str]:
             })
             return None, f"Daily PIN generation limit reached ({max_daily_generations} per day). Please try again tomorrow."
         
-        # Generate new PIN
+        # FR-02: Generate new 6-digit PIN with salted SHA-256 hash
         new_pin, new_pin_hash = PinManager.generate_pin_and_hash()
         
-        # Update parcel with new PIN
+        # FR-02: Store salted hash (invalidates previous PIN for same parcel)
         parcel.pin_hash = new_pin_hash
         parcel.otp_expiry = PinManager.generate_expiry_time()
         parcel.pin_generation_count += 1

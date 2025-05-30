@@ -19,6 +19,9 @@ class Parcel(db.Model):
     pin_generation_token_expiry = db.Column(db.DateTime, nullable=True)  # Token expiry time
     pin_generation_count = db.Column(db.Integer, nullable=False, default=0)  # Track PIN generation attempts
     last_pin_generation = db.Column(db.DateTime, nullable=True)  # Last PIN generation timestamp
+    
+    # FR-04: Send Reminder After 24h of Occupancy - Track reminder sent status
+    reminder_sent_at = db.Column(db.DateTime, nullable=True)  # When the 24h reminder was sent
 
     def __repr__(self):
         return f'<Parcel {self.id} in Locker {self.locker_id} - Status: {self.status}>'
