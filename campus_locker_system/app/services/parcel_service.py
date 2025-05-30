@@ -16,16 +16,6 @@ from typing import Optional, Tuple
 def assign_locker_and_create_parcel(recipient_email: str, preferred_size: str):
     """
     FR-01: Assign Locker - Assign the next free locker large enough for the parcel in ≤ 200 ms
-    
-    Implements FR-01 requirements:
-    - System identifies next available locker that fits parcel size requirements
-    - Locker assignment completes in ≤ 200 ms
-    - System handles case when no suitable locker is available
-    - Locker status is updated to "occupied" upon assignment
-    - Assignment process is atomic (all-or-nothing)
-    
-    Returns:
-        Tuple[Parcel|None, str]: (parcel_object, message) or (None, error_message)
     """
     try:
         # Business validation
@@ -78,6 +68,7 @@ def assign_locker_and_create_parcel(recipient_email: str, preferred_size: str):
             )
             
             # Log the parcel creation
+            # FR-07: Audit Trail - Record parcel deposit event with timestamp and details
             AuditService.log_event("PARCEL_CREATED_EMAIL_PIN", details={
                 "parcel_id": parcel.id,
                 "locker_id": locker.id,
@@ -118,6 +109,7 @@ def assign_locker_and_create_parcel(recipient_email: str, preferred_size: str):
             )
             
             # Log the parcel creation
+            # FR-07: Audit Trail - Record parcel deposit event with timestamp and details
             AuditService.log_event("PARCEL_CREATED_TRADITIONAL_PIN", details={
                 "parcel_id": parcel.id,
                 "locker_id": locker.id,
@@ -149,6 +141,8 @@ def process_pickup(provided_pin: str):
             if PinManager.verify_pin(parcel.pin_hash, provided_pin):
                 # Check if PIN has expired
                 if PinManager.is_pin_expired(parcel.otp_expiry):
+                    # FR-07: Audit Trail - Record failed pickup attempt with timestamp and reason
+                    # FR-09: Invalid PIN Error Handling - Provide clear expired PIN error message
                     # Log the expired PIN attempt
                     AuditService.log_event("USER_PICKUP_FAIL_PIN_EXPIRED", details={
                         "parcel_id": parcel.id,
@@ -164,18 +158,21 @@ def process_pickup(provided_pin: str):
                 # Update locker status
                 locker = db.session.get(Locker, parcel.locker_id)
                 if locker:
-                    # Only set to free if not out of service
+                    # FR-08: Only set to free if not out of service
                     if locker.status != 'out_of_service':
                         locker.status = 'free'
-                    # If it was out of service, leave it as out of service
+                    # FR-08: If it was out of service, leave it as out of service
                 
                 db.session.commit()
                 
+                # FR-07: Audit Trail - Record successful pickup event with timestamp and PIN verification details
                 # Log the pickup
                 AuditService.log_event(f"Parcel {parcel.id} picked up from locker {parcel.locker_id}")
                 
                 return parcel, f"Parcel successfully picked up from locker {parcel.locker_id}."
         
+        # FR-07: Audit Trail - Record failed pickup attempt with timestamp and reason (invalid PIN)
+        # FR-09: Invalid PIN Error Handling - Provide clear invalid PIN error message
         # Log the invalid PIN attempt
         AuditService.log_event("USER_PICKUP_FAIL_INVALID_PIN", details={
             "provided_pin_pattern": provided_pin[:3] + "XXX",
@@ -187,6 +184,7 @@ def process_pickup(provided_pin: str):
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Error processing pickup: {str(e)}")
+        # FR-09: Invalid PIN Error Handling - Provide system error message
         return None, "An error occurred while processing the pickup."
 
 def retract_deposit(parcel_id: int):
@@ -254,18 +252,6 @@ def dispute_pickup(parcel_id: int):
 def report_parcel_missing_by_recipient(parcel_id: int) -> Tuple[Optional[Parcel], Optional[str]]:
     """
     FR-06: Report Missing Item - Core business logic for recipient reporting parcel as missing
-    
-    Implements FR-06 requirements:
-    - Validates parcel eligibility for missing report
-    - Updates parcel status to "missing"
-    - Takes associated locker out of service for inspection
-    - Maintains data integrity and audit trail
-    
-    Args:
-        parcel_id: ID of the parcel to report as missing
-    
-    Returns:
-        Tuple of (Parcel object or None, error message or None)
     """
     try:
         parcel = db.session.get(Parcel, parcel_id)
@@ -431,17 +417,7 @@ def process_overdue_parcels():
 # FR-04: Send Reminder After 24h of Occupancy - Main processing function
 def process_reminder_notifications():
     """
-    FR-04: Process and send reminder notifications for parcels that have been deposited for configured hours
-    FR-04: Timing is configurable via REMINDER_HOURS_AFTER_DEPOSIT config parameter
-    
-    Implements FR-04 requirements:
-    - System identifies parcels that have been deposited for configured hours without pickup
-    - System sends automated reminder email to recipients
-    - System tracks reminder sent status to prevent duplicate reminders
-    - System logs reminder activities for audit trail
-    
-    Returns:
-        Tuple[int, int]: (processed_count, error_count)
+    FR-04: Send Reminder After 24h of Occupancy - Process and send reminder notifications for parcels
     """
     try:
         # FR-04: Get configurable reminder timing from environment
@@ -529,16 +505,7 @@ def process_reminder_notifications():
 # FR-04: Send Individual Reminder - Admin action for specific parcel
 def send_individual_reminder(parcel_id: int, admin_id: int, admin_username: str):
     """
-    FR-04: Send reminder notification for a specific parcel (admin-initiated)
-    FR-04: Allows admin to manually send pickup reminders for individual parcels
-    
-    Args:
-        parcel_id (int): ID of the parcel to send reminder for
-        admin_id (int): ID of the admin initiating the reminder
-        admin_username (str): Username of the admin for audit logging
-    
-    Returns:
-        Tuple[bool, str]: (success, message)
+    FR-04: Send Reminder After 24h of Occupancy - Send reminder notification for a specific parcel (admin-initiated)
     """
     try:
         # FR-04: Validate parcel exists and is eligible for reminder

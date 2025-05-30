@@ -190,14 +190,7 @@ class NotificationService:
     @staticmethod
     def send_24h_reminder_notification(recipient_email: str, parcel_id: int, locker_id: int, deposited_time, pin_generation_url: str) -> Tuple[bool, str]:
         """
-        FR-04: Send configurable-hour reminder notification for parcel pickup
-        FR-04: Timing is configurable via REMINDER_HOURS_AFTER_DEPOSIT config parameter
-        
-        Implements FR-04 requirements:
-        - Sends automated reminder after configurable hours of parcel occupancy
-        - Includes pickup instructions and PIN regeneration options
-        - Tracks reminder activities for audit trail
-        - Handles email delivery failures gracefully
+        FR-04: Send Reminder After 24h of Occupancy - Send configurable-hour reminder notification for parcel pickup
         """
         try:
             # FR-04: Business rule validation for email delivery
@@ -238,12 +231,6 @@ class NotificationService:
     def send_parcel_missing_admin_notification(parcel_id: int, locker_id: int, recipient_email: str) -> Tuple[bool, str]:
         """
         FR-06: Report Missing Item - Send notification to admin when parcel is reported missing by recipient
-        
-        Implements FR-06 requirement for immediate admin notification:
-        - Sends urgent email to administrators when recipient reports missing parcel
-        - Includes complete incident details for investigation
-        - Triggers security investigation workflow
-        - Logs notification delivery for audit trail
         """
         try:
             # Get admin email from configuration

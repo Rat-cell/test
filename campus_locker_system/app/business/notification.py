@@ -501,12 +501,6 @@ Campus Locker System""",
     def create_parcel_missing_admin_email(cls, parcel_id: int, locker_id: int, recipient_email: str) -> FormattedEmail:
         """
         FR-06: Report Missing Item - Create admin notification email when parcel is reported missing by recipient
-        
-        Implements FR-06 requirement for comprehensive admin notification:
-        - Creates urgent notification email with incident details
-        - Includes immediate action items for administrators
-        - Provides direct links to admin panel for investigation
-        - Triggers security investigation workflow
         """
         from datetime import datetime
         from flask import current_app

@@ -5,6 +5,7 @@ from app import db
 from app.business.admin_auth import AdminUser as BusinessAdminUser, AdminAuthManager, AdminSession, AdminRole
 from app.persistence.models import AdminUser as PersistenceAdminUser
 from app.services.audit_service import AuditService
+from datetime import datetime
 
 class AdminAuthService:
     """Service layer for admin authentication orchestration"""
@@ -48,11 +49,16 @@ class AdminAuthService:
             persistence_admin.last_login = business_admin.last_login
             db.session.commit()
             
-            # Log successful login
+            # Login successful - set session
+            session['admin_id'] = business_admin.id
+            session['admin_username'] = business_admin.username
+            session.permanent = True
+            
+            # FR-07: Audit Trail - Record admin override action with timestamp and admin identity
             AuditService.log_event("ADMIN_LOGIN_SUCCESS", {
-                "admin_username": business_admin.username,
                 "admin_id": business_admin.id,
-                "role": business_admin.role.value
+                "admin_username": business_admin.username,
+                "login_time": datetime.utcnow().isoformat()
             })
             
             return business_admin, "Authentication successful"
@@ -82,7 +88,6 @@ class AdminAuthService:
             if 'admin_id' not in session:
                 return None
             
-            from datetime import datetime
             return AdminSession(
                 admin_id=session['admin_id'],
                 username=session['admin_username'],
@@ -118,7 +123,6 @@ class AdminAuthService:
     def update_session_activity() -> None:
         """Update last activity timestamp in session"""
         if 'admin_id' in session:
-            from datetime import datetime
             session['last_activity'] = datetime.utcnow().isoformat()
     
     @staticmethod
