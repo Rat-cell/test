@@ -279,15 +279,23 @@ def mark_parcel_missing_by_admin(admin_id: int, admin_username: str, parcel_id: 
         parcel.status = 'missing'
         db.session.add(parcel)
 
-        # If the parcel was 'deposited' or 'pickup_disputed', its locker might need attention.
-        if original_parcel_status in ['deposited', 'pickup_disputed']:
+        # ALWAYS set locker to out_of_service when marking parcel as missing
+        # This ensures investigation can take place
+        if parcel.locker_id:
             locker = db.session.get(Locker, parcel.locker_id)
             if locker:
-                # If locker was 'occupied' by this parcel or 'disputed_contents' because of it,
-                # take it out of service.
-                if locker.status in ['occupied', 'disputed_contents']:
-                    locker.status = 'out_of_service'
-                    db.session.add(locker)
+                original_locker_status = locker.status
+                locker.status = 'out_of_service'
+                db.session.add(locker)
+                
+                AuditService.log_event("LOCKER_SET_OUT_OF_SERVICE_FOR_MISSING_PARCEL", details={
+                    "admin_id": admin_id,
+                    "admin_username": admin_username,
+                    "parcel_id": parcel.id,
+                    "locker_id": parcel.locker_id,
+                    "original_locker_status": original_locker_status,
+                    "reason": "Parcel marked as missing - investigation required"
+                })
             else:
                 current_app.logger.warning(f"Locker ID {parcel.locker_id} not found for parcel {parcel.id} being marked missing by admin.")
         
@@ -297,7 +305,7 @@ def mark_parcel_missing_by_admin(admin_id: int, admin_username: str, parcel_id: 
             "admin_id": admin_id,
             "admin_username": admin_username,
             "parcel_id": parcel.id,
-            "locker_id": parcel.locker_id, # Log current locker_id, even if it might be None for some old parcels
+            "locker_id": parcel.locker_id,
             "original_parcel_status": original_parcel_status
         })
         return parcel, None

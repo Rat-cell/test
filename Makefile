@@ -28,15 +28,21 @@ help:
 # Production deployment
 build:
 	@echo "🔨 Building Docker images..."
+	@echo "🔑 Generating new SECRET_KEY for security..."
+	@echo "SECRET_KEY=$$(openssl rand -hex 32)" > .env
 	docker-compose build
 
 up:
 	@echo "🚀 Starting production deployment..."
+	@echo "🔑 Generating new SECRET_KEY for security..."
+	@echo "SECRET_KEY=$$(openssl rand -hex 32)" > .env
 	docker-compose up -d
 	@echo "✅ Services started! Run 'make test' to verify deployment."
 
 down:
 	@echo "🛑 Stopping production deployment..."
+	@echo "🔐 Logging out any active admin sessions..."
+	@curl -s -X POST http://localhost/system/logout-all-admins > /dev/null 2>&1 || echo "ℹ️  No active sessions to logout (service may already be down)"
 	docker-compose down
 
 logs:
@@ -72,8 +78,12 @@ safe-test:
 # Cleanup
 clean:
 	@echo "🧹 Cleaning up Docker resources..."
+	@echo "🔐 Logging out any active admin sessions..."
+	@curl -s -X POST http://localhost/system/logout-all-admins > /dev/null 2>&1 || echo "ℹ️  No active sessions to logout (service may already be down)"
 	docker-compose down -v
 	docker system prune -f
+	@echo "🔑 Removing security keys..."
+	@rm -f .env
 	@echo "✅ Cleanup complete!"
 
 # Quick deployment test

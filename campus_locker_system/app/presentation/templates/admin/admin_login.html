@@ -1,26 +1,74 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Admin Login</title>
-</head>
-<body>
-    <h1>Admin Login</h1>
+{% extends "base.html" %}
+
+{% block title %}Admin Login - Campus Locker System{% endblock %}
+
+{% block header %}
+<a href="/admin/login" style="text-decoration: none; color: inherit;">
+    <div class="nav-title">
+        🔐 Admin Access
+    </div>
+</a>
+{% endblock %}
+
+{% block container_class %}container--narrow{% endblock %}
+
+{% block navigation %}
+<!-- No navigation for admin login page -->
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="text-center mb-6">
+        <div class="icon">🔐</div>
+        <h1>Admin Login</h1>
+        <p>Access the administrative dashboard</p>
+    </div>
+
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        <ul class=flashes>
+        <ul class="flashes">
         {% for category, message in messages %}
           <li class="{{ category }}">{{ message }}</li>
         {% endfor %}
         </ul>
       {% endif %}
     {% endwith %}
+
     <form method="POST">
-        <label for="username">Username:</label>
-        <input type="text" name="username" id="username" required><br><br>
-        <label for="password">Password:</label>
-        <input type="password" name="password" id="password" required><br><br>
-        <button type="submit">Login</button>
+        <div class="form-group">
+            <label for="username">👤 Username</label>
+            <input type="text" 
+                   name="username" 
+                   id="username" 
+                   required
+                   placeholder="Enter your username"
+                   autocomplete="username">
+        </div>
+
+        <div class="form-group">
+            <label for="password">🔑 Password</label>
+            <input type="password" 
+                   name="password" 
+                   id="password" 
+                   required
+                   placeholder="Enter your password"
+                   autocomplete="current-password">
+        </div>
+
+        <button type="submit" class="btn btn--primary btn--large btn--full">
+            🔐 Sign In
+        </button>
     </form>
-</body>
-</html>
+
+    <div class="alert alert--warning mt-6">
+        <h3>🛡️ Security Notice</h3>
+        <p style="margin: 0;">This is a restricted area. Only authorized personnel should access this login page. All login attempts are logged and monitored.</p>
+    </div>
+
+    <div class="text-center mt-4">
+        <a href="/" class="btn btn--secondary">
+            🏠 Back to Main Site
+        </a>
+    </div>
+</div>
+{% endblock %}

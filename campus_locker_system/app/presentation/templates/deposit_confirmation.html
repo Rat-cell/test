@@ -1,129 +1,64 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deposit Confirmation - Campus Locker System</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            background-color: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .success-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .success-icon {
-            font-size: 60px;
-            color: #28a745;
-            margin-bottom: 10px;
-        }
-        h1 {
-            color: #28a745;
-            margin: 0;
-            font-size: 28px;
-        }
-        .deposit-details {
-            background-color: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-            border-left: 4px solid #28a745;
-        }
-        .detail-item {
-            margin: 12px 0;
-            font-size: 16px;
-        }
-        .next-steps {
-            background-color: #e8f4fd;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-            border-left: 4px solid #17a2b8;
-        }
-        .actions {
-            margin-top: 30px;
-            text-align: center;
-        }
-        .btn {
-            display: inline-block;
-            padding: 12px 24px;
-            margin: 8px;
-            text-decoration: none;
-            border-radius: 6px;
-            font-weight: 600;
-            font-size: 16px;
-            transition: all 0.3s ease;
-        }
-        .btn-primary {
-            background-color: #007bff;
-            color: white;
-        }
-        .btn-primary:hover {
-            background-color: #0056b3;
-            color: white;
-        }
-        .btn-secondary {
-            background-color: #6c757d;
-            color: white;
-        }
-        .btn-secondary:hover {
-            background-color: #545b62;
-            color: white;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="success-header">
-            <div class="success-icon">✅</div>
-            <h1>Deposit Successful!</h1>
+{% extends "base.html" %}
+
+{% block title %}Deposit Confirmation - Campus Locker System{% endblock %}
+
+{% block header_title %}✅ Deposit Successful{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="text-center mb-6">
+        <div style="font-size: 60px; color: var(--success-color); margin-bottom: 1rem;">✅</div>
+        <h1 style="color: var(--success-color); margin-bottom: 0.5rem;">Deposit Successful!</h1>
+        <p>Your parcel has been securely stored</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert--{{ category }} mb-4">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="alert alert--success mb-6">
+        <h3 style="margin-bottom: 1rem;">📦 Parcel Details</h3>
+        <div style="margin-bottom: 0.75rem;">
+            <strong>📦 Parcel placed in:</strong> Locker #{{ parcel.locker_id }}
         </div>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            {% for category, message in messages %}
-              <div style="padding: 15px; margin: 15px 0; border-radius: 6px; background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb;">
-                {{ message }}
-              </div>
-            {% endfor %}
-          {% endif %}
-        {% endwith %}
-
-        <div class="deposit-details">
-            <div class="detail-item">
-                <strong>📦 Parcel placed in:</strong> Locker #{{ parcel.locker_id }}
-            </div>
-            <div class="detail-item">
-                <strong>📧 Recipient notified:</strong> {{ parcel.recipient_email }}
-            </div>
-            <div class="detail-item">
-                <strong>📅 Deposited at:</strong> {{ parcel.deposited_at.strftime('%Y-%m-%d %H:%M:%S') if parcel.deposited_at else 'Just now' }}
-            </div>
+        <div style="margin-bottom: 0.75rem;">
+            <strong>📧 Recipient notified:</strong> {{ parcel.recipient_email }}
         </div>
-
-        <div class="next-steps">
-            <h3 style="margin-top: 0; color: #0c5460;">📋 What happens next?</h3>
-            <ol style="margin: 0; padding-left: 20px;">
-                <li><strong>{{ parcel.recipient_email }}</strong> will receive an email notification</li>
-                <li>The recipient can generate a secure PIN when ready to collect</li>
-                <li>They'll use the PIN to access <strong>Locker #{{ parcel.locker_id }}</strong></li>
-            </ol>
-        </div>
-
-        <div class="actions">
-            <a href="{{ url_for('main.deposit_parcel') }}" class="btn btn-primary">📦 Deposit Another Parcel</a>
-            <a href="{{ url_for('main.pickup_parcel') }}" class="btn btn-secondary">🔑 Pick Up a Parcel</a>
+        <div style="margin-bottom: 0;">
+            <strong>📅 Deposited at:</strong> {{ parcel.deposited_at.strftime('%Y-%m-%d %H:%M:%S') if parcel.deposited_at else 'Just now' }}
         </div>
     </div>
-</body>
-</html>
+
+    <div class="alert alert--info mb-6">
+        <h3 style="margin-bottom: 1rem;">📋 What happens next?</h3>
+        <ol style="margin: 0; padding-left: 1.5rem;">
+            <li><strong>{{ parcel.recipient_email }}</strong> will receive an email notification</li>
+            <li>The recipient can generate a secure PIN when ready to collect</li>
+            <li>They'll use the PIN to access <strong>Locker #{{ parcel.locker_id }}</strong></li>
+        </ol>
+    </div>
+
+    <div class="flex flex-col gap-4">
+        <a href="/deposit" class="btn btn--primary btn--large">
+            📦 Deposit Another Parcel
+        </a>
+        <a href="/pickup" class="btn btn--success btn--large">
+            🔑 Pick Up a Parcel
+        </a>
+        <a href="/" class="btn btn--secondary btn--large">
+            🏠 Back to Home
+        </a>
+    </div>
+
+    <div class="alert alert--warning mt-6">
+        <h3>📞 Need Support?</h3>
+        <p style="margin: 0;">If you or the recipient need assistance, please contact the Campus Locker System support team at <strong>{{ config.get('ADMIN_EMAIL', 'admin@campus.edu') }}</strong> with reference to <strong>Locker #{{ parcel.locker_id }}</strong>.</p>
+    </div>
+</div>
+{% endblock %}

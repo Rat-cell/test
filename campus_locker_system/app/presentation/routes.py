@@ -57,7 +57,11 @@ def health_check():
             'error': str(e)
         }), 503
 
-@main_bp.route('/', methods=['GET', 'POST']) # Root route handles both GET and POST like deposit
+@main_bp.route('/', methods=['GET'])
+def home():
+    """Home page with navigation options for deposit and pickup"""
+    return render_template('home.html')
+
 @main_bp.route('/deposit', methods=['GET', 'POST'])
 def deposit_parcel():
     if request.method == 'POST':
@@ -200,9 +204,12 @@ def report_missing_parcel_by_recipient(parcel_id):
         reference_date = now.strftime('%Y%m%d')
         
         return render_template('missing_report_confirmation.html', 
+                               parcel=parcel,
                                parcel_id=parcel_id,
                                report_time=report_time,
-                               reference_date=reference_date)
+                               reference_date=reference_date,
+                               current_time=report_time,
+                               reference_number=f"MISSING-{parcel_id}-{reference_date}")
         
     except Exception as e:
         current_app.logger.error(f"Error in report missing parcel route for parcel {parcel_id}: {str(e)}")
@@ -211,11 +218,17 @@ def report_missing_parcel_by_recipient(parcel_id):
 
 @main_bp.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
+    # Check if user is already logged in as admin
+    from app.services.admin_auth_service import AdminAuthService
+    is_valid, _ = AdminAuthService.validate_session()
+    if is_valid:
+        # User is already logged in, redirect to dashboard
+        return redirect(url_for('main.manage_lockers'))
+    
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
 
-        from app.services.admin_auth_service import AdminAuthService
         admin_user, message = AdminAuthService.authenticate_admin(username, password)
 
         if admin_user:
@@ -290,6 +303,12 @@ def manage_lockers():
                 Parcel.locker_id == locker.id,
                 Parcel.status.in_(relevant_parcel_statuses)
             ).order_by(Parcel.id.desc()).first() # Get the latest relevant parcel
+        else:
+            # For free lockers, still check for missing parcels so admins can review them
+            parcel_in_locker = Parcel.query.filter(
+                Parcel.locker_id == locker.id,
+                Parcel.status == 'missing'
+            ).order_by(Parcel.id.desc()).first()
         
         latest_sensor_reading = None
         if enable_sensor_feature:
@@ -558,4 +577,42 @@ def automatic_reminder_processing():
             "message": f"Error processing reminders: {str(e)}",
             "processed_count": 0,
             "error_count": 1
+        }), 500
+
+@main_bp.route('/system/logout-all-admins', methods=['POST', 'GET'])
+def system_logout_all_admins():
+    """
+    System endpoint to logout all admin sessions during shutdown
+    This is called by make down to ensure clean session termination
+    No authentication required for system shutdown purposes
+    """
+    try:
+        # Get current admin session if any
+        admin_id = session.get('admin_id')
+        admin_username = session.get('admin_username', 'UnknownAdmin')
+        
+        # Log the system-initiated logout
+        if admin_id:
+            AuditService.log_event("SYSTEM_INITIATED_ADMIN_LOGOUT", {
+                "admin_id": admin_id,
+                "admin_username": admin_username,
+                "reason": "System shutdown",
+                "initiated_by": "make_down_command"
+            })
+        
+        # Clear all admin session data
+        from app.services.admin_auth_service import AdminAuthService
+        AdminAuthService.logout()
+        
+        return jsonify({
+            "status": "success",
+            "message": "All admin sessions cleared",
+            "logged_out_admin": admin_username if admin_id else None
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error during system admin logout: {str(e)}")
+        return jsonify({
+            "status": "error", 
+            "message": f"Error clearing sessions: {str(e)}"
         }), 500

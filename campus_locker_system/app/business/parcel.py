@@ -5,7 +5,7 @@ import re
 
 class Parcel(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    locker_id = db.Column(db.Integer, db.ForeignKey('locker.id'), nullable=False)
+    locker_id = db.Column(db.Integer, db.ForeignKey('locker.id'), nullable=True)  # Allow null for detached missing parcels
     pin_hash = db.Column(db.String(128), nullable=True)  # SHA-256 hash - now nullable for email-based PIN generation
     otp_expiry = db.Column(db.DateTime, nullable=True)  # Now nullable for email-based PIN generation
     recipient_email = db.Column(db.String(120), nullable=False)
