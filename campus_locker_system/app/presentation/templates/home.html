@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}Campus Locker System{% endblock %}
+
+{% block header_title %}🏠 Campus Locker System{% endblock %}
+
+{% block content %}
+<style>
+    .hero-section {
+        text-align: center;
+        margin-bottom: 3rem;
+    }
+    .hero-icon {
+        font-size: 48px;
+        margin-bottom: 1rem;
+    }
+    .action-cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-bottom: 3rem;
+        align-items: stretch;
+    }
+    .action-card {
+        text-align: center;
+        padding: 1.5rem;
+        border: 2px solid;
+        background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: 100%;
+        min-width: 0;
+    }
+    .action-card--deposit {
+        border-color: var(--primary-color);
+    }
+    .action-card--pickup {
+        border-color: var(--success-color);
+    }
+    .card-icon {
+        font-size: 48px;
+        margin-bottom: 1rem;
+    }
+    .card-title {
+        margin-bottom: 1rem;
+        font-size: var(--font-size-xl);
+    }
+    .card-title--deposit {
+        color: var(--primary-color);
+    }
+    .card-title--pickup {
+        color: var(--success-color);
+    }
+    .card-description {
+        margin-bottom: 1.5rem;
+        color: var(--text-secondary);
+    }
+    .feature-list {
+        margin-bottom: 1.5rem;
+    }
+    .feature-item {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 0.5rem;
+        font-size: var(--font-size-sm);
+    }
+    .feature-icon {
+        margin-right: 0.5rem;
+    }
+    .feature-icon--deposit {
+        color: var(--success-color);
+    }
+    .feature-icon--pickup {
+        color: var(--primary-color);
+    }
+    @media (max-width: 640px) {
+        .action-cards {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        .action-card {
+            padding: 1.5rem;
+        }
+    }
+</style>
+
+<div class="card">
+    <div class="hero-section">
+        <div class="hero-icon">🔒</div>
+        <h1 style="color: var(--primary-color); margin-bottom: 1rem;">Welcome to Campus Locker System</h1>
+        <p style="font-size: var(--font-size-lg); color: var(--text-secondary);">Secure parcel storage and pickup service</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flashes">
+        {% for category, message in messages %}
+          <li class="{{ category }}">{{ message }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <div class="action-cards">
+        <!-- Deposit Option -->
+        <div class="action-card action-card--deposit">
+            <div>
+                <div class="card-icon">📦</div>
+                <h2 class="card-title card-title--deposit">Deposit a Parcel</h2>
+                <p class="card-description">Store a parcel securely for someone to collect later</p>
+                
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <span class="feature-icon feature-icon--deposit">✓</span>
+                        <span>Choose parcel size</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon feature-icon--deposit">✓</span>
+                        <span>Enter recipient email</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon feature-icon--deposit">✓</span>
+                        <span>Get locker assignment</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon feature-icon--deposit">✓</span>
+                        <span>Automatic notification sent</span>
+                    </div>
+                </div>
+            </div>
+            
+            <a href="/deposit" class="btn btn--primary btn--large" style="width: 100%;">
+                📦 Deposit Parcel
+            </a>
+        </div>
+
+        <!-- Pickup Option -->
+        <div class="action-card action-card--pickup">
+            <div>
+                <div class="card-icon">🔑</div>
+                <h2 class="card-title card-title--pickup">Pick Up Parcel</h2>
+                <p class="card-description">Collect your parcel using your secure PIN</p>
+                
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <span class="feature-icon feature-icon--pickup">✓</span>
+                        <span>Check your email for PIN</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon feature-icon--pickup">✓</span>
+                        <span>Enter 6-digit PIN</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon feature-icon--pickup">✓</span>
+                        <span>Locker opens automatically</span>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon feature-icon--pickup">✓</span>
+                        <span>Collect your parcel</span>
+                    </div>
+                </div>
+            </div>
+            
+            <a href="/pickup" class="btn btn--success btn--large" style="width: 100%;">
+                🔑 Pick Up Parcel
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

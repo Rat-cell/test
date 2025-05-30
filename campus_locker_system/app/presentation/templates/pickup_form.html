@@ -1,168 +1,117 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Pick Up Parcel</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
+{% extends "base.html" %}
+
+{% block title %}Pick Up Parcel - Campus Locker System{% endblock %}
+
+{% block header_title %}🔑 Pick Up Parcel{% endblock %}
+
+{% block container_class %}container--narrow{% endblock %}
+
+{% block content %}
+<style>
+    .instructions-compact {
+        background: var(--bg-tertiary);
+        border-left: 4px solid var(--info-color);
+        padding: 1rem;
+        border-radius: var(--radius-md);
+        margin-bottom: 1.5rem;
+    }
+    .instructions-compact h3 {
+        font-size: var(--font-size-base);
+        margin-bottom: 0.5rem;
+        color: var(--text-primary);
+    }
+    .instructions-compact ol {
+        margin: 0;
+        padding-left: 1.2rem;
+        font-size: var(--font-size-sm);
+        color: var(--text-secondary);
+    }
+    .instructions-compact li {
+        margin-bottom: 0.25rem;
+    }
+    .button-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-top: 1.5rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .button-row .btn {
+        min-width: 0; /* Prevents buttons from overflowing */
+        box-sizing: border-box;
+        padding: var(--space-4) var(--space-3); /* More vertical, less horizontal padding */
+        font-size: var(--font-size-sm); /* Smaller font size */
+        line-height: 1.2; /* Tighter line height */
+        white-space: nowrap; /* Prevent text wrapping */
+    }
+    
+    /* Responsive adjustment for better mobile experience */
+    @media (max-width: 480px) {
+        .button-row {
+            grid-template-columns: 1fr;
+            gap: 0.75rem;
         }
-        .container {
-            background-color: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .info-box {
-            background-color: #e7f3ff;
-            border: 1px solid #007bff;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 20px 0;
-        }
-        .help-box {
-            background-color: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 20px 0;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #333;
-        }
-        input[type="text"] {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            box-sizing: border-box;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 16px;
-            text-align: center;
-            letter-spacing: 2px;
-        }
-        button {
-            width: 100%;
-            padding: 12px 15px;
-            background-color: #28a745;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: bold;
-        }
-        button:hover {
-            background-color: #218838;
-        }
-        .flashes {
-            list-style: none;
-            padding: 0;
-            margin: 20px 0;
-        }
-        .flashes li {
-            padding: 12px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-        }
-        .flashes .error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        .flashes .success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .actions {
-            text-align: center;
-            margin-top: 20px;
-        }
-        .actions a {
-            display: inline-block;
-            margin: 5px 10px;
-            padding: 8px 16px;
-            color: #007bff;
-            text-decoration: none;
-            border: 1px solid #007bff;
-            border-radius: 4px;
-        }
-        .actions a:hover {
-            background-color: #007bff;
-            color: white;
-        }
-        .help-link {
-            background-color: #ffc107;
-            color: #212529;
-            font-weight: bold;
-        }
-        .help-link:hover {
-            background-color: #e0a800;
-            color: #212529;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🔑 Pick Up Parcel</h1>
-        
-        <!-- FR-09: Invalid PIN Error Handling - Flash messages display PIN errors with user guidance -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            <ul class="flashes">
-            {% for category, message in messages %}
-              <li class="{{ category }}">{{ message }}</li>
-            {% endfor %}
-            </ul>
-          {% endif %}
-        {% endwith %}
-        
-        <div class="info-box">
-            <h3>📋 How to pick up your parcel:</h3>
-            <ol>
-                <li>Enter your 6-digit PIN below</li>
-                <li>Click "Pick Up" to open the locker</li>
-                <li>Collect your parcel</li>
-                <li>Close the locker securely</li>
-            </ol>
-        </div>
-        
-        <form method="POST">
-            <label for="pin">🔢 Enter Your 6-Digit PIN:</label>
-            <!-- FR-09: Invalid PIN Error Handling - HTML5 validation prevents format errors -->
-            <input type="text" name="pin" id="pin" required minlength="6" maxlength="6" 
-                   placeholder="123456" pattern="[0-9]{6}" title="Please enter a 6-digit PIN">
-            <button type="submit">🔑 Pick Up Parcel</button>
-        </form>
-        
-        <!-- FR-09: Invalid PIN Error Handling - Help section provides recovery guidance -->
-        <div class="help-box">
-            <h3>❓ Need help?</h3>
-            <ul>
-                <li><strong>Don't have a PIN?</strong> Check your email for the PIN or PIN generation link</li>
-                <li><strong>PIN expired?</strong> Use the "Request New PIN" button below</li>
-                <li><strong>Didn't receive an email?</strong> Check your spam folder or request a new PIN</li>
-                <li><strong>Having trouble?</strong> Contact support or visit the pickup location</li>
-            </ul>
-        </div>
-        
-        <div class="actions">
-            <a href="{{ url_for('main.request_new_pin_action') }}" class="help-link">🔄 Request New PIN</a>
-            <a href="{{ url_for('main.deposit_parcel') }}">📦 Deposit a Parcel</a>
-        </div>
+    }
+</style>
+
+<div class="card">
+    <div class="text-center mb-6">
+        <div class="icon">🔑</div>
+        <h1>Pick Up Your Parcel</h1>
+        <p>Enter your PIN to access the locker</p>
     </div>
-</body>
-</html>
+
+    <!-- FR-09: Invalid PIN Error Handling - Flash messages display PIN errors with user guidance -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flashes">
+        {% for category, message in messages %}
+          <li class="{{ category }}">{{ message }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+    
+    <div class="instructions-compact">
+        <h3>📋 How to pick up your parcel</h3>
+        <ol>
+            <li>Enter your 6-digit PIN below</li>
+            <li>Click "Pick Up" to open the locker</li>
+            <li>Collect your parcel</li>
+            <li>Close the locker securely</li>
+        </ol>
+    </div>
+    
+    <form method="POST">
+        <div class="form-group">
+            <label for="pin">🔢 Enter Your 6-Digit PIN</label>
+            <!-- FR-09: Invalid PIN Error Handling - HTML5 validation prevents format errors -->
+            <input type="text" 
+                   name="pin" 
+                   id="pin" 
+                   required 
+                   minlength="6" 
+                   maxlength="6" 
+                   placeholder="123456" 
+                   pattern="[0-9]{6}" 
+                   title="Please enter a 6-digit PIN"
+                   style="text-align: center; letter-spacing: 0.2em; font-size: 1.2em; font-weight: 600;">
+        </div>
+
+        <button type="submit" class="btn btn--success btn--large btn--full">
+            🔑 Pick Up Parcel
+        </button>
+    </form>
+    
+    <div class="button-row">
+        <a href="/request-new-pin" class="btn btn--secondary btn--large">
+            🔄 Request New PIN
+        </a>
+        <a href="/" class="btn btn--secondary btn--large">
+            🏠 Back to Home
+        </a>
+    </div>
+</div>
+{% endblock %}

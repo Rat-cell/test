@@ -1,4 +1,4 @@
-version: '3.8'
+
 
 services:
   # Redis for caching and session storage (optional but good for production)
@@ -47,7 +47,7 @@ services:
       # Flask Configuration
       - FLASK_ENV=production
       - FLASK_APP=run.py
-      - SECRET_KEY=your-super-secret-key-change-in-production
+      - SECRET_KEY=${SECRET_KEY}
       
       # Database Configuration (SQLite)
       - DATABASE_URL=sqlite:////app/databases/campus_locker.db

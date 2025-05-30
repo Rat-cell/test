@@ -1,203 +1,95 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Missing Parcel Report Submitted - Campus Locker System</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            background-color: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .alert-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .alert-icon {
-            font-size: 60px;
-            color: #dc3545;
-            margin-bottom: 10px;
-        }
-        h1 {
-            color: #dc3545;
-            margin: 0;
-            font-size: 28px;
-        }
-        .alert-details {
-            background-color: #f8d7da;
-            color: #721c24;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-            border-left: 4px solid #dc3545;
-        }
-        .detail-item {
-            margin: 10px 0;
-            font-size: 16px;
-        }
-        .next-steps {
-            background-color: #d1ecf1;
-            color: #0c5460;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-            border-left: 4px solid #bee5eb;
-        }
-        .next-steps h3 {
-            color: #0c5460;
-            margin-top: 0;
-        }
-        .actions {
-            margin-top: 30px;
-            text-align: center;
-        }
-        .btn {
-            display: inline-block;
-            padding: 12px 24px;
-            margin: 8px;
-            text-decoration: none;
-            border-radius: 6px;
-            font-weight: 600;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            transition: all 0.3s ease;
-        }
-        .btn-primary {
-            background-color: #007bff;
-            color: white;
-        }
-        .btn-primary:hover {
-            background-color: #0056b3;
-            color: white;
-        }
-        .btn-secondary {
-            background-color: #6c757d;
-            color: white;
-        }
-        .btn-secondary:hover {
-            background-color: #545b62;
-            color: white;
-        }
-        .reference-number {
-            background-color: #e2e3e5;
-            padding: 15px;
-            border-radius: 6px;
-            margin: 20px 0;
-            text-align: center;
-            font-family: monospace;
-            font-size: 18px;
-            font-weight: bold;
-        }
-        .timeline {
-            margin: 20px 0;
-        }
-        .timeline-item {
-            padding: 10px 0;
-            border-left: 3px solid #dee2e6;
-            padding-left: 15px;
-            margin-bottom: 10px;
-        }
-        .timeline-item.completed {
-            border-left-color: #28a745;
-            color: #155724;
-        }
-        .timeline-item.pending {
-            border-left-color: #ffc107;
-            color: #856404;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="alert-header">
-            <div class="alert-icon">🚨</div>
-            <h1>Missing Parcel Report Submitted</h1>
+{% extends "base.html" %}
+
+{% block title %}Missing Parcel Report Submitted - Campus Locker System{% endblock %}
+
+{% block header_title %}📋 Report Submitted{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="text-center mb-6">
+        <div style="font-size: 60px; color: var(--warning-color); margin-bottom: 1rem;">📋</div>
+        <h1 style="color: var(--error-color); margin-bottom: 0.5rem;">Missing Parcel Report Submitted</h1>
+        <p>Your report has been submitted for investigation</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert--{{ category }} mb-4">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="alert alert--error mb-6">
+        <h3>📋 Report Details</h3>
+        <div style="margin-bottom: 0.75rem;">
+            <strong>📦 Locker:</strong> #{{ parcel.locker_id }}
         </div>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            <div style="margin-bottom: 20px;">
-            {% for category, message in messages %}
-              <div class="next-steps">
-                <strong>{{ message }}</strong>
-              </div>
-            {% endfor %}
-            </div>
-          {% endif %}
-        {% endwith %}
-
-        <div class="alert-details">
-            <div class="detail-item">
-                <strong>📦 Parcel ID:</strong> {{ parcel_id }}
-            </div>
-            <div class="detail-item">
-                <strong>📅 Report Time:</strong> <span id="report-time">{{ report_time }}</span> UTC
-            </div>
-            <div class="detail-item">
-                <strong>🔍 Status:</strong> Report submitted successfully
-            </div>
+        <div style="margin-bottom: 0.75rem;">
+            <strong>📧 Recipient:</strong> {{ parcel.recipient_email }}
         </div>
-
-        <div class="reference-number">
-            Reference: MISSING-{{ parcel_id }}-<span id="reference-date">{{ reference_date }}</span>
+        <div style="margin-bottom: 0.75rem;">
+            <strong>📅 Report Date:</strong> {{ current_time }}
         </div>
-
-        <div class="next-steps">
-            <h3>📋 What Happens Next?</h3>
-            <div class="timeline">
-                <div class="timeline-item completed">
-                    ✅ <strong>Report Submitted</strong> - Your missing parcel report has been logged
-                </div>
-                <div class="timeline-item completed">
-                    ✅ <strong>Admin Notified</strong> - Administrators have been immediately notified via email
-                </div>
-                <div class="timeline-item pending">
-                    ⏳ <strong>Locker Inspection</strong> - The locker will be physically inspected
-                </div>
-                <div class="timeline-item pending">
-                    ⏳ <strong>Investigation</strong> - Security logs and footage will be reviewed
-                </div>
-                <div class="timeline-item pending">
-                    ⏳ <strong>Contact</strong> - An administrator will contact you within 24 hours
-                </div>
-            </div>
-        </div>
-
-        <div class="next-steps">
-            <h3>💡 Important Information</h3>
-            <ul>
-                <li><strong>Response Time:</strong> An administrator will contact you within 24 hours</li>
-                <li><strong>Locker Status:</strong> The locker has been taken out of service for inspection</li>
-                <li><strong>Investigation:</strong> This incident is now part of the audit trail</li>
-                <li><strong>Reference Number:</strong> Please keep the reference number above for your records</li>
-            </ul>
-        </div>
-
-        <div class="actions">
-            <a href="{{ url_for('main.deposit_parcel') }}" class="btn btn-primary">📦 Deposit New Parcel</a>
-            <a href="{{ url_for('main.pickup_parcel') }}" class="btn btn-secondary">🔑 Pickup Other Parcel</a>
-        </div>
-
-        <div style="margin-top: 30px; padding: 15px; background-color: #f8f9fa; border-radius: 6px; text-align: center; color: #6c757d;">
-            <small>
-                <strong>Contact Support:</strong> If you have immediate concerns, please contact campus security or the locker system administrators directly.
-            </small>
+        <div style="margin-bottom: 0;">
+            <strong>🔍 Status:</strong> Under Investigation
         </div>
     </div>
 
-    <script>
-        // Page loaded successfully - no client-side date formatting needed
-        console.log('Missing report confirmation page loaded');
-    </script>
-</body>
-</html> 
+    {% if reference_number %}
+    <div style="background-color: var(--bg-tertiary); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem; text-align: center;">
+        <h3 style="margin-bottom: 0.5rem;">📋 Reference Number</h3>
+        <div style="font-family: monospace; font-size: 1.25rem; font-weight: bold; color: var(--text-primary);">
+            {{ reference_number }}
+        </div>
+        <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin: 0.5rem 0 0 0;">
+            Save this number for future reference
+        </p>
+    </div>
+    {% endif %}
+
+    <div class="alert alert--info mb-6">
+        <h3>📋 What happens next?</h3>
+        <div style="margin: 1rem 0;">
+            <div style="padding: 0.75rem 0; border-left: 3px solid var(--success-color); padding-left: 1rem; margin-bottom: 0.75rem; color: var(--text-primary);">
+                ✅ <strong>Report Received</strong> - Your missing parcel report has been logged
+            </div>
+            <div style="padding: 0.75rem 0; border-left: 3px solid var(--warning-color); padding-left: 1rem; margin-bottom: 0.75rem; color: var(--text-secondary);">
+                🔍 <strong>Investigation Started</strong> - Administrators are reviewing the case
+            </div>
+            <div style="padding: 0.75rem 0; border-left: 3px solid var(--gray-300); padding-left: 1rem; margin-bottom: 0.75rem; color: var(--text-tertiary);">
+                📧 <strong>Follow-up Communication</strong> - You'll receive updates via email
+            </div>
+            <div style="padding: 0.75rem 0; border-left: 3px solid var(--gray-300); padding-left: 1rem; color: var(--text-tertiary);">
+                ✅ <strong>Resolution</strong> - Case will be resolved based on investigation findings
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert--warning mb-6">
+        <h3>⚠️ Important Information</h3>
+        <ul style="margin: 0; padding-left: 1.5rem;">
+            <li><strong>Investigation Time:</strong> Most cases are resolved within 24-48 hours</li>
+            <li><strong>Email Updates:</strong> You'll receive notifications at {{ parcel.recipient_email }}</li>
+            <li><strong>Contact Support:</strong> Use your reference number when contacting support</li>
+            <li><strong>Security Review:</strong> The locker will be inspected and secured</li>
+        </ul>
+    </div>
+
+    <div class="flex flex-col gap-4 mb-6">
+        <a href="/deposit" class="btn btn--primary btn--large">
+            📦 Deposit a Parcel
+        </a>
+        <a href="/" class="btn btn--secondary btn--large">
+            🏠 Back to Home
+        </a>
+    </div>
+
+    <div class="alert alert--info">
+        <h3>📞 Need Immediate Assistance?</h3>
+        <p style="margin: 0;">If this is an urgent matter or you need immediate assistance, please contact the Campus Locker System support team directly with your reference number.</p>
+    </div>
+</div>
+{% endblock %} 

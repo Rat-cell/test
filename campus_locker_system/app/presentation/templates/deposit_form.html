@@ -1,11 +1,19 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Deposit Parcel</title>
-</head>
-<body>
-    <h1>Deposit Parcel</h1>
+{% extends "base.html" %}
+
+{% block title %}Deposit Parcel - Campus Locker System{% endblock %}
+
+{% block header_title %}📦 Deposit Parcel{% endblock %}
+
+{% block container_class %}container--narrow{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="text-center mb-6">
+        <div class="icon">📦</div>
+        <h1>Deposit New Parcel</h1>
+        <p>Securely store a parcel for pickup by the recipient</p>
+    </div>
+
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <ul class="flashes">
@@ -15,21 +23,51 @@
         </ul>
       {% endif %}
     {% endwith %}
+
     <form method="POST">
-        <label for="parcel_size">Parcel Size:</label>
-        <select name="parcel_size" id="parcel_size" required>
-            <option value="small">Small</option>
-            <option value="medium">Medium</option>
-            <option value="large">Large</option>
-        </select><br><br>
+        <div class="form-group">
+            <label for="parcel_size">📏 Parcel Size</label>
+            <select name="parcel_size" id="parcel_size" required>
+                <option value="">Select parcel size</option>
+                <option value="small">📦 Small (fits in small locker)</option>
+                <option value="medium">📦 Medium (fits in medium locker)</option>
+                <option value="large">📦 Large (fits in large locker)</option>
+            </select>
+        </div>
 
-        <label for="recipient_email">Recipient Email:</label>
-        <input type="email" name="recipient_email" id="recipient_email" required><br><br>
+        <div class="form-group">
+            <label for="recipient_email">📧 Recipient Email Address</label>
+            <input type="email" 
+                   name="recipient_email" 
+                   id="recipient_email" 
+                   required
+                   placeholder="recipient@example.com"
+                   autocomplete="email">
+        </div>
 
-        <label for="confirm_recipient_email">Confirm Recipient Email:</label>
-        <input type="email" name="confirm_recipient_email" id="confirm_recipient_email" required><br><br>
+        <div class="form-group">
+            <label for="confirm_recipient_email">✅ Confirm Email Address</label>
+            <input type="email" 
+                   name="confirm_recipient_email" 
+                   id="confirm_recipient_email" 
+                   required
+                   placeholder="recipient@example.com"
+                   autocomplete="email">
+        </div>
 
-        <button type="submit">Deposit Parcel</button>
+        <button type="submit" class="btn btn--primary btn--large btn--full">
+            📦 Deposit Parcel
+        </button>
     </form>
-</body>
-</html>
+
+    <div class="alert alert--info mt-6">
+        <h3>📋 How it works</h3>
+        <ol style="margin: 0; padding-left: 1.5rem;">
+            <li>Choose the appropriate parcel size</li>
+            <li>Enter the recipient's email address</li>
+            <li>We'll assign an available locker</li>
+            <li>The recipient gets notified automatically</li>
+        </ol>
+    </div>
+</div>
+{% endblock %}

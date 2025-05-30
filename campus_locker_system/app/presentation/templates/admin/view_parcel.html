@@ -1,101 +1,180 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Admin - View Parcel {{ parcel.id }}</title>
-    <style>
-        .btn {
-            display: inline-block;
-            padding: 8px 16px;
-            margin: 5px;
-            text-decoration: none;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .btn-warning { background-color: #ffc107; color: #212529; }
-        .btn-info { background-color: #17a2b8; color: white; }
-        .btn-danger { background-color: #dc3545; color: white; }
-        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
-        .email-pin-info {
-            background-color: #e8f4fd;
-            border: 1px solid #17a2b8;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 15px 0;
-        }
-        .traditional-pin-info {
-            background-color: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 15px 0;
-        }
-    </style>
-</head>
-<body>
-    <h1>Parcel Details: ID {{ parcel.id }}</h1>
+{% extends "base.html" %}
+
+{% block title %}Admin - View Parcel {{ parcel.id }} - Campus Locker System{% endblock %}
+
+{% block header %}
+<a href="/admin/lockers" style="text-decoration: none; color: inherit;">
+    <div class="nav-title">
+        👤 Admin Dashboard - Parcel Details
+    </div>
+</a>
+{% endblock %}
+
+{% block container_class %}container--wide{% endblock %}
+
+{% block content %}
+<style>
+    .status-badge {
+        padding: 0.25rem 0.5rem;
+        color: white;
+        border-radius: 6px;
+        font-size: 0.875rem;
+    }
+    .status-picked-up {
+        background-color: #34C759;
+    }
+    .status-awaiting {
+        background-color: #FF9500;
+    }
+    .status-missing {
+        background-color: #FF3B30;
+    }
+    .status-disputed {
+        background-color: #AF52DE;
+    }
+    .status-deposited {
+        background-color: #007AFF;
+    }
+    .status-retracted {
+        background-color: #8E8E93;
+    }
+    .status-return-to-sender {
+        background-color: #6D6D70;
+    }
+    .code-snippet {
+        background-color: #F2F2F7;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-family: monospace;
+    }
+    .grid-info {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+</style>
+
+<div class="card">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1>📦 Parcel #{{ parcel.id }}</h1>
+            <p>Detailed parcel information and management</p>
+        </div>
+        <div class="flex gap-4">
+            <a href="/admin/lockers" class="btn btn--secondary">
+                ← Back to Lockers
+            </a>
+        </div>
+    </div>
+
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        <ul class=flashes>
         {% for category, message in messages %}
-          <li class="{{ category }}">{{ message }}</li>
+          <div class="alert alert--{{ category }} mb-4">
+            {{ message }}
+          </div>
         {% endfor %}
-        </ul>
       {% endif %}
     {% endwith %}
 
-    <p><strong>Status:</strong> {{ parcel.status }}</p>
-    <p><strong>Recipient Email:</strong> {{ parcel.recipient_email }}</p>
-    <p><strong>Locker ID:</strong> {{ parcel.locker_id if parcel.locker_id else 'N/A' }}</p>
-    {% if locker %}
-        <p><strong>Locker Status:</strong> {{ locker.status }}</p>
-    {% endif %}
-    <p><strong>Deposited At:</strong> {{ parcel.deposited_at.strftime('%Y-%m-%d %H:%M:%S') if parcel.deposited_at else 'N/A' }} UTC</p>
-    
-    <!-- Email-based PIN Generation Information -->
-    <div class="email-pin-info">
-        <h3>📧 Email-based PIN Generation</h3>
-        <p><strong>PIN Generation Token:</strong> {{ parcel.pin_generation_token[:16] }}... (truncated for security)</p>
-        <p><strong>Token Expiry:</strong> {{ parcel.pin_generation_token_expiry.strftime('%Y-%m-%d %H:%M:%S') if parcel.pin_generation_token_expiry else 'N/A' }} UTC</p>
-        <p><strong>PIN Generation Count:</strong> {{ parcel.pin_generation_count }}/3 (daily limit)</p>
-        <p><strong>Last PIN Generation:</strong> {{ parcel.last_pin_generation.strftime('%Y-%m-%d %H:%M:%S') if parcel.last_pin_generation else 'Never' }} UTC</p>
-        <p><strong>Current PIN Status:</strong> 
-            {% if parcel.pin_hash %}
-                <span style="color: green;">PIN Generated</span>
-            {% else %}
-                <span style="color: orange;">No PIN Generated Yet</span>
-            {% endif %}
-        </p>
+    <div class="alert alert--info mb-6">
+        <h3>📦 Basic Information</h3>
+        <div class="grid-info">
+            <div>
+                <strong>Parcel ID:</strong> {{ parcel.id }}
+            </div>
+            <div>
+                <strong>Locker:</strong> #{{ parcel.locker_id }}
+            </div>
+            <div>
+                <strong>Recipient Email:</strong> {{ parcel.recipient_email }}
+            </div>
+            <div>
+                <strong>Size:</strong> {{ parcel.size }}
+            </div>
+            <div>
+                <strong>Status:</strong> 
+                <span class="status-badge 
+                    {%- if parcel.status == 'picked_up' -%}status-picked-up
+                    {%- elif parcel.status == 'missing' -%}status-missing
+                    {%- elif parcel.status == 'deposited' -%}status-deposited
+                    {%- elif parcel.status == 'pickup_disputed' -%}status-disputed
+                    {%- elif parcel.status == 'retracted_by_sender' -%}status-retracted
+                    {%- elif parcel.status == 'return_to_sender' -%}status-return-to-sender
+                    {%- else -%}status-awaiting
+                    {%- endif -%}">
+                    {%- if parcel.status == 'picked_up' -%}Picked Up
+                    {%- elif parcel.status == 'missing' -%}Missing
+                    {%- elif parcel.status == 'deposited' -%}Deposited
+                    {%- elif parcel.status == 'pickup_disputed' -%}Pickup Disputed
+                    {%- elif parcel.status == 'retracted_by_sender' -%}Retracted by Sender
+                    {%- elif parcel.status == 'return_to_sender' -%}Return to Sender
+                    {%- else -%}{{ parcel.status|title }}
+                    {%- endif -%}
+                </span>
+            </div>
+            <div>
+                <strong>Deposited:</strong> {{ parcel.deposited_at.strftime('%Y-%m-%d %H:%M:%S') if parcel.deposited_at else 'Not set' }}
+            </div>
+        </div>
     </div>
-    
-    <!-- PIN Information -->
-    {% if parcel.pin_hash %}
-        <p><strong>PIN Hash:</strong> {{ parcel.pin_hash[:16] }}... (truncated for security)</p>
-        <p><strong>PIN Expiry:</strong> {{ parcel.otp_expiry.strftime('%Y-%m-%d %H:%M:%S') if parcel.otp_expiry else 'N/A' }} UTC</p>
-    {% else %}
-        <p><strong>PIN Status:</strong> <em>No PIN generated yet (email-based system)</em></p>
-    {% endif %}
-    
-    <!-- Admin Actions -->
-    {% if parcel.status in ['deposited', 'pickup_disputed'] %}
-    <form method="POST" action="{{ url_for('main.mark_parcel_missing_admin_action', parcel_id=parcel.id) }}" style="margin-top: 20px;">
-        <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to mark this parcel as MISSING? This action implies the parcel is not physically in the locker.');">Mark Parcel as Missing</button>
-    </form>
-    {% elif parcel.status == 'missing' %}
-    <p><em>This parcel is already marked as missing.</em></p>
-    {% endif %}
 
-    {% if parcel and parcel.status == 'deposited' %}
-        <!-- Email-based PIN system actions -->
-        <form method="POST" action="{{ url_for('main.regenerate_pin_token_admin_action', parcel_id=parcel.id) }}" style="display: inline; margin-top: 20px;">
-            <button type="submit" class="btn btn-info" onclick="return confirm('Are you sure you want to regenerate the PIN generation link? A new email with a fresh link will be sent to the recipient.');">Regenerate PIN Link</button>
+    <div class="alert alert--warning mb-6">
+        <h3>🔑 PIN Information</h3>
+        <div class="grid-info">
+            <div>
+                <strong>Generation Count:</strong> {{ parcel.pin_generation_count }}/3
+            </div>
+            <div>
+                <strong>Last Generated:</strong> {{ parcel.last_pin_generation.strftime('%Y-%m-%d %H:%M:%S') if parcel.last_pin_generation else 'Never' }}
+            </div>
+            <div>
+                <strong>Current PIN:</strong> 
+                {% if parcel.current_pin %}
+                    <code class="code-snippet">{{ parcel.current_pin }}</code>
+                {% else %}
+                    No active PIN
+                {% endif %}
+            </div>
+            <div>
+                <strong>PIN Expires:</strong> {{ parcel.pin_expires_at.strftime('%Y-%m-%d %H:%M:%S') if parcel.pin_expires_at else 'Not set' }}
+            </div>
+        </div>
+    </div>
+
+    <div class="flex gap-4 mb-6">
+        {% if parcel.status != 'missing' and parcel.status != 'picked_up' %}
+            <form method="POST" action="/admin/parcel/{{ parcel.id }}/mark-missing" style="display: inline;">
+                <button type="submit" class="btn btn--warning" onclick="return confirm('Mark this parcel as missing? This will notify administrators for investigation.')">
+                    📋 Mark Missing
+                </button>
+            </form>
+        {% endif %}
+        
+        <form method="POST" action="/admin/regenerate_pin_token/{{ parcel.id }}" style="display: inline;">
+            <button type="submit" class="btn btn--primary" onclick="return confirm('Reissue PIN link? This will reset the generation attempt counter and send a new email to the recipient.')">
+                🔄 Reissue PIN Link (Reset Attempts)
+            </button>
         </form>
-    {% endif %}
+        
+        <a href="/admin/audit-logs" class="btn btn--secondary">
+            📋 View Audit Logs
+        </a>
+    </div>
 
-    <p style="margin-top: 30px;">
-        <a href="{{ url_for('main.manage_lockers') }}">Back to Lockers List</a>
-    </p>
-</body>
-</html>
+    {% if parcel.picked_up_at %}
+    <div class="alert alert--success">
+        <h3>✅ Pickup Information</h3>
+        <div style="margin-top: 1rem;">
+            <div style="margin-bottom: 0.75rem;">
+                <strong>Picked up at:</strong> {{ parcel.picked_up_at.strftime('%Y-%m-%d %H:%M:%S') }}
+            </div>
+            <div style="margin-bottom: 0;">
+                <strong>PIN used:</strong> {{ parcel.pickup_pin_used if parcel.pickup_pin_used else 'Not recorded' }}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,40 +1,166 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Admin - Audit Logs</title>
-    <style>
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        .details-json { white-space: pre-wrap; word-break: break-all; font-family: monospace; }
-    </style>
-</head>
-<body>
-    <h1>Audit Logs</h1>
-    <p><a href="{{ url_for('main.admin_login') }}">Admin Home (Login Page for now)</a> | <a href="{{ url_for('main.deposit_parcel') }}">Deposit Page</a></p>
-    
+{% extends "base.html" %}
+
+{% block title %}Admin - Audit Logs - Campus Locker System{% endblock %}
+
+{% block header %}
+<a href="/admin/lockers" style="text-decoration: none; color: inherit;">
+    <div class="nav-title">
+        👤 Admin Dashboard - Audit Logs
+    </div>
+</a>
+{% endblock %}
+
+{% block container_class %}container--wide{% endblock %}
+
+{% block content %}
+<style>
+    .log-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+        background: white;
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+    }
+    .log-table th,
+    .log-table td {
+        padding: 0.5rem 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--gray-200);
+        vertical-align: top;
+    }
+    .log-table th {
+        background-color: var(--gray-100);
+        font-weight: 600;
+        color: var(--text-primary);
+        font-size: var(--font-size-sm);
+    }
+    .log-table tbody tr:hover {
+        background-color: var(--gray-50);
+    }
+    .timestamp-col {
+        width: 180px;
+        font-family: monospace;
+        font-size: var(--font-size-sm);
+    }
+    .action-col {
+        width: 250px;
+        font-weight: 500;
+        font-size: var(--font-size-sm);
+    }
+    .details-col {
+        width: auto;
+    }
+    .details-json {
+        white-space: pre-wrap;
+        word-break: break-all;
+        font-family: monospace;
+        font-size: var(--font-size-xs);
+        max-width: 400px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.4;
+    }
+    .log-summary {
+        text-align: center;
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    .log-summary-number {
+        font-size: 1.5rem;
+        color: var(--text-primary);
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+    .log-summary-label {
+        color: var(--text-secondary);
+        font-size: var(--font-size-sm);
+        margin: 0;
+    }
+</style>
+
+<div class="card">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1>📋 Audit Logs</h1>
+            <p>System activity and security logs</p>
+        </div>
+        <div class="flex gap-4">
+            <a href="/admin/lockers" class="btn btn--secondary">
+                ← Back to Lockers
+            </a>
+            <a href="/admin/lockers" class="btn btn--primary">
+                🏠 Dashboard
+            </a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert--{{ category }} mb-4">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
     {% if logs %}
-    <table>
+    <div class="alert alert--info mb-6">
+        <h3>📊 Log Summary</h3>
+        <div class="log-summary">
+            <div class="log-summary-number">{{ logs | length }}</div>
+            <div class="log-summary-label">Total Log Entries</div>
+        </div>
+    </div>
+
+    <table class="log-table">
         <thead>
             <tr>
-                <th>Timestamp (UTC)</th>
-                <th>Action</th>
-                <th>Details</th>
+                <th class="timestamp-col">Timestamp (UTC)</th>
+                <th class="action-col">Action</th>
+                <th class="details-col">Details</th>
             </tr>
         </thead>
         <tbody>
             {% for log_entry in logs %}
             <tr>
-                <td>{{ log_entry.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                <td>{{ log_entry.action }}</td>
-                <td><pre class="details-json">{{ log_entry.details }}</pre></td>
+                <td class="timestamp-col">
+                    {{ log_entry.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
+                </td>
+                <td class="action-col">
+                    {{ log_entry.action }}
+                </td>
+                <td class="details-col">
+                    <pre class="details-json">{{ log_entry.details }}</pre>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+
     {% else %}
-    <p>No audit logs found.</p>
+    <div class="alert alert--warning">
+        <h3>📝 No Audit Logs</h3>
+        <p style="margin: 0;">No audit log entries found. This could indicate that:</p>
+        <ul style="margin: 1rem 0 0 1.5rem;">
+            <li>The system is new and no activities have been logged yet</li>
+            <li>Audit logging is not properly configured</li>
+            <li>Log entries have been cleared or archived</li>
+        </ul>
+    </div>
     {% endif %}
-</body>
-</html>
+
+    <div class="alert alert--info mt-6">
+        <h3>📝 About Audit Logs</h3>
+        <p style="margin: 0;">Audit logs track all significant system activities including:</p>
+        <ul style="margin: 0.5rem 0 0 1.5rem;">
+            <li><strong>User Actions:</strong> Logins, parcel deposits, pickups</li>
+            <li><strong>System Events:</strong> PIN generations, status changes</li>
+            <li><strong>Security Events:</strong> Failed login attempts, invalid PINs</li>
+            <li><strong>Administrative Actions:</strong> Configuration changes, manual overrides</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
