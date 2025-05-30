@@ -4,7 +4,10 @@ from app.services.parcel_service import (
     assign_locker_and_create_parcel, 
     process_pickup,
     mark_parcel_missing_by_admin,
-    process_overdue_parcels
+    process_overdue_parcels,
+    report_parcel_missing_by_recipient,
+    process_reminder_notifications
+    # Removed send_individual_reminder since we're going fully automatic
 )
 from app.services.audit_service import AuditService
 from app.persistence.models import Locker, AuditLog, AdminUser, Parcel, LockerSensorData # Add LockerSensorData
@@ -18,6 +21,7 @@ from app.services.pin_service import (
     regenerate_pin_token,
     request_pin_regeneration_by_recipient_email_and_locker
 )
+from app.services.notification_service import NotificationService
 
 @main_bp.route('/health', methods=['GET'])
 def health_check():
@@ -145,6 +149,65 @@ def pickup_parcel():
                                message=success_message)
 
     return render_template('pickup_form.html')
+
+@main_bp.route('/report-missing/<int:parcel_id>', methods=['POST'])
+def report_missing_parcel_by_recipient(parcel_id):
+    """Route for recipients to report their parcel as missing after pickup"""
+    try:
+        # Get parcel before reporting as missing to access recipient email
+        parcel = db.session.get(Parcel, parcel_id)
+        if not parcel:
+            flash('Parcel not found.', 'error')
+            return redirect(url_for('main.pickup_parcel'))
+        
+        # Store recipient email for admin notification
+        recipient_email = parcel.recipient_email
+        locker_id = parcel.locker_id
+        
+        # Use existing business logic to report parcel missing
+        result_parcel, error = report_parcel_missing_by_recipient(parcel_id)
+        
+        if error:
+            flash(f'Error reporting parcel as missing: {error}', 'error')
+            return redirect(url_for('main.pickup_parcel'))
+        
+        # Send admin notification email
+        admin_notification_success, admin_notification_message = NotificationService.send_parcel_missing_admin_notification(
+            parcel_id=parcel_id,
+            locker_id=locker_id,
+            recipient_email=recipient_email
+        )
+        
+        if not admin_notification_success:
+            current_app.logger.warning(f"Admin notification failed for missing parcel {parcel_id}: {admin_notification_message}")
+        
+        # Enhanced audit logging for recipient-reported missing parcel
+        admin_id = None  # No admin involved - this is recipient action
+        AuditService.log_event("PARCEL_REPORTED_MISSING_BY_RECIPIENT_UI", details={
+            "parcel_id": parcel_id,
+            "locker_id": locker_id,
+            "recipient_email_domain": recipient_email.split('@')[1] if '@' in recipient_email else 'unknown',
+            "reported_via": "Web_UI_after_pickup",
+            "admin_notified": admin_notification_success
+        })
+        
+        flash('Your parcel has been reported as missing. The administrators have been notified and will investigate.', 'success')
+        
+        # Generate formatted datetime strings for the template
+        from datetime import datetime
+        now = datetime.utcnow()
+        report_time = now.strftime('%Y-%m-%d %H:%M:%S')
+        reference_date = now.strftime('%Y%m%d')
+        
+        return render_template('missing_report_confirmation.html', 
+                               parcel_id=parcel_id,
+                               report_time=report_time,
+                               reference_date=reference_date)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in report missing parcel route for parcel {parcel_id}: {str(e)}")
+        flash('An unexpected error occurred. Please try again later.', 'error')
+        return redirect(url_for('main.pickup_parcel'))
 
 @main_bp.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
@@ -454,3 +517,66 @@ def update_locker_status(locker_id):
         flash(f"Locker {locker_id} status successfully updated to '{new_status}'.", "success")
     
     return redirect(url_for('main.manage_lockers'))
+
+@main_bp.route('/system/process-reminders', methods=['POST', 'GET'])
+def automatic_reminder_processing():
+    """
+    FR-04: Automatic bulk reminder processing endpoint (no admin auth required)
+    FR-04: This endpoint is designed to be called automatically by scheduled tasks
+    FR-04: Processes all eligible parcels and sends reminder notifications
+    
+    This is a system endpoint that can be called by:
+    - Cron jobs
+    - Health check systems
+    - Automated monitoring scripts
+    - Docker container scheduled tasks
+    
+    No authentication required for automation purposes.
+    """
+    try:
+        # FR-04: Process all eligible reminders automatically
+        processed_count, error_count = process_reminder_notifications()
+        
+        # FR-04: Log the automatic processing event
+        AuditService.log_event("FR-04_AUTOMATIC_BULK_REMINDER_PROCESSING", {
+            "processed_count": processed_count,
+            "error_count": error_count,
+            "total_eligible": processed_count + error_count,
+            "trigger_source": "automatic_system_endpoint",
+            "success_rate": f"{(processed_count / (processed_count + error_count) * 100) if (processed_count + error_count) > 0 else 100:.1f}%"
+        })
+        
+        # FR-04: Return JSON response for automated callers
+        if request.method == 'GET':
+            # Allow GET for simple health check / monitoring
+            return jsonify({
+                "status": "success",
+                "message": f"Automatic reminder processing completed",
+                "processed_count": processed_count,
+                "error_count": error_count,
+                "total_eligible": processed_count + error_count
+            }), 200
+        else:
+            # POST request - return status
+            return jsonify({
+                "status": "success",
+                "message": f"Processed {processed_count} reminders, {error_count} errors",
+                "processed_count": processed_count,
+                "error_count": error_count
+            }), 200
+            
+    except Exception as e:
+        current_app.logger.error(f"FR-04: Error in automatic reminder processing: {str(e)}")
+        
+        # FR-04: Log the error for debugging
+        AuditService.log_event("FR-04_AUTOMATIC_REMINDER_PROCESSING_ERROR", {
+            "error_message": str(e),
+            "trigger_source": "automatic_system_endpoint"
+        })
+        
+        return jsonify({
+            "status": "error",
+            "message": f"Error processing reminders: {str(e)}",
+            "processed_count": 0,
+            "error_count": 1
+        }), 500

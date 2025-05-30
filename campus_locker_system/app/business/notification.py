@@ -13,6 +13,7 @@ class NotificationType(Enum):
     PIN_REGENERATION = "pin_regeneration"
     OVERDUE_NOTICE = "overdue_notice"
     PICKUP_CONFIRMATION = "pickup_confirmation"
+    PICKUP_REMINDER = "pickup_reminder"
 
 @dataclass
 class EmailTemplate:
@@ -132,6 +133,41 @@ This PIN replaces any previous PIN for this parcel.
 
 Campus Locker System""",
             notification_type=NotificationType.PIN_REGENERATION
+        ),
+        NotificationType.PICKUP_REMINDER: EmailTemplate(
+            subject="⏰ Reminder: Your Parcel is Ready for Pickup",
+            body="""Hello!
+
+This is a friendly reminder that your parcel has been waiting for pickup for 24 hours.
+
+PICKUP DETAILS:
+• Locker: #{{locker_id}}
+• Deposited: {{deposited_time}}
+• Days remaining: {{days_remaining}} days
+
+GENERATE YOUR PIN:
+To get your pickup PIN, click the link below:
+{{pin_generation_url}}
+
+🔄 NEED A NEW PIN?
+If you already received a PIN but need a new one, you can regenerate it using the same link above.
+
+PICKUP INSTRUCTIONS:
+1. Click the link above to get your PIN
+2. Go to the pickup location
+3. Enter your PIN at the locker
+4. Open locker #{{locker_id}} and collect your parcel
+
+IMPORTANT REMINDERS:
+• You have {{days_remaining}} days remaining to collect your parcel
+• After {parcel_max_pickup_days} days, uncollected parcels are returned to sender
+• Each PIN is valid for {pin_expiry_hours} hours after generation
+• You can generate up to 3 PINs per day
+
+Don't wait too long - collect your parcel today!
+
+Campus Locker System""",
+            notification_type=NotificationType.PICKUP_REMINDER
         )
     }
     
@@ -378,6 +414,70 @@ Campus Locker System""",
         }
         return dynamic_template.format_with_data(data)
     
+    @classmethod
+    def create_24h_reminder_email(cls, parcel_id: int, locker_id: int, deposited_time: datetime, pin_generation_url: str) -> FormattedEmail:
+        """
+        FR-04: Create email for configurable-hour parcel pickup reminder
+        FR-04: Timing is configurable via REMINDER_HOURS_AFTER_DEPOSIT config parameter
+        """
+        # FR-04: Get configuration values - timing is client-configurable
+        from flask import current_app
+        pin_expiry_hours = current_app.config.get('PIN_EXPIRY_HOURS', 24)
+        parcel_max_pickup_days = current_app.config.get('PARCEL_MAX_PICKUP_DAYS', 7)
+        reminder_hours = current_app.config.get('REMINDER_HOURS_AFTER_DEPOSIT', 24)  # FR-04: Configurable reminder timing
+        
+        # FR-04: Calculate days remaining for reminder context
+        from datetime import datetime
+        days_deposited = (datetime.utcnow() - deposited_time).days + 1  # +1 for current day
+        days_remaining = max(0, parcel_max_pickup_days - days_deposited)
+        
+        # FR-04: Create dynamic template for configurable-hour reminder
+        dynamic_template = EmailTemplate(
+            subject="⏰ Reminder: Your Parcel is Ready for Pickup",
+            body=f"""Hello!
+
+This is a friendly reminder that your parcel has been waiting for pickup for {reminder_hours} hours.
+
+PICKUP DETAILS:
+• Locker: #{{locker_id}}
+• Deposited: {{deposited_time}}
+• Days remaining: {{days_remaining}} days
+
+GENERATE YOUR PIN:
+To get your pickup PIN, click the link below:
+{{pin_generation_url}}
+
+🔄 NEED A NEW PIN?
+If you already received a PIN but need a new one, you can regenerate it using the same link above.
+
+PICKUP INSTRUCTIONS:
+1. Click the link above to get your PIN
+2. Go to the pickup location
+3. Enter your PIN at the locker
+4. Open locker #{{locker_id}} and collect your parcel
+
+IMPORTANT REMINDERS:
+• You have {{days_remaining}} days remaining to collect your parcel
+• After {parcel_max_pickup_days} days, uncollected parcels are returned to sender
+• Each PIN is valid for {pin_expiry_hours} hours after generation
+• You can generate up to 3 PINs per day
+
+Don't wait too long - collect your parcel today!
+
+Campus Locker System""",
+            notification_type=NotificationType.PICKUP_REMINDER
+        )
+        
+        # FR-04: Format email data with configurable timing context
+        data = {
+            'parcel_id': parcel_id,
+            'locker_id': locker_id,
+            'deposited_time': deposited_time.strftime('%Y-%m-%d %H:%M:%S') + ' UTC',
+            'pin_generation_url': pin_generation_url,
+            'days_remaining': days_remaining
+        }
+        return dynamic_template.format_with_data(data)
+    
     @staticmethod
     def validate_email_address(email: str) -> bool:
         """Basic email validation business rule"""
@@ -385,12 +485,77 @@ Campus Locker System""",
         pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         return bool(re.match(pattern, email))
     
-    @staticmethod
-    def is_delivery_allowed(recipient_email: str) -> bool:
-        """Business rule to determine if email delivery is allowed"""
-        # Basic validation - can be extended for blacklists, rate limiting, etc.
-        if not NotificationManager.validate_email_address(recipient_email):
+    @classmethod
+    def is_delivery_allowed(cls, email: str) -> bool:
+        """Business rule: Check if email delivery is allowed for the given address"""
+        if not email or '@' not in email:
             return False
         
-        # Add additional business rules here (e.g., check blocklist, rate limits)
-        return True 
+        # Add business rules for blocked domains, addresses, etc.
+        blocked_domains = ['noreply.example.com', 'blocked.domain.com']
+        domain = email.split('@')[1].lower()
+        
+        return domain not in blocked_domains
+    
+    @classmethod
+    def create_parcel_missing_admin_email(cls, parcel_id: int, locker_id: int, recipient_email: str) -> FormattedEmail:
+        """
+        FR-06: Report Missing Item - Create admin notification email when parcel is reported missing by recipient
+        
+        Implements FR-06 requirement for comprehensive admin notification:
+        - Creates urgent notification email with incident details
+        - Includes immediate action items for administrators
+        - Provides direct links to admin panel for investigation
+        - Triggers security investigation workflow
+        """
+        from datetime import datetime
+        from flask import current_app
+        
+        # FR-06: Create dynamic template for admin notification with comprehensive incident details
+        admin_notification_template = EmailTemplate(
+            subject="🚨 Parcel Reported Missing - Action Required",
+            body="""URGENT: Parcel Missing Report
+
+A recipient has reported their parcel as missing after pickup attempt.
+
+INCIDENT DETAILS:
+• Parcel ID: {parcel_id}
+• Locker ID: {locker_id}
+• Recipient: {recipient_email}
+• Reported: {report_time}
+
+IMMEDIATE ACTIONS REQUIRED:
+1. Inspect locker #{locker_id} for physical contents
+2. Review security footage for pickup attempt
+3. Check locker sensors and access logs
+4. Contact recipient at {recipient_email} for details
+
+SYSTEM STATUS:
+• Parcel status: MISSING
+• Locker status: OUT_OF_SERVICE (requires admin inspection)
+
+ADMIN PANEL ACCESS:
+View parcel details: {admin_panel_url}
+
+This incident has been logged in the audit system for investigation.
+
+Campus Locker System - Security Alert""",
+            notification_type=NotificationType.OVERDUE_NOTICE  # Reusing existing type for admin notifications
+        )
+        
+        # FR-06: Generate admin panel URL for direct access to incident details
+        try:
+            from flask import url_for
+            admin_panel_url = url_for('main.view_parcel_admin', parcel_id=parcel_id, _external=True)
+        except:
+            admin_panel_url = f"http://localhost/admin/parcel/{parcel_id}/view"
+        
+        data = {
+            'parcel_id': parcel_id,
+            'locker_id': locker_id,
+            'recipient_email': recipient_email,
+            'report_time': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S') + ' UTC',
+            'admin_panel_url': admin_panel_url
+        }
+        
+        return admin_notification_template.format_with_data(data) 

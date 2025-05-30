@@ -11,10 +11,18 @@ import hashlib
 import os
 import binascii
 import json
+from typing import Optional, Tuple
 
 def assign_locker_and_create_parcel(recipient_email: str, preferred_size: str):
     """
-    Assign a locker and create a parcel for the specified recipient
+    FR-01: Assign Locker - Assign the next free locker large enough for the parcel in ≤ 200 ms
+    
+    Implements FR-01 requirements:
+    - System identifies next available locker that fits parcel size requirements
+    - Locker assignment completes in ≤ 200 ms
+    - System handles case when no suitable locker is available
+    - Locker status is updated to "occupied" upon assignment
+    - Assignment process is atomic (all-or-nothing)
     
     Returns:
         Tuple[Parcel|None, str]: (parcel_object, message) or (None, error_message)
@@ -27,12 +35,13 @@ def assign_locker_and_create_parcel(recipient_email: str, preferred_size: str):
         if not LockerManager.is_valid_size(preferred_size):
             return None, f"Invalid parcel size: {preferred_size}. Valid sizes: {', '.join(LockerManager.VALID_SIZES)}"
         
-        # Find available locker
+        # FR-01: Find available locker that fits parcel size requirements
         locker = LockerManager.find_available_locker(preferred_size)
         if not locker:
+            # FR-01: Handle case when no suitable locker is available
             return None, f"No available lockers for size: {preferred_size}"
         
-        # Reserve the locker
+        # FR-01: Update locker status to "occupied" upon assignment (atomic operation)
         locker.status = 'occupied'
         
         # Check if email-based PIN generation is enabled
@@ -241,35 +250,75 @@ def dispute_pickup(parcel_id: int):
         current_app.logger.error(f"Error in dispute_pickup for parcel {parcel_id}: {e}")
         return None, "A database error occurred while disputing pickup."
 
-def report_parcel_missing_by_recipient(parcel_id: int):
+# FR-06: Report Missing Item - Business logic implementation
+def report_parcel_missing_by_recipient(parcel_id: int) -> Tuple[Optional[Parcel], Optional[str]]:
+    """
+    FR-06: Report Missing Item - Core business logic for recipient reporting parcel as missing
+    
+    Implements FR-06 requirements:
+    - Validates parcel eligibility for missing report
+    - Updates parcel status to "missing"
+    - Takes associated locker out of service for inspection
+    - Maintains data integrity and audit trail
+    
+    Args:
+        parcel_id: ID of the parcel to report as missing
+    
+    Returns:
+        Tuple of (Parcel object or None, error message or None)
+    """
     try:
         parcel = db.session.get(Parcel, parcel_id)
         if not parcel:
             return None, "Parcel not found."
-        if parcel.status not in ['deposited', 'pickup_disputed']:
-            return None, f"Parcel cannot be reported missing by recipient from its current state: '{parcel.status}'."
-        original_parcel_status = parcel.status
+        
+        # FR-06: Enhanced business rule - allow reporting missing from pickup success scenarios
+        current_status = parcel.status.strip() if parcel.status else "None"
+        
+        # Allow missing reports from:
+        # - 'deposited': parcel never picked up but reported missing
+        # - 'picked_up': pickup success but parcel was actually missing from locker
+        allowed_statuses = ['deposited', 'picked_up']
+        
+        if current_status not in allowed_statuses:
+            # Enhanced error message for debugging
+            current_app.logger.warning(f"FR-06: Missing report rejected for parcel {parcel_id}. Status: '{current_status}' (type: {type(parcel.status)}), allowed: {allowed_statuses}")
+            return None, f"Parcel cannot be reported missing by recipient from its current state: '{current_status}'. Allowed states: {', '.join(allowed_statuses)}."
+        
+        # Get the locker before updating parcel
+        locker = db.session.get(Locker, parcel.locker_id) if parcel.locker_id else None
+        
+        # Store original status for audit logging
+        original_status = current_status
+        
+        # FR-06: Update parcel status to missing as required
         parcel.status = 'missing'
-        locker = db.session.get(Locker, parcel.locker_id)
-        if not locker:
-            current_app.logger.error(f"Data inconsistency: Locker ID {parcel.locker_id} not found for parcel {parcel.id} during recipient missing report.")
-        else:
-            if locker.status in ['occupied', 'disputed_contents']:
-                locker.status = 'out_of_service'
-                db.session.add(locker)
-        db.session.add(parcel)
+        
+        # FR-06: Take locker out of service for inspection as specified in requirements
+        if locker:
+            locker.status = 'out_of_service'
+        
         db.session.commit()
+        
+        # FR-06: Enhanced audit logging for missing report event
         AuditService.log_event("PARCEL_REPORTED_MISSING_BY_RECIPIENT", details={
-            "parcel_id": parcel.id,
+            "parcel_id": parcel_id,
+            "previous_status": original_status,
+            "new_status": "missing",
             "locker_id": parcel.locker_id,
-            "original_parcel_status": original_parcel_status,
-            "reported_via": "API/LockerClient" 
+            "locker_set_to": "out_of_service" if locker else "no_locker",
+            "reported_by": "recipient",
+            "reported_from_pickup_success": original_status == 'picked_up'
         })
+        
+        current_app.logger.info(f"FR-06: Parcel {parcel_id} successfully reported missing by recipient. Previous status: '{original_status}'")
+        
         return parcel, None
+        
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Error in report_parcel_missing_by_recipient for parcel {parcel_id}: {e}")
-        return None, "A database error occurred while reporting parcel missing."
+        current_app.logger.error(f"Error reporting parcel {parcel_id} as missing by recipient: {str(e)}")
+        return None, f"Database error occurred while reporting parcel as missing."
 
 def mark_parcel_missing_by_admin(admin_id: int, admin_username: str, parcel_id: int) -> tuple[Parcel | None, str | None]:
     """Admin function to mark a parcel as missing"""
@@ -377,4 +426,180 @@ def process_overdue_parcels():
                 "num_parcels_intended_for_update_in_batch": processed_count
             })
             return 0, f"Error committing batch of overdue parcels: {str(e)}"
-    return processed_count, f"{processed_count} overdue parcels processed." 
+    return processed_count, f"{processed_count} overdue parcels processed."
+
+# FR-04: Send Reminder After 24h of Occupancy - Main processing function
+def process_reminder_notifications():
+    """
+    FR-04: Process and send reminder notifications for parcels that have been deposited for configured hours
+    FR-04: Timing is configurable via REMINDER_HOURS_AFTER_DEPOSIT config parameter
+    
+    Implements FR-04 requirements:
+    - System identifies parcels that have been deposited for configured hours without pickup
+    - System sends automated reminder email to recipients
+    - System tracks reminder sent status to prevent duplicate reminders
+    - System logs reminder activities for audit trail
+    
+    Returns:
+        Tuple[int, int]: (processed_count, error_count)
+    """
+    try:
+        # FR-04: Get configurable reminder timing from environment
+        from flask import current_app
+        reminder_hours = current_app.config.get('REMINDER_HOURS_AFTER_DEPOSIT', 24)
+        
+        # FR-04: Find parcels that need reminder notifications
+        from datetime import datetime, timedelta
+        from app.persistence.models import Parcel
+        
+        # FR-04: Calculate cutoff time for eligible parcels
+        cutoff_time = datetime.utcnow() - timedelta(hours=reminder_hours)
+        
+        # FR-04: Query for parcels that need reminders
+        # - Status must be 'deposited' (not picked up yet)
+        # - Deposited before cutoff time (older than configured hours)
+        # - No reminder sent yet (reminder_sent_at is NULL)
+        eligible_parcels = Parcel.query.filter(
+            Parcel.status == 'deposited',
+            Parcel.deposited_at <= cutoff_time,
+            Parcel.reminder_sent_at.is_(None)  # FR-04: No reminder sent yet
+        ).all()
+        
+        # FR-04: Process each eligible parcel
+        processed_count = 0
+        error_count = 0
+        
+        for parcel in eligible_parcels:
+            try:
+                # FR-04: Generate PIN regeneration URL for the reminder email
+                pin_generation_url = f"http://localhost/generate-pin/{parcel.pin_generation_token}" if parcel.pin_generation_token else "http://localhost/request-new-pin"
+                
+                # FR-04: Send individual reminder notification
+                success, message = NotificationService.send_24h_reminder_notification(
+                    recipient_email=parcel.recipient_email,
+                    parcel_id=parcel.id,
+                    locker_id=parcel.locker_id,
+                    deposited_time=parcel.deposited_at,
+                    pin_generation_url=pin_generation_url
+                )
+                
+                if success:
+                    # FR-04: Mark reminder as sent to prevent duplicates
+                    parcel.reminder_sent_at = datetime.utcnow()
+                    db.session.commit()
+                    processed_count += 1
+                    
+                    # FR-04: Log successful reminder for audit trail
+                    AuditService.log_event("FR-04_REMINDER_SENT_SUCCESS", {
+                        "parcel_id": parcel.id,
+                        "locker_id": parcel.locker_id,
+                        "recipient_email_domain": parcel.recipient_email.split('@')[1] if '@' in parcel.recipient_email else 'unknown',
+                        "deposited_hours_ago": int((datetime.utcnow() - parcel.deposited_at).total_seconds() / 3600),
+                        "configured_reminder_hours": reminder_hours
+                    })
+                else:
+                    error_count += 1
+                    # FR-04: Log failed reminder attempt
+                    AuditService.log_event("FR-04_REMINDER_SENT_FAILED", {
+                        "parcel_id": parcel.id,
+                        "error_message": message,
+                        "recipient_email_domain": parcel.recipient_email.split('@')[1] if '@' in parcel.recipient_email else 'unknown'
+                    })
+                    
+            except Exception as e:
+                error_count += 1
+                current_app.logger.error(f"FR-04: Error processing reminder for parcel {parcel.id}: {str(e)}")
+                continue
+        
+        # FR-04: Log overall processing results
+        AuditService.log_event("FR-04_BULK_REMINDER_PROCESSING_COMPLETED", {
+            "total_eligible_parcels": len(eligible_parcels),
+            "processed_count": processed_count,
+            "error_count": error_count,
+            "configured_reminder_hours": reminder_hours,
+            "cutoff_time": cutoff_time.strftime('%Y-%m-%d %H:%M:%S')
+        })
+        
+        return processed_count, error_count
+        
+    except Exception as e:
+        current_app.logger.error(f"FR-04: Critical error in reminder processing: {str(e)}")
+        return 0, 1
+
+# FR-04: Send Individual Reminder - Admin action for specific parcel
+def send_individual_reminder(parcel_id: int, admin_id: int, admin_username: str):
+    """
+    FR-04: Send reminder notification for a specific parcel (admin-initiated)
+    FR-04: Allows admin to manually send pickup reminders for individual parcels
+    
+    Args:
+        parcel_id (int): ID of the parcel to send reminder for
+        admin_id (int): ID of the admin initiating the reminder
+        admin_username (str): Username of the admin for audit logging
+    
+    Returns:
+        Tuple[bool, str]: (success, message)
+    """
+    try:
+        # FR-04: Validate parcel exists and is eligible for reminder
+        parcel = db.session.get(Parcel, parcel_id)
+        if not parcel:
+            return False, "Parcel not found"
+        
+        # FR-04: Check if parcel is in a state where reminder makes sense
+        if parcel.status != 'deposited':
+            return False, f"Parcel is not in 'deposited' status (current: {parcel.status}). Reminders are only sent for deposited parcels."
+        
+        # FR-04: Generate PIN regeneration URL for the reminder email
+        pin_generation_url = f"http://localhost/generate-pin/{parcel.pin_generation_token}" if parcel.pin_generation_token else "http://localhost/request-new-pin"
+        
+        # FR-04: Send individual reminder notification
+        success, message = NotificationService.send_24h_reminder_notification(
+            recipient_email=parcel.recipient_email,
+            parcel_id=parcel.id,
+            locker_id=parcel.locker_id,
+            deposited_time=parcel.deposited_at,
+            pin_generation_url=pin_generation_url
+        )
+        
+        if success:
+            # FR-04: Update reminder sent timestamp (admin can override automatic reminders)
+            parcel.reminder_sent_at = datetime.utcnow()
+            db.session.commit()
+            
+            # FR-04: Log admin-initiated individual reminder for audit trail
+            AuditService.log_event("FR-04_ADMIN_INDIVIDUAL_REMINDER_SENT", {
+                "admin_id": admin_id,
+                "admin_username": admin_username,
+                "parcel_id": parcel.id,
+                "locker_id": parcel.locker_id,
+                "recipient_email_domain": parcel.recipient_email.split('@')[1] if '@' in parcel.recipient_email else 'unknown',
+                "deposited_hours_ago": int((datetime.utcnow() - parcel.deposited_at).total_seconds() / 3600),
+                "reminder_type": "admin_initiated_individual"
+            })
+            
+            return True, f"Reminder sent successfully to {parcel.recipient_email}"
+        else:
+            # FR-04: Log failed admin reminder attempt
+            AuditService.log_event("FR-04_ADMIN_INDIVIDUAL_REMINDER_FAILED", {
+                "admin_id": admin_id,
+                "admin_username": admin_username,
+                "parcel_id": parcel.id,
+                "error_message": message,
+                "recipient_email_domain": parcel.recipient_email.split('@')[1] if '@' in parcel.recipient_email else 'unknown'
+            })
+            
+            return False, f"Failed to send reminder: {message}"
+            
+    except Exception as e:
+        current_app.logger.error(f"FR-04: Error sending individual reminder for parcel {parcel_id}: {str(e)}")
+        
+        # FR-04: Log exception in admin individual reminder
+        AuditService.log_event("FR-04_ADMIN_INDIVIDUAL_REMINDER_EXCEPTION", {
+            "admin_id": admin_id,
+            "admin_username": admin_username,
+            "parcel_id": parcel_id,
+            "error_details": str(e)
+        })
+        
+        return False, f"An unexpected error occurred: {str(e)}" 

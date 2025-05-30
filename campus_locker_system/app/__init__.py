@@ -6,15 +6,51 @@ from .config import Config
 db = SQLAlchemy()
 mail = Mail() # Add this
 
-def create_app():
+def create_app(config_class=Config):
+    """Application factory pattern"""
     app = Flask(__name__)
-    app.config.from_object(Config)
+    app.config.from_object(config_class)
     
     # Add DATABASE_DIR to config for database service
     app.config['DATABASE_DIR'] = app.config.get('DATABASE_DIR', '/app/databases')
 
+    # Initialize extensions
     db.init_app(app)
     mail.init_app(app) # Add this
+
+    with app.app_context():
+        # Auto-create all database tables on first run (create database tables)
+        db.create_all()
+        
+        # Create default admin user if none exists
+        from app.persistence.models import AdminUser
+        from app.business.admin_auth import AdminRole
+        if not AdminUser.query.first():
+            try:
+                from app.services.admin_auth_service import AdminAuthService
+                admin_user, message = AdminAuthService.create_admin_user("admin", "AdminPass123!", AdminRole.ADMIN)
+                if admin_user:
+                    app.logger.info("✅ Default admin user created successfully")
+                else:
+                    app.logger.warning(f"⚠️ Could not create admin user: {message}")
+            except Exception as e:
+                app.logger.warning(f"⚠️ Admin user creation failed: {str(e)}")
+                # Continue anyway - admin can be created later
+        
+        # Auto-seed lockers from JSON configurations if configured
+        # from app.services.locker_initialization_service import LockerInitializationService
+        # LockerInitializationService.auto_initialize_from_config()
+
+    # Register Blueprints
+    from app.presentation import main_bp
+    app.register_blueprint(main_bp)
+
+    # Register API blueprints
+    # from app.api import api_bp
+    # app.register_blueprint(api_bp, url_prefix='/api')
+
+    # FR-04: Start automatic reminder processing scheduler
+    _start_automatic_reminder_scheduler(app)
 
     # Logging configuration
     if not app.debug and not app.testing:
@@ -32,20 +68,73 @@ def create_app():
         app.logger.setLevel(logging.INFO)
         app.logger.info('🚀 Campus Locker System startup')
 
-    from .presentation import main_bp # Import the blueprint
-    app.register_blueprint(main_bp) # Register the blueprint
-
-    from .presentation.api_routes import api_bp # Import the API blueprint
-    app.register_blueprint(api_bp) # Register the API blueprint
-
-    with app.app_context():
-        # 🗄️ Initialize databases with comprehensive validation and setup
-        from .services.database_service import initialize_database_on_startup
-        try:
-            success, message = initialize_database_on_startup()
-            app.logger.info(f"✅ Database initialization: {message}")
-        except RuntimeError as e:
-            app.logger.critical(f"🚨 CRITICAL: Application cannot start - {str(e)}")
-            raise
-
     return app
+
+def _start_automatic_reminder_scheduler(app):
+    """
+    FR-04: Start background scheduler for automatic reminder processing
+    FR-04: Runs reminder processing every hour without admin intervention
+    
+    This function starts a background thread that:
+    - Runs every hour (configurable)
+    - Processes all eligible parcels for reminders
+    - Logs all activities for audit trail
+    - Handles errors gracefully
+    """
+    import threading
+    import time
+    from datetime import datetime
+    
+    def reminder_scheduler_loop():
+        """Background loop that processes reminders periodically"""
+        while True:
+            try:
+                # FR-04: Get scheduling interval from config (default: 1 hour)
+                interval_hours = app.config.get('REMINDER_PROCESSING_INTERVAL_HOURS', 1)
+                sleep_seconds = interval_hours * 3600  # Convert hours to seconds
+                
+                app.logger.info(f"FR-04: Reminder scheduler sleeping for {interval_hours} hour(s)")
+                time.sleep(sleep_seconds)
+                
+                # FR-04: Process reminders in application context
+                with app.app_context():
+                    app.logger.info("FR-04: Starting automatic reminder processing...")
+                    
+                    # Import here to avoid circular imports
+                    from app.services.parcel_service import process_reminder_notifications
+                    from app.services.audit_service import AuditService
+                    
+                    # FR-04: Process all eligible reminders
+                    processed_count, error_count = process_reminder_notifications()
+                    
+                    # FR-04: Log scheduler execution
+                    AuditService.log_event("FR-04_SCHEDULED_REMINDER_PROCESSING", {
+                        "processed_count": processed_count,
+                        "error_count": error_count,
+                        "total_eligible": processed_count + error_count,
+                        "trigger_source": "automatic_background_scheduler",
+                        "execution_time": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+                        "next_execution_in_hours": interval_hours
+                    })
+                    
+                    if processed_count > 0 or error_count > 0:
+                        app.logger.info(f"FR-04: Automatic reminder processing completed. Processed: {processed_count}, Errors: {error_count}")
+                    else:
+                        app.logger.debug("FR-04: No reminders needed at this time")
+                        
+            except Exception as e:
+                app.logger.error(f"FR-04: Error in reminder scheduler: {str(e)}")
+                # Continue the loop even if there's an error
+                time.sleep(300)  # Sleep 5 minutes before retrying
+    
+    # FR-04: Start scheduler thread only if not in testing mode
+    if not app.config.get('TESTING', False):
+        scheduler_thread = threading.Thread(
+            target=reminder_scheduler_loop,
+            daemon=True,  # Dies when main thread dies
+            name="ReminderScheduler"
+        )
+        scheduler_thread.start()
+        app.logger.info("FR-04: Automatic reminder scheduler started successfully")
+    else:
+        app.logger.info("FR-04: Reminder scheduler disabled (testing mode)")

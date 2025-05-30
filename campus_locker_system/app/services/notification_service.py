@@ -4,6 +4,7 @@ from flask import current_app
 from app.business.notification import NotificationManager, FormattedEmail, NotificationType
 from app.services.audit_service import AuditService
 from app.adapters.email_adapter import create_email_adapter, EmailMessage
+from datetime import datetime
 
 class NotificationService:
     """Service layer for notification orchestration"""
@@ -185,6 +186,99 @@ class NotificationService:
         except Exception as e:
             current_app.logger.error(f"Error sending PIN regeneration notification: {str(e)}")
             return False, "An error occurred while sending notification"
+    
+    @staticmethod
+    def send_24h_reminder_notification(recipient_email: str, parcel_id: int, locker_id: int, deposited_time, pin_generation_url: str) -> Tuple[bool, str]:
+        """
+        FR-04: Send configurable-hour reminder notification for parcel pickup
+        FR-04: Timing is configurable via REMINDER_HOURS_AFTER_DEPOSIT config parameter
+        
+        Implements FR-04 requirements:
+        - Sends automated reminder after configurable hours of parcel occupancy
+        - Includes pickup instructions and PIN regeneration options
+        - Tracks reminder activities for audit trail
+        - Handles email delivery failures gracefully
+        """
+        try:
+            # FR-04: Business rule validation for email delivery
+            if not NotificationManager.is_delivery_allowed(recipient_email):
+                return False, f"Email delivery not allowed for {recipient_email}"
+            
+            # FR-04: Create formatted email using business logic for configurable-hour reminder
+            formatted_email = NotificationManager.create_24h_reminder_email(
+                parcel_id=parcel_id,
+                locker_id=locker_id,
+                deposited_time=deposited_time,
+                pin_generation_url=pin_generation_url
+            )
+            
+            # FR-04: Send email via adapter
+            success = NotificationService._send_email(recipient_email, formatted_email)
+            
+            if success:
+                # FR-04: Log successful notification for audit trail as required
+                AuditService.log_event("FR-04_REMINDER_SENT", details={
+                    "notification_type": NotificationType.PICKUP_REMINDER.value,
+                    "recipient": recipient_email,
+                    "parcel_id": parcel_id,
+                    "locker_id": locker_id,
+                    "deposited_time": deposited_time.isoformat() if deposited_time else None,
+                    "hours_since_deposit": (datetime.utcnow() - deposited_time).total_seconds() / 3600 if deposited_time else None,
+                    "configured_reminder_hours": current_app.config.get('REMINDER_HOURS_AFTER_DEPOSIT', 24)  # FR-04: Log configured timing
+                })
+                return True, f"Reminder sent to {recipient_email}"
+            else:
+                return False, "Failed to send reminder email"
+                
+        except Exception as e:
+            current_app.logger.error(f"FR-04: Error sending reminder for parcel {parcel_id}: {str(e)}")  # FR-04: Error logging
+            return False, "An error occurred while sending reminder"
+    
+    @staticmethod
+    def send_parcel_missing_admin_notification(parcel_id: int, locker_id: int, recipient_email: str) -> Tuple[bool, str]:
+        """
+        FR-06: Report Missing Item - Send notification to admin when parcel is reported missing by recipient
+        
+        Implements FR-06 requirement for immediate admin notification:
+        - Sends urgent email to administrators when recipient reports missing parcel
+        - Includes complete incident details for investigation
+        - Triggers security investigation workflow
+        - Logs notification delivery for audit trail
+        """
+        try:
+            # Get admin email from configuration
+            admin_email = current_app.config.get('ADMIN_NOTIFICATION_EMAIL', 'admin@campuslocker.local')
+            
+            # Business rule validation for admin email
+            if not NotificationManager.is_delivery_allowed(admin_email):
+                return False, f"Email delivery not allowed for admin email {admin_email}"
+            
+            # FR-06: Create formatted email using business logic for missing parcel notification
+            formatted_email = NotificationManager.create_parcel_missing_admin_email(
+                parcel_id=parcel_id,
+                locker_id=locker_id,
+                recipient_email=recipient_email
+            )
+            
+            # Send email via adapter
+            success = NotificationService._send_email(admin_email, formatted_email)
+            
+            if success:
+                # FR-06: Log successful notification for audit trail as required
+                AuditService.log_event("ADMIN_NOTIFICATION_SENT", details={
+                    "notification_type": "PARCEL_MISSING_REPORT",
+                    "admin_recipient": admin_email,
+                    "parcel_id": parcel_id,
+                    "locker_id": locker_id,
+                    "reporter_email_domain": recipient_email.split('@')[1] if '@' in recipient_email else 'unknown'
+                })
+                return True, f"Admin notification sent to {admin_email}"
+            else:
+                return False, "Failed to send admin notification email"
+                
+        except Exception as e:
+            current_app.logger.error(f"Error sending admin notification for missing parcel {parcel_id}: {str(e)}")
+            return False, "An error occurred while sending admin notification"
     
     @staticmethod
     def _send_email(recipient_email: str, formatted_email: FormattedEmail) -> bool:

@@ -421,6 +421,110 @@ def test_api_report_missing_success(client, init_database, app):
         details = json.loads(log_entry.details)
         assert details['original_parcel_status'] == 'deposited'
 
+# Tests for recipient reporting missing parcel via UI after pickup
+def test_report_missing_parcel_by_recipient_ui_success(client, init_database, app):
+    """Test recipient can report parcel missing via UI with admin notification"""
+    with app.app_context():
+        # 1. Setup: Deposit and pickup a parcel first
+        result = assign_locker_and_create_parcel('ui_missing_report@example.com', 'small')
+        parcel, _ = result
+        assert parcel is not None
+        original_locker_id = parcel.locker_id
+        
+        # Create a known PIN for testing pickup
+        test_pin, test_hash = PinManager.generate_pin_and_hash()
+        parcel.pin_hash = test_hash
+        db.session.commit()
+        
+        # Pickup the parcel
+        pickup_result = process_pickup(test_pin)
+        pickup_parcel, pickup_message = pickup_result
+        assert pickup_parcel is not None
+        assert pickup_parcel.status == 'picked_up'
+        
+        # Reset parcel status to deposited for missing report (simulate the parcel was actually missing)
+        pickup_parcel.status = 'deposited'
+        db.session.commit()
+
+        # 2. Action: POST to the report-missing UI endpoint
+        response = client.post(f'/report-missing/{parcel.id}', follow_redirects=True)
+        
+        # 3. Assert: Success response and proper redirection
+        assert response.status_code == 200
+        assert b"Missing Parcel Report Submitted" in response.data
+        
+        # 4. Assert: Database state changes
+        updated_parcel = db.session.get(Parcel, parcel.id)
+        assert updated_parcel.status == 'missing'
+        updated_locker = db.session.get(Locker, original_locker_id)
+        assert updated_locker.status == 'out_of_service'
+        
+        # 5. Assert: Audit log entry created
+        log_entry = AuditLog.query.filter(
+            AuditLog.action == "PARCEL_REPORTED_MISSING_BY_RECIPIENT_UI"
+        ).order_by(AuditLog.timestamp.desc()).first()
+        assert log_entry is not None
+        details = json.loads(log_entry.details)
+        assert details['parcel_id'] == parcel.id
+        assert details['locker_id'] == original_locker_id
+        assert details['reported_via'] == 'Web_UI_after_pickup'
+        assert 'admin_notified' in details
+
+def test_report_missing_parcel_by_recipient_ui_parcel_not_found(client, init_database, app):
+    """Test error handling when parcel ID doesn't exist"""
+    with app.app_context():
+        response = client.post('/report-missing/99999', follow_redirects=True)
+        assert response.status_code == 200
+        assert b"Parcel not found" in response.data
+
+def test_report_missing_parcel_by_recipient_ui_invalid_state(client, init_database, app):
+    """Test error handling when parcel is in invalid state for missing report"""
+    with app.app_context():
+        # Setup: Create and pick up a parcel
+        result = assign_locker_and_create_parcel('invalid_state_missing@example.com', 'small')
+        parcel, _ = result
+        assert parcel is not None
+        
+        # Create a known PIN for testing pickup
+        test_pin, test_hash = PinManager.generate_pin_and_hash()
+        parcel.pin_hash = test_hash
+        db.session.commit()
+        
+        # Pickup the parcel
+        pickup_result = process_pickup(test_pin)
+        pickup_parcel, pickup_message = pickup_result
+        assert pickup_parcel is not None
+        assert pickup_parcel.status == 'picked_up'
+        
+        # Try to report missing (should fail since parcel is 'picked_up')
+        response = client.post(f'/report-missing/{parcel.id}', follow_redirects=True)
+        assert response.status_code == 200
+        assert b"Error reporting parcel as missing" in response.data
+
+def test_pickup_confirmation_contains_missing_report_button(client, init_database, app):
+    """Test that pickup confirmation page contains the missing report functionality"""
+    with app.app_context():
+        # Setup: Deposit a parcel
+        result = assign_locker_and_create_parcel('pickup_confirmation_missing@example.com', 'small')
+        parcel, _ = result
+        assert parcel is not None
+        
+        # Create a known PIN for testing
+        test_pin, test_hash = PinManager.generate_pin_and_hash()
+        parcel.pin_hash = test_hash
+        db.session.commit()
+        
+        # Perform pickup to get to confirmation page
+        response = client.post('/pickup', data={'pin': test_pin}, follow_redirects=True)
+        assert response.status_code == 200
+        
+        # Check that the pickup confirmation page contains missing report functionality
+        response_text = response.data.decode('utf-8')
+        assert "Pickup Successful!" in response_text
+        assert "Report Parcel as Missing" in response_text
+        assert f"/report-missing/{parcel.id}" in response_text
+        assert "confirmMissingReport()" in response_text
+
 def test_api_report_missing_fail_conditions(client, init_database, app):
     with app.app_context():
         # Parcel not found
