@@ -75,6 +75,101 @@ Automatic generation using application defaults if no other configuration is pro
 
 ---
 
+## 💾 **Backup Configuration (NFR-04)**
+
+### **Configurable Backup Settings**
+The system provides client-configurable backup management through environment variables:
+
+```bash
+# Backup frequency (how often automated backups are created)
+export BACKUP_INTERVAL_DAYS=7        # Default: 7 days (weekly)
+
+# Backup retention (how long to keep backup files)
+export BACKUP_RETENTION_DAYS=30      # Default: 30 days (monthly cleanup)
+```
+
+### **Backup Configuration Examples**
+
+#### **High-Frequency Backup (Critical Systems)**
+```bash
+export BACKUP_INTERVAL_DAYS=1        # Daily backups
+export BACKUP_RETENTION_DAYS=14      # Keep 2 weeks of backups
+```
+
+#### **Standard Backup (Recommended)**
+```bash
+export BACKUP_INTERVAL_DAYS=7        # Weekly backups
+export BACKUP_RETENTION_DAYS=30      # Keep 1 month of backups
+```
+
+#### **Low-Frequency Backup (Development)**
+```bash
+export BACKUP_INTERVAL_DAYS=30       # Monthly backups
+export BACKUP_RETENTION_DAYS=90      # Keep 3 months of backups
+```
+
+#### **Extended Retention Backup (Compliance)**
+```bash
+export BACKUP_INTERVAL_DAYS=7        # Weekly backups
+export BACKUP_RETENTION_DAYS=365     # Keep 1 year of backups
+```
+
+### **Docker Environment Configuration**
+Add backup settings to your `docker-compose.override.yml`:
+
+```yaml
+version: '3.8'
+services:
+  app:
+    environment:
+      - BACKUP_INTERVAL_DAYS=7
+      - BACKUP_RETENTION_DAYS=30
+```
+
+### **Backup File Naming Convention**
+With configurable intervals, backup files use the following naming pattern:
+
+- **Configuration Backups**: `campus_locker_backup_YYYYMMDD_HHMMSS.db`
+- **Scheduled Backups**: `campus_locker_scheduled_{N}day_YYYYMMDD_HHMMSS.db`
+- **Audit Backups**: `campus_locker_audit_scheduled_{N}day_YYYYMMDD_HHMMSS.db`
+
+Where `{N}` is your configured `BACKUP_INTERVAL_DAYS` value.
+
+### **Backup Storage Location**
+All backup files are stored in the persistent `databases/backups/` directory:
+
+```
+databases/
+├── campus_locker.db                              # Main database
+├── campus_locker_audit.db                       # Audit database
+├── lockers-hwr.json                             # Configuration
+└── backups/                                     # Backup directory
+    ├── campus_locker_backup_20241130_143022.db  # Configuration backup
+    ├── campus_locker_scheduled_7day_*.db         # Main DB scheduled backups
+    └── campus_locker_audit_scheduled_7day_*.db   # Audit DB scheduled backups
+```
+
+### **Backup Verification**
+Check your backup configuration and status:
+
+```bash
+# Verify backup files exist
+ls -la databases/backups/
+
+# Check backup configuration in application logs
+docker compose logs app | grep -E "(💾|📅|⏭️)"
+
+# Force a manual backup check
+docker compose exec app python -c "
+from app.services.database_service import DatabaseService
+should_backup, reason = DatabaseService.should_create_scheduled_backup()
+print(f'Should backup: {should_backup}')
+print(f'Reason: {reason}')
+"
+```
+
+---
+
 ## 🛠️ **Safe Configuration Workflows**
 
 ### **🚀 Initial System Setup (First Time)**

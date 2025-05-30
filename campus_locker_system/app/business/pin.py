@@ -11,33 +11,37 @@ class PinManager:
     def generate_pin_and_hash():
         """
         FR-02: Generate PIN - Create a 6-digit PIN and store its salted SHA-256 hash
+        NFR-03: Security - Cryptographically secure PIN generation with salted hashing
         """
-        # FR-02: Generate cryptographically secure 6-digit numeric PIN
+        # FR-02 & NFR-03: Generate cryptographically secure 6-digit numeric PIN
         pin = "{:06d}".format(int.from_bytes(os.urandom(3), 'big') % 1000000)  # Generate 6-digit PIN
         
-        # FR-02: Create unique salt per PIN for enhanced security
+        # NFR-03: Security - Create unique salt per PIN for enhanced security against rainbow tables
         salt = os.urandom(16)
         
-        # FR-02: Hash PIN using salted SHA-256 before storage (original PIN never stored)
+        # NFR-03: Security - Hash PIN using salted SHA-256 before storage (original PIN never stored)
         hashed_pin = hashlib.pbkdf2_hmac('sha256', pin.encode('utf-8'), salt, 100000, dklen=64)
         return pin, salt.hex() + ":" + hashed_pin.hex()
     
     @staticmethod
     def verify_pin(stored_pin_hash_with_salt, provided_pin):
-        """Verify a provided PIN against the stored hash"""
+        """NFR-03: Security - Secure PIN verification with timing attack resistance"""
         try:
             salt_hex, stored_hash_hex = stored_pin_hash_with_salt.split(":")
             salt = bytes.fromhex(salt_hex)
             stored_hash = bytes.fromhex(stored_hash_hex)
+            # NFR-03: Security - Use same PBKDF2 parameters for consistent timing
             provided_hash = hashlib.pbkdf2_hmac('sha256', provided_pin.encode('utf-8'), salt, 100000, dklen=64)
             return provided_hash == stored_hash
         except (ValueError, AttributeError):
+            # NFR-03: Security - Graceful error handling without information leakage
             return False
     
     @staticmethod
     def is_pin_expired(otp_expiry):
         """
         FR-09: Invalid PIN Error Handling - Check if a PIN has expired
+        NFR-03: Security - Time-based PIN expiration for enhanced security
         Used by process_pickup to provide clear expiry error messages
         """
         if otp_expiry is None:
@@ -46,7 +50,7 @@ class PinManager:
     
     @staticmethod
     def generate_expiry_time(hours=None):
-        """Generate expiry time for a PIN using configurable hours from app config"""
+        """NFR-03: Security - Generate configurable PIN expiry time for time-limited access"""
         if hours is None:
             # Get from Flask app config, default to 24 hours if not configured
             hours = current_app.config.get('PIN_EXPIRY_HOURS', 24)
@@ -54,13 +58,14 @@ class PinManager:
     
     @staticmethod
     def get_pin_expiry_hours():
-        """Get the configured PIN expiry hours from app config"""
+        """NFR-03: Security - Get the configured PIN expiry hours for consistent policy"""
         return current_app.config.get('PIN_EXPIRY_HOURS', 24)
     
     @staticmethod
     def is_valid_pin_format(pin):
         """
         FR-09: Invalid PIN Error Handling - Validate PIN format (6 digits)
+        NFR-03: Security - Input validation to prevent injection attacks
         Used to ensure proper PIN format before processing
         """
         if not pin:

@@ -64,12 +64,13 @@ class AdminUser:
         """Check if admin can perform specific action based on role"""
         role_permissions = {
             AdminRole.ADMIN: [
-                'view_parcels', 'mark_missing', 'reissue_pin', 'manage_lockers',
-                'view_audit_logs', 'process_overdue'
+                'view_parcels', 'mark_missing', 'manage_lockers',
+                'view_audit_logs', 'manage_admin_users', 'system_settings'
             ],
             AdminRole.SUPER_ADMIN: [
-                'view_parcels', 'mark_missing', 'reissue_pin', 'manage_lockers',
-                'view_audit_logs', 'process_overdue', 'manage_admins', 'system_config'
+                'view_parcels', 'mark_missing', 'manage_lockers',
+                'view_audit_logs', 'manage_admin_users', 'system_settings',
+                'delete_parcels', 'reset_system'
             ],
             AdminRole.MAINTENANCE: [
                 'manage_lockers', 'view_audit_logs'

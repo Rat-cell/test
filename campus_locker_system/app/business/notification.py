@@ -6,9 +6,8 @@ from enum import Enum
 
 class NotificationType(Enum):
     """Types of notifications supported by the system"""
-    PARCEL_DEPOSIT = "parcel_deposit"
-    PARCEL_READY_FOR_PICKUP = "parcel_ready_for_pickup"  # New: Initial notification without PIN
-    PIN_GENERATION = "pin_generation"  # New: PIN generated via email link
+    PARCEL_READY_FOR_PICKUP = "parcel_ready_for_pickup"  # Initial notification without PIN
+    PIN_GENERATION = "pin_generation"  # PIN generated via email link
     PIN_REISSUE = "pin_reissue"
     PIN_REGENERATION = "pin_regeneration"
     OVERDUE_NOTICE = "overdue_notice"
@@ -44,11 +43,6 @@ class NotificationManager:
     
     # Email templates defined as business rules
     TEMPLATES = {
-        NotificationType.PARCEL_DEPOSIT: EmailTemplate(
-            subject="📦 Parcel Deposited - Pickup PIN",
-            body="Your parcel has been deposited in locker {locker_id}.\nPickup PIN: {pin}\nExpires: {expiry_time}",
-            notification_type=NotificationType.PARCEL_DEPOSIT
-        ),
         NotificationType.PARCEL_READY_FOR_PICKUP: EmailTemplate(
             subject="📦 Your Parcel is Ready for Pickup",
             body="""Hello!
@@ -170,51 +164,6 @@ Campus Locker System""",
             notification_type=NotificationType.PICKUP_REMINDER
         )
     }
-    
-    @classmethod
-    def create_parcel_deposit_email(cls, parcel_id: int, locker_id: int, pin: str, expiry_time: datetime) -> FormattedEmail:
-        """Create email for parcel deposit notification"""
-        # Get configuration values
-        from flask import current_app
-        pin_expiry_hours = current_app.config.get('PIN_EXPIRY_HOURS', 24)
-        parcel_max_pickup_days = current_app.config.get('PARCEL_MAX_PICKUP_DAYS', 7)
-        
-        # Create dynamic template with configurable PIN expiry and parcel lifecycle
-        dynamic_template = EmailTemplate(
-            subject="📦 Parcel Deposited - Pickup PIN",
-            body=f"""Hello!
-
-Your parcel has been deposited and is ready for pickup.
-
-PICKUP PIN: {{pin}}
-
-PICKUP DETAILS:
-• Locker: #{{locker_id}}
-• PIN expires: {{expiry_time}}
-• Parcel pickup deadline: {parcel_max_pickup_days} days from deposit
-
-TO COLLECT YOUR PARCEL:
-1. Go to the pickup location
-2. Enter PIN: {{pin}}
-3. Open locker #{{locker_id}}
-4. Collect your parcel and close the locker
-
-SECURITY NOTES:
-• This PIN is valid for {pin_expiry_hours} hours only
-• Keep your PIN secure and don't share it
-• Parcel must be collected within {parcel_max_pickup_days} days of deposit
-
-Campus Locker System""",
-            notification_type=NotificationType.PARCEL_DEPOSIT
-        )
-        
-        data = {
-            'parcel_id': parcel_id,
-            'locker_id': locker_id,
-            'pin': pin,
-            'expiry_time': expiry_time.strftime('%Y-%m-%d %H:%M:%S') + ' UTC'
-        }
-        return dynamic_template.format_with_data(data)
     
     @classmethod
     def create_parcel_ready_email(cls, parcel_id: int, locker_id: int, deposited_time: datetime, pin_generation_url: str) -> FormattedEmail:
@@ -505,6 +454,10 @@ Campus Locker System""",
         from datetime import datetime
         from flask import current_app
         
+        # Generate reference number matching user display format
+        report_date = datetime.utcnow().strftime('%Y%m%d')
+        reference_number = f"MISSING-{parcel_id}-{report_date}"
+        
         # FR-06: Create dynamic template for admin notification with comprehensive incident details
         admin_notification_template = EmailTemplate(
             subject="🚨 Parcel Reported Missing - Action Required",
@@ -517,6 +470,7 @@ INCIDENT DETAILS:
 • Locker ID: {locker_id}
 • Recipient: {recipient_email}
 • Reported: {report_time}
+• Reference: {reference_number}
 
 IMMEDIATE ACTIONS REQUIRED:
 1. Inspect locker #{locker_id} for physical contents
@@ -527,6 +481,7 @@ IMMEDIATE ACTIONS REQUIRED:
 SYSTEM STATUS:
 • Parcel status: MISSING
 • Locker status: OUT_OF_SERVICE (requires admin inspection)
+• Report reference: {reference_number}
 
 ADMIN PANEL ACCESS:
 View parcel details: {admin_panel_url}
@@ -549,6 +504,7 @@ Campus Locker System - Security Alert""",
             'locker_id': locker_id,
             'recipient_email': recipient_email,
             'report_time': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S') + ' UTC',
+            'reference_number': reference_number,
             'admin_panel_url': admin_panel_url
         }
         

@@ -6,13 +6,14 @@ from app.business.admin_auth import AdminUser as BusinessAdminUser, AdminAuthMan
 from app.persistence.models import AdminUser as PersistenceAdminUser
 from app.services.audit_service import AuditService
 from datetime import datetime
+from werkzeug.security import check_password_hash
 
 class AdminAuthService:
-    """Service layer for admin authentication orchestration"""
+    """NFR-03: Security - Secure admin authentication with bcrypt hashing and audit logging"""
     
     @staticmethod
     def authenticate_admin(username: str, password: str) -> Tuple[Optional[BusinessAdminUser], str]:
-        """Authenticate admin user and return business entity or error message"""
+        """NFR-03: Security - Secure admin authentication with password verification and audit logging"""
         try:
             # Validate login attempt format
             validation_result = AdminAuthManager.validate_login_attempt(username, password)
@@ -65,7 +66,12 @@ class AdminAuthService:
             
         except Exception as e:
             current_app.logger.error(f"Error during admin authentication: {str(e)}")
-            return None, "Authentication error occurred"
+            # NFR-03: Security - Log authentication errors for security investigation
+            AuditService.log_event("ADMIN_LOGIN_ERROR", details={
+                "attempted_username": username,
+                "error": str(e)
+            })
+            return None, "Authentication system error."
     
     @staticmethod
     def create_session(admin_user: BusinessAdminUser) -> AdminSession:

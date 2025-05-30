@@ -58,10 +58,36 @@ class Config:
     # FR-04: Automatic reminder processing interval (how often to check for reminders)
     REMINDER_PROCESSING_INTERVAL_HOURS = int(os.environ.get('REMINDER_PROCESSING_INTERVAL_HOURS', 1))  # Check every hour
     
-    # Email-based PIN Generation Configuration
+    # NFR-04: Backup Configuration - Data Preservation & Recovery
+    # ===========================================================
+    
+    # NFR-04: Backup - Scheduled backup interval in days (client-configurable)
+    BACKUP_INTERVAL_DAYS = int(os.environ.get('BACKUP_INTERVAL_DAYS', 7))  # Default: 7 days
+    
+    # NFR-04: Backup - Backup retention policy in days (client-configurable)
+    BACKUP_RETENTION_DAYS = int(os.environ.get('BACKUP_RETENTION_DAYS', 30))  # Default: 30 days
+    
+    # NFR-02: Database Reliability Configuration - Crash Safety
+    # =======================================================
+    
+    # NFR-02: Reliability - SQLite WAL (Write-Ahead Logging) mode for crash safety
+    # Ensures maximum one transaction loss during database crashes
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,  # Verify connections before use
+        'pool_recycle': 300,    # Recycle connections every 5 minutes
+        'connect_args': {
+            'check_same_thread': False,  # Allow multi-threaded access
+            'timeout': 60,               # 60-second timeout for database locks
+        }
+    }
+    
+    # NFR-02: Reliability - Database crash safety and reliability features
+    ENABLE_SQLITE_WAL_MODE = os.environ.get('ENABLE_SQLITE_WAL_MODE', 'true').lower() == 'true'
+    SQLITE_SYNCHRONOUS_MODE = os.environ.get('SQLITE_SYNCHRONOUS_MODE', 'NORMAL')  # NORMAL, FULL, OFF
+    
+    # Email-based PIN Generation Configuration (Only System)
     PIN_GENERATION_TOKEN_EXPIRY_HOURS = int(os.environ.get('PIN_GENERATION_TOKEN_EXPIRY', 24))  # hours
     MAX_PIN_GENERATIONS_PER_DAY = int(os.environ.get('MAX_PIN_GENERATIONS_PER_DAY', 3))
-    ENABLE_EMAIL_BASED_PIN_GENERATION = os.environ.get('ENABLE_EMAIL_BASED_PIN_GENERATION', 'true').lower() == 'true'
 
     LOG_DIR = os.environ.get('LOG_DIR') or os.path.abspath(os.path.join(basedir, '..', 'logs'))
 

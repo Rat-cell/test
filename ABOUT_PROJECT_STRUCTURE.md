@@ -17,7 +17,6 @@ This is the main folder that contains everything for our project.
 📦 Campus Locker System v2.1.3
 ├── 📁 campus_locker_system/     # Main application code
 ├── 📁 docs/                     # Documentation and diagrams
-├── 📁 scripts/                  # Helper scripts for setup
 ├── 📁 ssl/                      # Security certificates
 ├── 📁 venv/                     # Python virtual environment
 ├── 📄 README.md                 # Main project information
@@ -205,19 +204,6 @@ Contains detailed documentation and diagrams
 #### `c4-diagrams.puml`
 - **What it is**: The actual diagram code that creates visual representations
 - **Why we need it**: Creates pictures that are easier to understand than text
-
-### `📁 scripts/`
-Contains helpful automation scripts
-
-#### `setup.sh`
-- **What it is**: Automatic setup script for new developers
-- **Why we need it**: Sets up everything needed to start coding
-- **Think of it as**: An automatic installer
-
-#### `test-deployment.sh`
-- **What it is**: Script that tests if our deployment is working correctly
-- **Why we need it**: Ensures everything is working before users see it
-- **Think of it as**: A final inspection before opening a restaurant
 
 ### `📁 venv/`
 - **What it is**: A separate Python environment just for this project

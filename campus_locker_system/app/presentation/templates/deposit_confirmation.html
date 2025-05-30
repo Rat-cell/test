@@ -2,168 +2,128 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Deposit Confirmation</title>
-</head>
-<body>
-    <h1>Deposit Successful!</h1>
-    
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <ul class="flashes">
-        {% for category, message in messages %}
-          <li class="{{ category }}">{{ message }}</li>
-        {% endfor %}
-        </ul>
-      {% endif %}
-    {% endwith %}
-    
-    <div class="confirmation-details">
-        <p><strong>✅ Parcel deposited successfully in Locker #{{ parcel.locker_id }}</strong></p>
-        
-        {% if parcel.pin_generation_token %}
-        <!-- Email-based PIN Generation -->
-        <div class="email-pin-info">
-            <h3>📧 Email-Based PIN Generation System</h3>
-            <p><strong>Step 1 Complete:</strong> A PIN generation link has been sent to <strong>{{ parcel.recipient_email }}</strong></p>
-            
-            <div class="process-flow">
-                <h4>🔄 How to get your pickup PIN:</h4>
-                <ol style="font-size: 1.1em; line-height: 1.6;">
-                    <li><strong>Check your email</strong> for the "Generate PIN" link</li>
-                    <li><strong>Click the link</strong> to generate your secure pickup PIN</li>
-                    <li><strong>Receive your PIN</strong> in a new email within seconds</li>
-                    <li><strong>Use the PIN</strong> to collect your parcel from Locker #{{ parcel.locker_id }}</li>
-                </ol>
-            </div>
-            
-            <div class="info-box">
-                <h3>📋 Important Information:</h3>
-                <ul>
-                    <li><strong>No PIN is sent immediately</strong> - you control when to generate it</li>
-                    <li>The PIN generation link expires in <strong>{{ pin_expiry_hours }} hours</strong></li>
-                    <li>Each PIN is valid for <strong>{{ pin_expiry_hours }} hours</strong> after generation</li>
-                    <li>You can generate up to <strong>3 PINs per day</strong> for security</li>
-                    <li>Each new PIN invalidates the previous one</li>
-                </ul>
-            </div>
-            
-            <div class="security-info">
-                <h3>🔒 Enhanced Security Features:</h3>
-                <ul>
-                    <li>PIN generation is on-demand - only when you need it</li>
-                    <li>Rate limiting prevents unauthorized PIN generation</li>
-                    <li>Time-limited tokens and PINs for maximum security</li>
-                    <li>Complete audit trail of all PIN generation activities</li>
-                </ul>
-            </div>
-            
-            <div style="background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 15px; margin-top: 15px;">
-                <h4 style="color: #856404; margin-top: 0;">⚠️ What if the PIN expires?</h4>
-                <p style="margin-bottom: 0;">If your PIN expires (after {{ pin_expiry_hours }} hours), simply use the same link from your original email to generate a new one, or use the "Generate New PIN" button on the PIN generation page.</p>
-            </div>
-        </div>
-        
-        {% else %}
-        <!-- Traditional PIN System -->
-        <div class="traditional-pin-info">
-            <p>📧 A pickup PIN has been sent to: <strong>{{ parcel.recipient_email }}</strong></p>
-            <p>⏰ The PIN will expire in {{ pin_expiry_hours }} hours</p>
-            
-            <div class="info-box">
-                <h3>What happens next?</h3>
-                <ul>
-                    <li>The recipient will receive an email with the pickup PIN</li>
-                    <li>They can use the PIN to collect the parcel from Locker #{{ parcel.locker_id }}</li>
-                    <li>If they don't receive the email, they can request a new PIN using their email address</li>
-                </ul>
-            </div>
-        </div>
-        {% endif %}
-    </div>
-    
-    <div class="actions">
-        <p><a href="{{ url_for('main.deposit_parcel') }}">📦 Deposit another parcel</a></p>
-        <p><a href="{{ url_for('main.pickup_parcel') }}">🔑 Pick up a parcel</a></p>
-    </div>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deposit Confirmation - Campus Locker System</title>
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            max-width: 700px; 
-            margin: 50px auto; 
-            padding: 20px; 
-            background-color: #f5f5f5; 
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
         }
-        .confirmation-details { 
-            background: white; 
-            padding: 20px; 
-            border-radius: 8px; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
-            margin: 20px 0; 
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        .email-pin-info {
-            background-color: #e8f4fd;
-            border: 1px solid #17a2b8;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 15px 0;
+        .success-header {
+            text-align: center;
+            margin-bottom: 30px;
         }
-        .traditional-pin-info {
-            background-color: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 15px 0;
+        .success-icon {
+            font-size: 60px;
+            color: #28a745;
+            margin-bottom: 10px;
         }
-        .info-box { 
-            background: #e7f3ff; 
-            padding: 15px; 
-            border-radius: 5px; 
-            border-left: 4px solid #007bff; 
-            margin-top: 15px; 
+        h1 {
+            color: #28a745;
+            margin: 0;
+            font-size: 28px;
         }
-        .security-info {
-            background: #e8f5e8;
-            padding: 15px;
-            border-radius: 5px;
+        .deposit-details {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
             border-left: 4px solid #28a745;
-            margin-top: 15px;
         }
-        .actions { 
-            text-align: center; 
-            margin-top: 30px; 
+        .detail-item {
+            margin: 12px 0;
+            font-size: 16px;
         }
-        .actions a { 
-            display: inline-block; 
-            margin: 0 10px; 
-            padding: 10px 20px; 
-            background: #007bff; 
-            color: white; 
-            text-decoration: none; 
-            border-radius: 5px; 
+        .next-steps {
+            background-color: #e8f4fd;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #17a2b8;
         }
-        .actions a:hover {
-            background: #0056b3;
+        .actions {
+            margin-top: 30px;
+            text-align: center;
         }
-        .flashes { 
-            list-style: none; 
-            padding: 0; 
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            margin: 8px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s ease;
         }
-        .flashes li { 
-            padding: 10px; 
-            margin: 10px 0; 
-            border-radius: 5px; 
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
         }
-        .success { 
-            background: #d4edda; 
-            color: #155724; 
-            border: 1px solid #c3e6cb; 
+        .btn-primary:hover {
+            background-color: #0056b3;
+            color: white;
         }
-        .error { 
-            background: #f8d7da; 
-            color: #721c24; 
-            border: 1px solid #f5c6cb; 
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #545b62;
+            color: white;
         }
     </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-header">
+            <div class="success-icon">✅</div>
+            <h1>Deposit Successful!</h1>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div style="padding: 15px; margin: 15px 0; border-radius: 6px; background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb;">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div class="deposit-details">
+            <div class="detail-item">
+                <strong>📦 Parcel placed in:</strong> Locker #{{ parcel.locker_id }}
+            </div>
+            <div class="detail-item">
+                <strong>📧 Recipient notified:</strong> {{ parcel.recipient_email }}
+            </div>
+            <div class="detail-item">
+                <strong>📅 Deposited at:</strong> {{ parcel.deposited_at.strftime('%Y-%m-%d %H:%M:%S') if parcel.deposited_at else 'Just now' }}
+            </div>
+        </div>
+
+        <div class="next-steps">
+            <h3 style="margin-top: 0; color: #0c5460;">📋 What happens next?</h3>
+            <ol style="margin: 0; padding-left: 20px;">
+                <li><strong>{{ parcel.recipient_email }}</strong> will receive an email notification</li>
+                <li>The recipient can generate a secure PIN when ready to collect</li>
+                <li>They'll use the PIN to access <strong>Locker #{{ parcel.locker_id }}</strong></li>
+            </ol>
+        </div>
+
+        <div class="actions">
+            <a href="{{ url_for('main.deposit_parcel') }}" class="btn btn-primary">📦 Deposit Another Parcel</a>
+            <a href="{{ url_for('main.pickup_parcel') }}" class="btn btn-secondary">🔑 Pick Up a Parcel</a>
+        </div>
+    </div>
 </body>
 </html>

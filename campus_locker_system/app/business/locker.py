@@ -45,11 +45,13 @@ class LockerManager:
         """
         Find an available locker of the preferred size
         FR-08: Out of Service - Skips out_of_service lockers during assignment
+        NFR-01: Performance - Single optimized query for sub-200ms assignment
         """
         if not LockerManager.is_valid_size(preferred_size):
             return None
         
         # FR-08: Look for free locker of preferred size (excludes out_of_service)
+        # NFR-01: Performance - Optimized single query with indexed filtering
         locker = Locker.query.filter_by(
             size=preferred_size, 
             status='free'  # FR-08: Only 'free' status lockers are available for assignment

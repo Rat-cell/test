@@ -14,13 +14,46 @@ def create_app(config_class=Config):
     # Add DATABASE_DIR to config for database service
     app.config['DATABASE_DIR'] = app.config.get('DATABASE_DIR', '/app/databases')
 
+    # Configure SQLAlchemy
+    # NFR-01: Performance - Database optimization for fast locker assignment
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Performance optimization
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_recycle': 3600
+    }
+
     # Initialize extensions
     db.init_app(app)
     mail.init_app(app) # Add this
 
     with app.app_context():
-        # Auto-create all database tables on first run (create database tables)
-        db.create_all()
+        # NFR-02 & NFR-04: Initialize databases with reliability and backup features
+        from app.services.database_service import DatabaseService
+        
+        app.logger.info("🗄️ Starting database initialization...")
+        
+        # Step 1: Initialize databases and create tables
+        # NFR-02: Reliability - Includes SQLite WAL mode configuration for crash safety
+        db_success, db_message = DatabaseService.initialize_databases()
+        
+        if db_success:
+            app.logger.info(f"✅ Database initialization successful: {db_message}")
+            
+            # Step 2: Run post-initialization tasks (including backup checks)
+            try:
+                DatabaseService.post_initialization_tasks()
+                app.logger.info("✅ Post-initialization tasks completed")
+            except Exception as e:
+                app.logger.warning(f"⚠️ Post-initialization tasks failed: {str(e)}")
+        else:
+            app.logger.error(f"❌ Database initialization failed: {db_message}")
+            # Continue anyway - some functionality may still work
+        
+        # Legacy create_all() call as fallback (should be redundant now)
+        try:
+            db.create_all()
+        except Exception as e:
+            app.logger.warning(f"⚠️ Legacy db.create_all() failed: {str(e)}")
         
         # Create default admin user if none exists
         from app.persistence.models import AdminUser

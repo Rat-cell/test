@@ -18,11 +18,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 class DatabaseService:
-    """Service for database initialization, validation, and management"""
+    """
+    Service for database initialization, validation, and management
+    NFR-02: Reliability - SQLite WAL mode configuration for crash safety
+    NFR-04: Backup - Automated scheduled backup management
+    """
     
     @staticmethod
     def initialize_databases() -> Tuple[bool, str]:
         """
+        Initialize databases with safety features and reliability configuration
+        NFR-02: Reliability - Configures SQLite WAL mode for crash safety
+        NFR-04: Backup - Includes backup status verification on startup
+
         Initialize and validate databases on application startup
         Returns (success, message)
         """
@@ -47,6 +55,13 @@ class DatabaseService:
             # 3. Create all tables (this is safe - won't overwrite existing)
             db.create_all()
             logger.info("🛠️ Database tables created/verified")
+            
+            # NFR-02: Configure SQLite WAL mode for crash safety
+            try:
+                DatabaseService.configure_sqlite_wal_mode()
+                logger.info("✅ SQLite WAL mode configured for crash safety")
+            except Exception as e:
+                logger.warning(f"⚠️ SQLite WAL mode configuration failed: {str(e)}")
             
             # 4. Validate schema structure
             validation_result = DatabaseService.validate_schema()
@@ -81,8 +96,13 @@ class DatabaseService:
             if not health_result[0]:
                 return False, f"Database health check failed: {health_result[1]}"
             
-            logger.info("🎉 Database initialization completed successfully")
-            return True, "Database initialized successfully"
+            # 7. Enhanced validation
+            detailed_validation = DatabaseService.validate_schema()
+            if not detailed_validation[0]:
+                logger.warning(f"⚠️ Detailed schema validation issues found: {detailed_validation[1]}")
+            
+            logger.info("✅ Database initialization completed successfully")
+            return True, "Database initialization completed successfully"
             
         except Exception as e:
             error_msg = f"Database initialization failed: {str(e)}"
@@ -326,6 +346,212 @@ class DatabaseService:
             
         except Exception as e:
             return False, f"Backup failed: {str(e)}"
+    
+    @staticmethod
+    def post_initialization_tasks():
+        """
+        Run tasks that should happen after database is fully initialized
+        This includes backup checks and other maintenance tasks
+        """
+        try:
+            # NFR-04: Check and create scheduled backup if needed
+            try:
+                backup_created, backup_message = DatabaseService.run_scheduled_backup_if_needed()
+                if backup_created:
+                    logger.info(f"💾 Scheduled backup: {backup_message}")
+                else:
+                    logger.debug(f"📅 Backup check: {backup_message}")
+            except Exception as e:
+                logger.warning(f"⚠️ Scheduled backup check failed: {str(e)}")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Post-initialization tasks failed: {str(e)}")
+    
+    @staticmethod
+    def create_scheduled_backup() -> Tuple[bool, str]:
+        """NFR-04: Create scheduled backup based on configurable interval"""
+        try:
+            # Get database directory
+            db_dir = current_app.config.get('DATABASE_DIR', '/app/databases')
+            if not os.path.exists(db_dir):
+                return False, f"Database directory not found: {db_dir}"
+            
+            # NFR-04: Create backup directory if needed
+            backup_dir = os.path.join(db_dir, 'backups')
+            os.makedirs(backup_dir, exist_ok=True)
+            
+            # Generate timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            # NFR-04: Get configurable backup interval for backup naming
+            backup_interval_days = current_app.config.get('BACKUP_INTERVAL_DAYS', 7)
+            
+            # NFR-04: List of database files to backup (main + audit)
+            db_files = ['campus_locker.db', 'campus_locker_audit.db']
+            backed_up_files = []
+            
+            for db_file in db_files:
+                source_path = os.path.join(db_dir, db_file)
+                if os.path.exists(source_path):
+                    # NFR-04: Create backup filename with configurable interval reference
+                    backup_filename = f"{db_file.replace('.db', '')}_scheduled_{backup_interval_days}day_{timestamp}.db"
+                    backup_path = os.path.join(backup_dir, backup_filename)
+                    
+                    # NFR-04: Copy the database file for data preservation
+                    import shutil
+                    shutil.copy2(source_path, backup_path)
+                    backed_up_files.append(backup_filename)
+            
+            if backed_up_files:
+                backup_list = ', '.join(backed_up_files)
+                logger.info(f"💾 Backup created for scheduled_{backup_interval_days}day: {backup_list}")
+                return True, f"Backup created: {backup_list}"
+            else:
+                return False, "No database files found to backup"
+                
+        except Exception as e:
+            backup_interval_days = current_app.config.get('BACKUP_INTERVAL_DAYS', 7)
+            error_msg = f"Backup creation failed for scheduled_{backup_interval_days}day: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+    
+    @staticmethod
+    def should_create_scheduled_backup() -> Tuple[bool, str]:
+        """
+        NFR-04: Check if a scheduled backup should be created based on configurable interval
+        
+        Returns:
+            Tuple[bool, str]: (should_backup, reason)
+        """
+        try:
+            db_dir = current_app.config.get('DATABASE_DIR', '/app/databases')
+            backup_dir = os.path.join(db_dir, 'backups')
+            
+            # NFR-04: Get configurable backup interval
+            backup_interval_days = current_app.config.get('BACKUP_INTERVAL_DAYS', 7)
+            
+            if not os.path.exists(backup_dir):
+                return True, f"No backup directory exists - creating first scheduled backup (interval: {backup_interval_days} days)"
+            
+            # NFR-04: Look for the most recent scheduled backup with any interval pattern
+            scheduled_backups = []
+            for backup_file in os.listdir(backup_dir):
+                if backup_file.endswith('.db') and '_scheduled_' in backup_file and 'day_' in backup_file:
+                    file_path = os.path.join(backup_dir, backup_file)
+                    file_time = os.path.getmtime(file_path)
+                    scheduled_backups.append((backup_file, file_time))
+            
+            if not scheduled_backups:
+                return True, f"No scheduled backups found - creating first scheduled backup (interval: {backup_interval_days} days)"
+            
+            # NFR-04: Find the most recent scheduled backup
+            most_recent = max(scheduled_backups, key=lambda x: x[1])
+            most_recent_time = most_recent[1]
+            
+            # NFR-04: Check if configured interval has passed
+            interval_seconds = backup_interval_days * 24 * 60 * 60
+            cutoff_time = datetime.now().timestamp() - interval_seconds
+            
+            if most_recent_time < cutoff_time:
+                days_since = (datetime.now().timestamp() - most_recent_time) / (24 * 60 * 60)
+                return True, f"Last scheduled backup was {days_since:.1f} days ago (interval: {backup_interval_days} days) - creating new backup"
+            else:
+                days_since = (datetime.now().timestamp() - most_recent_time) / (24 * 60 * 60)
+                return False, f"Recent scheduled backup exists from {days_since:.1f} days ago (interval: {backup_interval_days} days)"
+                
+        except Exception as e:
+            backup_interval_days = current_app.config.get('BACKUP_INTERVAL_DAYS', 7)
+            error_msg = f"Error checking scheduled backup status: {str(e)}"
+            logger.error(error_msg)
+            return True, f"Error checking backup status - creating backup anyway (interval: {backup_interval_days} days): {str(e)}"
+    
+    @staticmethod
+    def run_scheduled_backup_if_needed() -> Tuple[bool, str]:
+        """
+        NFR-04: Run scheduled backup if configured interval has passed since last backup
+        
+        Returns:
+            Tuple[bool, str]: (backup_created, message)
+        """
+        try:
+            should_backup, reason = DatabaseService.should_create_scheduled_backup()
+            
+            if should_backup:
+                success, message = DatabaseService.create_scheduled_backup()
+                if success:
+                    full_message = f"Scheduled backup created successfully. Reason: {reason}. Result: {message}"
+                    logger.info(f"📅 {full_message}")
+                    return True, full_message
+                else:
+                    error_message = f"Scheduled backup failed. Reason: {reason}. Error: {message}"
+                    logger.error(f"❌ {error_message}")
+                    return False, error_message
+            else:
+                logger.info(f"⏭️ Scheduled backup skipped: {reason}")
+                return False, f"Backup not needed: {reason}"
+                
+        except Exception as e:
+            error_msg = f"Critical error in scheduled backup process: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg
+    
+    @staticmethod
+    def configure_sqlite_wal_mode():
+        """NFR-02: Configure SQLite WAL mode for crash safety and reliability"""
+        try:
+            # Only configure if WAL mode is enabled in configuration
+            wal_enabled = current_app.config.get('ENABLE_SQLITE_WAL_MODE', True)
+            if not wal_enabled:
+                logger.info("📋 SQLite WAL mode disabled in configuration")
+                return
+            
+            db_dir = current_app.config.get('DATABASE_DIR', '/app/databases')
+            sync_mode = current_app.config.get('SQLITE_SYNCHRONOUS_MODE', 'NORMAL')
+            
+            # NFR-02: Configure main database with WAL mode
+            main_db_path = os.path.join(db_dir, 'campus_locker.db')
+            if os.path.exists(main_db_path):
+                conn = sqlite3.connect(main_db_path)
+                cursor = conn.cursor()
+                
+                # NFR-02: Enable WAL mode for crash safety (max 1 transaction loss)
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute(f"PRAGMA synchronous={sync_mode}")
+                cursor.execute("PRAGMA wal_autocheckpoint=1000")
+                cursor.execute("PRAGMA temp_store=MEMORY")
+                
+                # Verify WAL mode is active
+                cursor.execute("PRAGMA journal_mode")
+                journal_mode = cursor.fetchone()[0]
+                
+                conn.close()
+                logger.info(f"💾 Main database WAL mode: {journal_mode} (sync: {sync_mode})")
+            
+            # NFR-02: Configure audit database with WAL mode
+            audit_db_path = os.path.join(db_dir, 'campus_locker_audit.db')
+            if os.path.exists(audit_db_path):
+                audit_conn = sqlite3.connect(audit_db_path)
+                audit_cursor = audit_conn.cursor()
+                
+                # NFR-02: Enable WAL mode for audit database crash safety
+                audit_cursor.execute("PRAGMA journal_mode=WAL")
+                audit_cursor.execute(f"PRAGMA synchronous={sync_mode}")
+                audit_cursor.execute("PRAGMA wal_autocheckpoint=1000")
+                audit_cursor.execute("PRAGMA temp_store=MEMORY")
+                
+                # Verify WAL mode is active
+                audit_cursor.execute("PRAGMA journal_mode")
+                audit_journal_mode = audit_cursor.fetchone()[0]
+                
+                audit_conn.close()
+                logger.info(f"💾 Audit database WAL mode: {audit_journal_mode} (sync: {sync_mode})")
+            
+            logger.info("✅ NFR-02: SQLite WAL mode configured for crash safety")
+            
+        except Exception as e:
+            error_msg = f"NFR-02: SQLite WAL mode configuration failed: {str(e)}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
 
 
 # Utility function for application startup

@@ -41,13 +41,19 @@ def get_database_path():
     return Path(__file__).parent / 'databases' / 'campus_locker.db'
 
 def create_backup(db_path):
-    """Create a timestamped backup of the database"""
+    """NFR-04: Backup - Create timestamped backup for data preservation"""
     if not db_path.exists():
         return None
     
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    backup_path = db_path.parent / f'campus_locker_backup_{timestamp}.db'
     
+    # NFR-04: Backup - Store backups in dedicated backups directory
+    backup_dir = db_path.parent / 'backups'
+    backup_dir.mkdir(exist_ok=True)  # Create backups directory if it doesn't exist
+    
+    backup_path = backup_dir / f'campus_locker_backup_{timestamp}.db'
+    
+    # NFR-04: Backup - Copy database file for overwrite protection
     shutil.copy2(db_path, backup_path)
     print(f"💾 Created backup: {backup_path}")
     return backup_path
@@ -77,13 +83,25 @@ def add_new_lockers_safely(config, db_path):
     conflicts, existing_ids, new_ids = check_for_conflicts(existing_lockers, config)
     
     if conflicts:
+        print("🚨" * 20)
+        print("🚨 CRITICAL DATA PROTECTION ALERT 🚨")
+        print("🚨" * 20)
         print(f"🚫 SAFETY BLOCK: Found ID conflicts: {sorted(conflicts)}")
         print(f"   These locker IDs already exist in the database.")
         print(f"   To protect existing data, operation cancelled.")
-        print(f"\n💡 Solutions:")
+        print()
+        print("🛡️  PROTECTION MODE: Your existing data is SAFE!")
+        print("   No changes have been made to the database.")
+        print("   All existing lockers remain unchanged.")
+        print()
+        print("💡 SAFE SOLUTIONS:")
         print(f"   1. Use different IDs for new lockers (recommended)")
         print(f"   2. Remove conflicting IDs from JSON file")
-        print(f"   3. Use --admin-reset-confirm for complete replacement (DANGEROUS)")
+        print(f"   3. Use --verify-only to check current status")
+        print()
+        print("⚠️  RISKY ALTERNATIVE (NOT RECOMMENDED):")
+        print(f"   💥 Use --admin-reset-confirm for complete replacement (DESTROYS ALL DATA)")
+        print("🚨" * 20)
         return False
     
     # Find truly new lockers
@@ -96,7 +114,7 @@ def add_new_lockers_safely(config, db_path):
     
     print(f"🔒 SAFE MODE: Adding {len(truly_new)} new lockers (protecting {len(existing_lockers)} existing)")
     
-    # Create backup before making changes
+    # NFR-04: Create backup before making changes - overwrite protection
     backup_path = create_backup(db_path)
     
     # Add only new lockers
@@ -188,6 +206,7 @@ def admin_reset_with_confirmation(config, db_path):
         return False
     
     print(f"⏳ Creating backup before destructive operation...")
+    # NFR-04: Create backup before admin reset - data preservation
     backup_path = create_backup(db_path)
     
     # Clear and reseed
@@ -261,6 +280,22 @@ def verify_seeding(config, db_path):
     
     return True
 
+def display_safety_banner():
+    """Display concise safety warnings at startup"""
+    print("🛡️  CAMPUS LOCKER SYSTEM - SAFE DATABASE MANAGEMENT")
+    print("=" * 60)
+    print("⚠️  PROTECTION MODE: Automatic backups • Conflict detection • Safe operations")
+    print()
+    print("SAFE OPTIONS:")
+    print("  --verify-only     Check status (no changes)")
+    print("  --add-new         Add new lockers safely")
+    print("  --initial-seed    Seed empty database only")
+    print()
+    print("ADMIN ONLY:")
+    print("  --admin-reset-confirm    ⚠️  DESTROYS ALL DATA")
+    print("=" * 60)
+    print()
+
 def main():
     """Main script function with safety-first approach"""
     parser = argparse.ArgumentParser(description='SAFE Locker Database Management')
@@ -316,4 +351,5 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
+    display_safety_banner()
     main() 
