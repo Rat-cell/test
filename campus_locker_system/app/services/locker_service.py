@@ -4,7 +4,9 @@ from app.business.parcel import Parcel
 from app.services.audit_service import AuditService
 from flask import current_app
 
+# FR-08: Out of Service - Admin locker status management
 def set_locker_status(admin_id: int, admin_username: str, locker_id: int, new_status: str):
+    # FR-08: Only allow out_of_service and free status changes for maintenance
     if new_status not in ['out_of_service', 'free']:
         return None, "Invalid target status specified. Allowed: 'out_of_service', 'free'."
     locker = db.session.get(Locker, locker_id)
@@ -15,6 +17,7 @@ def set_locker_status(admin_id: int, admin_username: str, locker_id: int, new_st
         return locker, "Locker is already in the requested state."
     try:
         if new_status == 'out_of_service':
+            # FR-08: Disable locker to skip during assignment
             locker.status = 'out_of_service'
         elif new_status == 'free':
             disputed_parcel = Parcel.query.filter_by(locker_id=locker_id, status='pickup_disputed').first()
@@ -25,15 +28,19 @@ def set_locker_status(admin_id: int, admin_username: str, locker_id: int, new_st
             active_parcel = Parcel.query.filter_by(locker_id=locker_id, status='deposited').first()
             if active_parcel:
                 return None, f"Cannot set locker to 'free'. Parcel ID {active_parcel.id} is still marked as 'deposited' in this locker."
+            # FR-08: Return locker to service after maintenance
             locker.status = 'free'
         db.session.add(locker)
         db.session.commit()
+        
+        # FR-07: Audit Trail - Record admin override action with timestamp and admin identity
+        # FR-08: Log locker status changes for maintenance tracking
         AuditService.log_event("ADMIN_LOCKER_STATUS_CHANGED", details={
-            "admin_id": admin_id,
-            "admin_username": admin_username,
             "locker_id": locker_id,
             "old_status": old_status,
-            "new_status": new_status
+            "new_status": new_status,
+            "admin_id": admin_id,
+            "admin_username": admin_username
         })
         return locker, None
     except Exception as e:

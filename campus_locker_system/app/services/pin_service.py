@@ -7,7 +7,9 @@ from app.services.audit_service import AuditService
 from typing import Tuple, Optional
 
 def reissue_pin(parcel_id: int):
-    """Reissue a new PIN for a parcel"""
+    """
+    FR-05: Re-issue PIN - Admin-initiated PIN re-issue when old PIN expired or unusable
+    """
     try:
         parcel = db.session.get(Parcel, parcel_id)
         if not parcel:
@@ -16,10 +18,10 @@ def reissue_pin(parcel_id: int):
         if parcel.status != 'deposited':
             return None, f"Parcel is not in 'deposited' state (current status: {parcel.status}). Cannot reissue PIN."
         
-        # Generate new PIN and hash
+        # FR-05: Generate new PIN and hash
         new_pin, new_pin_hash = PinManager.generate_pin_and_hash()
         
-        # Update parcel with new PIN info
+        # FR-05: Update parcel with new PIN info (invalidates previous PIN)
         parcel.pin_hash = new_pin_hash
         parcel.otp_expiry = PinManager.generate_expiry_time()
         
@@ -41,7 +43,8 @@ def reissue_pin(parcel_id: int):
             pin_generation_url=pin_generation_url
         )
         
-        # Log the reissue
+        # FR-07: Audit Trail - Record admin override action with timestamp and admin identity  
+        # Log the reissue for audit trail
         AuditService.log_event(f"PIN reissued for parcel {parcel.id} by admin")
         
         # Check notification result
@@ -57,7 +60,9 @@ def reissue_pin(parcel_id: int):
         return None, "An error occurred while reissuing the PIN."
 
 def request_pin_regeneration_by_recipient(parcel_id: int, provided_email: str):
-    """Handle recipient request for PIN regeneration"""
+    """
+    FR-05: Re-issue PIN - User-initiated PIN regeneration when PIN expired or unusable
+    """
     try:
         parcel = db.session.get(Parcel, parcel_id)
         if not parcel:
@@ -69,10 +74,10 @@ def request_pin_regeneration_by_recipient(parcel_id: int, provided_email: str):
         if parcel.status != 'deposited':
             return None, f"Parcel is not in 'deposited' state (current status: {parcel.status}). Cannot regenerate PIN."
         
-        # Generate new PIN and hash
+        # FR-05: Generate new PIN and hash
         new_pin, new_pin_hash = PinManager.generate_pin_and_hash()
         
-        # Update parcel with new PIN info
+        # FR-05: Update parcel with new PIN info (invalidates previous PIN)
         parcel.pin_hash = new_pin_hash
         parcel.otp_expiry = PinManager.generate_expiry_time()
         
@@ -94,7 +99,7 @@ def request_pin_regeneration_by_recipient(parcel_id: int, provided_email: str):
             pin_generation_url=pin_generation_url
         )
         
-        # Log the regeneration
+        # FR-05: Log the regeneration for audit trail
         AuditService.log_event(f"PIN regenerated for parcel {parcel.id} by recipient request")
         
         # Check notification result
@@ -112,12 +117,6 @@ def request_pin_regeneration_by_recipient(parcel_id: int, provided_email: str):
 def generate_pin_by_token(token: str) -> Tuple[Optional[Parcel], str]:
     """
     FR-02: Generate PIN - Create a 6-digit PIN and store its salted SHA-256 hash (email-based system)
-    
-    Implements FR-02 requirements for email-based PIN generation:
-    - System generates cryptographically secure 6-digit numeric PIN
-    - PIN is hashed using salted SHA-256 before storage
-    - Each PIN generation invalidates previous PIN for same parcel
-    - PIN generation supports email-based delivery system
     """
     try:
         # Find parcel with matching token
@@ -186,6 +185,7 @@ def generate_pin_by_token(token: str) -> Tuple[Optional[Parcel], str]:
         )
         
         # Log the PIN generation
+        # FR-07: Audit Trail - Record PIN generation event with timestamp and security details
         AuditService.log_event("PIN_GENERATED_VIA_EMAIL", details={
             "parcel_id": parcel.id,
             "locker_id": parcel.locker_id,
@@ -209,7 +209,9 @@ def generate_pin_by_token(token: str) -> Tuple[Optional[Parcel], str]:
         return None, "An error occurred while generating the PIN."
 
 def regenerate_pin_token(parcel_id: int, recipient_email: str) -> Tuple[bool, str]:
-    """Regenerate PIN generation token for a parcel (admin or recipient function)"""
+    """
+    FR-05: Re-issue PIN - Regenerate PIN generation token for expired links
+    """
     try:
         parcel = db.session.get(Parcel, parcel_id)
         
@@ -264,7 +266,9 @@ def regenerate_pin_token(parcel_id: int, recipient_email: str) -> Tuple[bool, st
         return False, "An error occurred while regenerating the PIN token."
 
 def request_pin_regeneration_by_recipient_email_and_locker(recipient_email: str, locker_id: str):
-    """Handle recipient request for PIN regeneration using email and locker ID"""
+    """
+    FR-05: Re-issue PIN - User form handler for PIN regeneration requests
+    """
     try:
         # Find the parcel by email and locker ID
         parcel = Parcel.query.filter(

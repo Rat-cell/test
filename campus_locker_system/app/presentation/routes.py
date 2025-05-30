@@ -102,7 +102,9 @@ def deposit_parcel():
 
 @main_bp.route('/generate-pin/<token>', methods=['GET'])
 def generate_pin_by_token_route(token):
-    """Generate PIN using email token"""
+    """
+    FR-05: Re-issue PIN - Token-based PIN generation for expired PIN recovery
+    """
     try:
         parcel, message = generate_pin_by_token(token)
         
@@ -132,12 +134,14 @@ def pickup_parcel():
         pin = request.form.get('pin')
 
         if not pin:
+            # FR-09: Invalid PIN Error Handling - Handle empty PIN submission
             flash('PIN is required.', 'error')
             return redirect(url_for('main.pickup_parcel'))
 
         # Updated to handle new return format (parcel, message)
         result = process_pickup(pin)
         if result[0] is None:  # parcel is None means error
+            # FR-09: Invalid PIN Error Handling - Display error message via flash system
             flash(result[1], 'error')  # result[1] is the error message
             return redirect(url_for('main.pickup_parcel'))
         
@@ -357,6 +361,9 @@ def mark_parcel_missing_admin_action(parcel_id):
 
 @main_bp.route('/request-new-pin', methods=['GET', 'POST'])
 def request_new_pin_action():
+    """
+    FR-05: Re-issue PIN - Web form interface for user-initiated PIN re-issue
+    """
     if request.method == 'POST':
         recipient_email = request.form.get('recipient_email')
         locker_id = request.form.get('locker_id')

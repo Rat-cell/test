@@ -11,15 +11,6 @@ class PinManager:
     def generate_pin_and_hash():
         """
         FR-02: Generate PIN - Create a 6-digit PIN and store its salted SHA-256 hash
-        
-        Implements FR-02 requirements:
-        - System generates cryptographically secure 6-digit numeric PIN
-        - PIN is hashed using salted SHA-256 before storage
-        - Original PIN is never stored in plain text
-        - Salt is unique per PIN for enhanced security
-        
-        Returns:
-            Tuple[str, str]: (plain_pin, salted_hash) where hash format is "salt_hex:hash_hex"
         """
         # FR-02: Generate cryptographically secure 6-digit numeric PIN
         pin = "{:06d}".format(int.from_bytes(os.urandom(3), 'big') % 1000000)  # Generate 6-digit PIN
@@ -45,7 +36,10 @@ class PinManager:
     
     @staticmethod
     def is_pin_expired(otp_expiry):
-        """Check if a PIN has expired"""
+        """
+        FR-09: Invalid PIN Error Handling - Check if a PIN has expired
+        Used by process_pickup to provide clear expiry error messages
+        """
         if otp_expiry is None:
             return True  # Treat None expiry as expired
         return datetime.utcnow() > otp_expiry
@@ -65,7 +59,10 @@ class PinManager:
     
     @staticmethod
     def is_valid_pin_format(pin):
-        """Validate PIN format (6 digits)"""
+        """
+        FR-09: Invalid PIN Error Handling - Validate PIN format (6 digits)
+        Used to ensure proper PIN format before processing
+        """
         if not pin:
             return False
         if not isinstance(pin, str):
@@ -74,4 +71,68 @@ class PinManager:
             return False
         if not pin.isdigit():
             return False
-        return True 
+        return True
+    
+    @staticmethod
+    def get_pin_error_help_message(error_type: str) -> str:
+        """
+        FR-09: Invalid PIN Error Handling - Get helpful error messages for different PIN error types
+        """
+        help_messages = {
+            'format_error': {
+                'title': '📝 PIN Format Error',
+                'message': 'Your PIN should be exactly 6 digits (numbers only).',
+                'actions': [
+                    'Double-check your PIN in the email you received',
+                    'Make sure you\'re not including spaces or letters',
+                    'Copy and paste the PIN from your email if needed'
+                ]
+            },
+            'expired': {
+                'title': '⏰ PIN Expired',
+                'message': 'Your PIN has expired and can no longer be used for pickup.',
+                'actions': [
+                    'Click "Request New PIN" below to get a fresh PIN',
+                    'Check your email for the new PIN (including spam folder)',
+                    'New PINs are valid for 24 hours'
+                ]
+            },
+            'invalid': {
+                'title': '❌ Incorrect PIN',
+                'message': 'The PIN you entered doesn\'t match any active parcel.',
+                'actions': [
+                    'Double-check the PIN in your email',
+                    'Make sure you\'re using the most recent PIN',
+                    'If you generated multiple PINs, only the latest one works'
+                ]
+            },
+            'no_parcel': {
+                'title': '📦 No Matching Parcel',
+                'message': 'No active parcel was found for this PIN.',
+                'actions': [
+                    'Verify the PIN is from a recent email',
+                    'Check if your parcel has already been picked up',
+                    'Contact support if you think this is an error'
+                ]
+            },
+            'rate_limited': {
+                'title': '⏳ Daily Limit Reached',
+                'message': 'You\'ve reached the daily limit for PIN generation (3 PINs per day).',
+                'actions': [
+                    'Try again tomorrow after midnight',
+                    'Use your most recent PIN if you still have it',
+                    'Contact support if you need immediate assistance'
+                ]
+            },
+            'system_error': {
+                'title': '⚠️ System Error',
+                'message': 'A technical error occurred while processing your PIN.',
+                'actions': [
+                    'Please try again in a few minutes',
+                    'If the problem persists, contact support',
+                    'Your parcel is safe and will remain available'
+                ]
+            }
+        }
+        
+        return help_messages.get(error_type, help_messages['system_error']) 

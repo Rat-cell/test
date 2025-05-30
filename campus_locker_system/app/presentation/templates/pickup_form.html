@@ -119,6 +119,7 @@
     <div class="container">
         <h1>🔑 Pick Up Parcel</h1>
         
+        <!-- FR-09: Invalid PIN Error Handling - Flash messages display PIN errors with user guidance -->
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             <ul class="flashes">
@@ -141,11 +142,13 @@
         
         <form method="POST">
             <label for="pin">🔢 Enter Your 6-Digit PIN:</label>
+            <!-- FR-09: Invalid PIN Error Handling - HTML5 validation prevents format errors -->
             <input type="text" name="pin" id="pin" required minlength="6" maxlength="6" 
                    placeholder="123456" pattern="[0-9]{6}" title="Please enter a 6-digit PIN">
             <button type="submit">🔑 Pick Up Parcel</button>
         </form>
         
+        <!-- FR-09: Invalid PIN Error Handling - Help section provides recovery guidance -->
         <div class="help-box">
             <h3>❓ Need help?</h3>
             <ul>

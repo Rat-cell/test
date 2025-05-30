@@ -42,14 +42,17 @@ class LockerManager:
     
     @staticmethod
     def find_available_locker(preferred_size: str):
-        """Find an available locker of the preferred size"""
+        """
+        Find an available locker of the preferred size
+        FR-08: Out of Service - Skips out_of_service lockers during assignment
+        """
         if not LockerManager.is_valid_size(preferred_size):
             return None
         
-        # Look for free locker of preferred size
+        # FR-08: Look for free locker of preferred size (excludes out_of_service)
         locker = Locker.query.filter_by(
             size=preferred_size, 
-            status='free'
+            status='free'  # FR-08: Only 'free' status lockers are available for assignment
         ).first()
         
         return locker
