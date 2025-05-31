@@ -9,14 +9,14 @@
 {% block content %}
 <div class="card">
     <div class="text-center mb-6">
-        <div class="icon">📦</div>
+        <div class="icon" aria-hidden="true">📦</div>
         <h1>Deposit New Parcel</h1>
         <p>Securely store a parcel for pickup by the recipient</p>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        <ul class="flashes">
+        <ul class="flashes" role="alert" aria-live="polite">
         {% for category, message in messages %}
           <li class="{{ category }}">{{ message }}</li>
         {% endfor %}
@@ -24,45 +24,56 @@
       {% endif %}
     {% endwith %}
 
-    <form method="POST">
+    <form method="POST" novalidate aria-label="Deposit parcel form">
         <div class="form-group">
-            <label for="parcel_size">📏 Parcel Size</label>
-            <select name="parcel_size" id="parcel_size" required>
+            <label for="parcel_size" class="required">📏 Parcel Size *</label>
+            <select name="parcel_size" id="parcel_size" required 
+                    aria-describedby="size-help" 
+                    aria-required="true">
                 <option value="">Select parcel size</option>
                 <option value="small">📦 Small (fits in small locker)</option>
                 <option value="medium">📦 Medium (fits in medium locker)</option>
                 <option value="large">📦 Large (fits in large locker)</option>
             </select>
+            <div id="size-help" class="form-help">Choose the size that best fits your parcel</div>
         </div>
 
         <div class="form-group">
-            <label for="recipient_email">📧 Recipient Email Address</label>
+            <label for="recipient_email" class="required">📧 Recipient Email Address *</label>
             <input type="email" 
                    name="recipient_email" 
                    id="recipient_email" 
                    required
+                   aria-required="true"
+                   aria-describedby="email-help"
                    placeholder="recipient@example.com"
                    autocomplete="email">
+            <div id="email-help" class="form-help">Email address where PIN generation link will be sent</div>
         </div>
 
         <div class="form-group">
-            <label for="confirm_recipient_email">✅ Confirm Email Address</label>
+            <label for="confirm_recipient_email" class="required">✅ Confirm Email Address *</label>
             <input type="email" 
                    name="confirm_recipient_email" 
                    id="confirm_recipient_email" 
                    required
+                   aria-required="true"
+                   aria-describedby="confirm-help"
                    placeholder="recipient@example.com"
                    autocomplete="email">
+            <div id="confirm-help" class="form-help">Re-enter the email address to confirm</div>
         </div>
 
-        <button type="submit" class="btn btn--primary btn--large btn--full">
+        <button type="submit" class="btn btn--primary btn--large btn--full" 
+                aria-describedby="submit-help">
             📦 Deposit Parcel
         </button>
+        <div id="submit-help" class="form-help text-center mt-2">Submit form to deposit parcel and assign locker</div>
     </form>
 
     <div class="alert alert--info mt-6">
-        <h3>📋 How it works</h3>
-        <ol style="margin: 0; padding-left: 1.5rem;">
+        <h2>📋 How it works</h2>
+        <ol style="margin: 0; padding-left: 1.5rem;" aria-label="Deposit process steps">
             <li>Choose the appropriate parcel size</li>
             <li>Enter the recipient's email address</li>
             <li>We'll assign an available locker</li>
@@ -70,4 +81,29 @@
         </ol>
     </div>
 </div>
+
+<style>
+.form-help {
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+    margin-top: var(--space-1);
+}
+
+.required::after {
+    content: " *";
+    color: var(--error-color);
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+</style>
 {% endblock %}

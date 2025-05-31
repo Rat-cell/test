@@ -431,13 +431,20 @@ Campus Locker System""",
     def validate_email_address(email: str) -> bool:
         """Basic email validation business rule"""
         import re
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        # Stricter pattern that rejects consecutive dots and other invalid patterns
+        pattern = r'^[a-zA-Z0-9][a-zA-Z0-9._%+-]*[a-zA-Z0-9]@[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]\.[a-zA-Z]{2,}$'
+        if not email or len(email) < 5:  # Minimum valid email like a@b.co
+            return False
+        # Check for consecutive dots
+        if '..' in email:
+            return False
         return bool(re.match(pattern, email))
     
     @classmethod
     def is_delivery_allowed(cls, email: str) -> bool:
         """Business rule: Check if email delivery is allowed for the given address"""
-        if not email or '@' not in email:
+        # First check if email is valid format
+        if not cls.validate_email_address(email):
             return False
         
         # Add business rules for blocked domains, addresses, etc.

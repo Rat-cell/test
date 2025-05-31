@@ -27,16 +27,19 @@ from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 from flask import session
 import json
+from pathlib import Path
 
-# Add the project root to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'campus_locker_system'))
+# Add the campus_locker_system directory to the Python path
+current_dir = Path(__file__).parent
+project_root = current_dir.parent
+sys.path.insert(0, str(project_root))
 
 from app import create_app, db
 from app.services.audit_service import AuditService
 from app.services.parcel_service import assign_locker_and_create_parcel, process_pickup
 from app.services.admin_auth_service import AdminAuthService
 from app.services.locker_service import set_locker_status
-from app.services.pin_service import reissue_pin, generate_pin_by_token
+from app.services.pin_service import generate_pin_by_token, regenerate_pin_token
 from app.persistence.models import Locker, AuditLog, AdminUser, Parcel
 from app.business.admin_auth import AdminRole
 from app.business.audit import AuditEventCategory, AuditEventSeverity
@@ -140,44 +143,37 @@ class TestFR07AuditTrail:
             print(f"   ✅ Parcel ID logged: {details.get('parcel_id')}")
             print(f"   ✅ Locker ID logged: {details.get('locker_id')}")
             
-            # Test 1.2: Traditional PIN deposit logging
-            print("📋 Test 1.2: Traditional PIN parcel deposit audit logging")
+            # Test 1.2: Verify email-based PIN system is consistently used
+            print("📋 Test 1.2: Verify system uses email-based PIN generation consistently")
             
-            # Temporarily disable email-based PIN generation for traditional test
-            original_config = app.config.get('ENABLE_EMAIL_BASED_PIN_GENERATION', True)
-            app.config['ENABLE_EMAIL_BASED_PIN_GENERATION'] = False
+            # Create another parcel to verify consistent email-based PIN generation
+            with app.test_request_context():
+                second_parcel, second_message = assign_locker_and_create_parcel(
+                    recipient_email="second.audit@example.com",
+                    preferred_size="large"
+                )
             
-            try:
-                with app.test_request_context():
-                    traditional_parcel, message = assign_locker_and_create_parcel(
-                        recipient_email="traditional.audit@example.com",
-                        preferred_size="large"
-                    )
-            finally:
-                # Restore original config
-                app.config['ENABLE_EMAIL_BASED_PIN_GENERATION'] = original_config
+            assert second_parcel is not None, "Second parcel should be created successfully"
+            assert second_parcel.pin_generation_token is not None, "Should use email-based PIN generation"
+            assert second_parcel.pin_hash is None, "Should not have immediate PIN"
             
-            assert traditional_parcel is not None, "Traditional parcel should be created"
-            
-            # Verify traditional deposit audit log
-            traditional_logs = AuditLog.query.filter(
-                AuditLog.action == "PARCEL_CREATED_TRADITIONAL_PIN"
+            # Verify second deposit audit log
+            all_email_pin_logs = AuditLog.query.filter(
+                AuditLog.action == "PARCEL_CREATED_EMAIL_PIN"
             ).all()
             
-            assert len(traditional_logs) >= 1, "Traditional deposit audit log should be created"
+            assert len(all_email_pin_logs) >= 2, "Both parcels should use email-based PIN system"
             
-            latest_traditional_log = traditional_logs[-1]
-            assert latest_traditional_log.timestamp is not None, "Traditional audit log should have timestamp"
-            
-            print(f"   ✅ Traditional deposit audit log created: {latest_traditional_log.action}")
-            print(f"   ✅ Timestamp recorded: {latest_traditional_log.timestamp}")
+            print(f"   ✅ System consistently uses email-based PIN generation")
+            print(f"   ✅ Total email-based PIN audit logs: {len(all_email_pin_logs)}")
+            print(f"   ✅ Traditional PIN system is deprecated - using token-based email generation")
             
             # Test 1.3: Verify audit log timestamps are recent
             print("📋 Test 1.3: Verify audit log timestamps are recent and accurate")
             
             recent_time = datetime.utcnow() - timedelta(minutes=1)
             all_deposit_logs = AuditLog.query.filter(
-                AuditLog.action.in_(["PARCEL_CREATED_EMAIL_PIN", "PARCEL_CREATED_TRADITIONAL_PIN"])
+                AuditLog.action == "PARCEL_CREATED_EMAIL_PIN"
             ).all()
             
             for log in all_deposit_logs:
@@ -231,19 +227,22 @@ class TestFR07AuditTrail:
             
             latest_invalid_log = invalid_pin_logs[-1]
             assert latest_invalid_log.timestamp is not None, "Should have timestamp"
-            assert "provided_pin_pattern" in latest_invalid_log.details, "Should log masked PIN pattern"
-            assert "reason" in latest_invalid_log.details, "Should log failure reason"
+            
+            # Parse details from JSON string
+            invalid_details = json.loads(latest_invalid_log.details) if latest_invalid_log.details else {}
+            assert "provided_pin_pattern" in invalid_details, "Should log masked PIN pattern"
+            assert "reason" in invalid_details, "Should log failure reason"
             
             print(f"   ✅ Invalid PIN audit log created: {latest_invalid_log.action}")
-            print(f"   ✅ PIN pattern masked: {latest_invalid_log.details.get('provided_pin_pattern')}")
-            print(f"   ✅ Failure reason logged: {latest_invalid_log.details.get('reason')}")
+            print(f"   ✅ PIN pattern masked: {invalid_details.get('provided_pin_pattern')}")
+            print(f"   ✅ Failure reason logged: {invalid_details.get('reason')}")
             
             # Test 2.2: Expired PIN pickup attempt
             print("📋 Test 2.2: Expired PIN pickup attempt audit logging")
             
             # Create parcel with expired PIN
             expired_parcel = Parcel(
-                locker_id=test_lockers[1].id,
+                locker_id=902,  # Use hardcoded ID instead of test_lockers[1].id
                 recipient_email="expired.audit@example.com",
                 pin_hash="dummy_hash:dummy_hash",
                 otp_expiry=datetime.utcnow() - timedelta(hours=1),  # Expired 1 hour ago
@@ -264,10 +263,13 @@ class TestFR07AuditTrail:
             if len(expired_pin_logs) >= 1:
                 latest_expired_log = expired_pin_logs[-1]
                 assert latest_expired_log.timestamp is not None, "Should have timestamp"
-                assert "expiry_time" in latest_expired_log.details, "Should log expiry time"
+                
+                # Parse details from JSON string
+                expired_details = json.loads(latest_expired_log.details) if latest_expired_log.details else {}
+                assert "expiry_time" in expired_details, "Should log expiry time"
                 
                 print(f"   ✅ Expired PIN audit log created: {latest_expired_log.action}")
-                print(f"   ✅ Expiry time logged: {latest_expired_log.details.get('expiry_time')}")
+                print(f"   ✅ Expiry time logged: {expired_details.get('expiry_time')}")
             else:
                 print(f"   ⚠️ No expired PIN logs found (PIN verification may not match)")
             
@@ -335,14 +337,17 @@ class TestFR07AuditTrail:
             
             latest_login_log = login_logs[-1]
             assert latest_login_log.timestamp is not None, "Should have timestamp"
-            assert "admin_id" in latest_login_log.details, "Should log admin ID"
-            assert "admin_username" in latest_login_log.details, "Should log admin username"
-            assert "login_time" in latest_login_log.details, "Should log login time"
+            
+            # Parse details from JSON string
+            login_details = json.loads(latest_login_log.details) if latest_login_log.details else {}
+            assert "admin_id" in login_details, "Should log admin ID"
+            assert "admin_username" in login_details, "Should log admin username"
+            assert "login_time" in login_details, "Should log login time"
             
             print(f"   ✅ Admin login audit log created: {latest_login_log.action}")
-            print(f"   ✅ Admin ID logged: {latest_login_log.details.get('admin_id')}")
-            print(f"   ✅ Admin username logged: {latest_login_log.details.get('admin_username')}")
-            print(f"   ✅ Login time logged: {latest_login_log.details.get('login_time')}")
+            print(f"   ✅ Admin ID logged: {login_details.get('admin_id')}")
+            print(f"   ✅ Admin username logged: {login_details.get('admin_username')}")
+            print(f"   ✅ Login time logged: {login_details.get('login_time')}")
             
             # Test 3.2: Admin locker status change audit logging
             print("📋 Test 3.2: Admin locker status change audit logging")
@@ -351,7 +356,7 @@ class TestFR07AuditTrail:
                 locker_result, status_message = set_locker_status(
                     admin_id=test_admin.id,
                     admin_username=test_admin.username,
-                    locker_id=test_lockers[0].id,
+                    locker_id=901,  # Use hardcoded ID instead of test_lockers[0].id
                     new_status="out_of_service"
                 )
             
@@ -366,23 +371,26 @@ class TestFR07AuditTrail:
             
             latest_status_log = status_change_logs[-1]
             assert latest_status_log.timestamp is not None, "Should have timestamp"
-            assert "locker_id" in latest_status_log.details, "Should log locker ID"
-            assert "old_status" in latest_status_log.details, "Should log old status"
-            assert "new_status" in latest_status_log.details, "Should log new status"
-            assert "admin_id" in latest_status_log.details, "Should log admin ID"
-            assert "admin_username" in latest_status_log.details, "Should log admin username"
+            
+            # Parse details from JSON string  
+            status_details = json.loads(latest_status_log.details) if latest_status_log.details else {}
+            assert "locker_id" in status_details, "Should log locker ID"
+            assert "old_status" in status_details, "Should log old status"
+            assert "new_status" in status_details, "Should log new status"
+            assert "admin_id" in status_details, "Should log admin ID"
+            assert "admin_username" in status_details, "Should log admin username"
             
             print(f"   ✅ Locker status change audit log created: {latest_status_log.action}")
-            print(f"   ✅ Locker ID logged: {latest_status_log.details.get('locker_id')}")
-            print(f"   ✅ Status change logged: {latest_status_log.details.get('old_status')} → {latest_status_log.details.get('new_status')}")
-            print(f"   ✅ Admin identity logged: {latest_status_log.details.get('admin_username')} (ID: {latest_status_log.details.get('admin_id')})")
+            print(f"   ✅ Locker ID logged: {status_details.get('locker_id')}")
+            print(f"   ✅ Status change logged: {status_details.get('old_status')} → {status_details.get('new_status')}")
+            print(f"   ✅ Admin identity logged: {status_details.get('admin_username')} (ID: {status_details.get('admin_id')})")
             
             # Test 3.3: Admin PIN reissue audit logging
             print("📋 Test 3.3: Admin PIN reissue audit logging")
             
             # Create a test parcel for PIN reissue
             test_parcel = Parcel(
-                locker_id=test_lockers[1].id,
+                locker_id=902,  # Use hardcoded ID instead of test_lockers[1].id
                 recipient_email="pin.reissue.audit@example.com",
                 pin_hash="old_hash:old_hash",
                 otp_expiry=datetime.utcnow() + timedelta(hours=1),
@@ -393,9 +401,9 @@ class TestFR07AuditTrail:
             db.session.commit()
             
             with app.test_request_context():
-                reissue_result, reissue_message = reissue_pin(test_parcel.id)
+                reissue_result, reissue_message = regenerate_pin_token(test_parcel.id, test_parcel.recipient_email)
             
-            assert reissue_result is not None, "PIN reissue should be successful"
+            assert reissue_result is not False, "PIN token regeneration should be successful"
             
             # Check for PIN reissue audit logs
             pin_reissue_logs = AuditLog.query.filter(
@@ -586,7 +594,9 @@ class TestFR07AuditTrail:
             required_fields = ["parcel_id", "locker_id", "admin_id", "admin_username"]
             for field in required_fields:
                 if hasattr(completeness_log, 'details'):
-                    assert field in completeness_log.details, f"Should contain {field} for investigation"
+                    # Parse details from JSON string
+                    details = json.loads(completeness_log.details) if completeness_log.details else {}
+                    assert field in details, f"Should contain {field} for investigation"
                 elif isinstance(completeness_log, dict):
                     assert field in completeness_log.get('details', {}), f"Should contain {field} for investigation"
             

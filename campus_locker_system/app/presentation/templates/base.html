@@ -500,40 +500,47 @@
     {% if request.endpoint != 'main.home' %}
     <div class="nav-bar">
         <div class="container">
-            <nav class="nav-menu">
+            <!-- NFR-05: Accessibility - Main navigation with ARIA support for screen readers -->
+            <nav class="nav-menu" role="navigation" aria-label="Main navigation">
                 {% if session.get('admin_id') and request.endpoint in ['main.manage_lockers', 'main.audit_logs_view', 'main.view_parcel_admin'] %}
                 <!-- Admin Navigation - Only on admin pages -->
                 <div class="nav-main">
-                    <a href="/admin/lockers" class="nav-item {{ 'nav-item--active' if request.endpoint == 'main.manage_lockers' }}">
+                    <a href="/admin/lockers" class="nav-item {{ 'nav-item--active' if request.endpoint == 'main.manage_lockers' }}" 
+                       aria-current="{{ 'page' if request.endpoint == 'main.manage_lockers' else 'false' }}">
                         🔒 Manage Lockers
                     </a>
-                    <a href="/admin/audit-logs" class="nav-item {{ 'nav-item--active' if request.endpoint == 'main.audit_logs_view' }}">
+                    <a href="/admin/audit-logs" class="nav-item {{ 'nav-item--active' if request.endpoint == 'main.audit_logs_view' }}"
+                       aria-current="{{ 'page' if request.endpoint == 'main.audit_logs_view' else 'false' }}">
                         📋 Audit Logs
                     </a>
                 </div>
                 <!-- Admin Secondary - Right Aligned -->
                 <div class="nav-secondary">
-                    <a href="/admin/logout" class="nav-item">
+                    <a href="/admin/logout" class="nav-item" aria-label="Logout from admin panel">
                         🚪 Logout
                     </a>
                 </div>
                 {% else %}
                 <!-- Public Navigation - For all recipient/sender pages -->
                 <div class="nav-main">
-                    <a href="/" class="nav-item {{ 'nav-item--active' if request.endpoint == 'main.home' }}">
+                    <a href="/" class="nav-item {{ 'nav-item--active' if request.endpoint == 'main.home' }}"
+                       aria-current="{{ 'page' if request.endpoint == 'main.home' else 'false' }}">
                         🏠 Home
                     </a>
-                    <a href="/deposit" class="nav-item {{ 'nav-item--active' if request.endpoint == 'main.deposit_parcel' }}">
+                    <a href="/deposit" class="nav-item {{ 'nav-item--active' if request.endpoint == 'main.deposit_parcel' }}"
+                       aria-current="{{ 'page' if request.endpoint == 'main.deposit_parcel' else 'false' }}">
                         📦 Deposit
                     </a>
-                    <a href="/pickup" class="nav-item {{ 'nav-item--active' if request.endpoint == 'main.pickup_parcel' }}">
+                    <a href="/pickup" class="nav-item {{ 'nav-item--active' if request.endpoint == 'main.pickup_parcel' }}"
+                       aria-current="{{ 'page' if request.endpoint == 'main.pickup_parcel' else 'false' }}">
                         🔑 Pick Up
                     </a>
                 </div>
                 <!-- Public Secondary - Right Aligned -->
                 <div class="nav-secondary">
                     {% if request.endpoint == 'main.home' %}
-                    <a href="/admin/login" class="nav-item {{ 'nav-item--active' if request.endpoint == 'main.admin_login' }}">
+                    <a href="/admin/login" class="nav-item {{ 'nav-item--active' if request.endpoint == 'main.admin_login' }}"
+                       aria-label="Admin login">
                         🔐 Admin
                     </a>
                     {% endif %}

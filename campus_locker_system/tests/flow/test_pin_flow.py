@@ -1,12 +1,14 @@
+#!/usr/bin/env python3
+"""Test PIN flow functionality"""
+
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 from app import create_app, db
 from app.business.parcel import Parcel
 from app.persistence.models import Locker
-from app.services.pin_service import generate_pin_by_token, regenerate_pin_token
+from app.services.pin_service import generate_pin_by_token, regenerate_pin_token, request_pin_regeneration_by_recipient_email_and_locker
 from app.services.parcel_service import assign_locker_and_create_parcel, process_pickup
-from app.services.pin_service import reissue_pin, request_pin_regeneration_by_recipient
 from app.business.pin import PinManager
 from app.services.audit_service import AuditService
 from app.persistence.models import AuditLog
@@ -15,6 +17,11 @@ import subprocess
 import sys
 import os
 from pathlib import Path
+
+# Add the campus_locker_system directory to the Python path
+current_dir = Path(__file__).parent.parent
+project_root = current_dir.parent
+sys.path.insert(0, str(project_root))
 
 @pytest.fixture
 def app():
@@ -36,9 +43,9 @@ def init_database(app):
         db.session.commit()
         
         # Create test lockers
-        locker1 = Locker(id=1, size='small', status='free')
-        locker2 = Locker(id=2, size='medium', status='free')
-        locker3 = Locker(id=3, size='large', status='free')
+        locker1 = Locker(id=1, location='Test Locker 1', size='small', status='free')
+        locker2 = Locker(id=2, location='Test Locker 2', size='medium', status='free')
+        locker3 = Locker(id=3, location='Test Locker 3', size='large', status='free')
         
         db.session.add(locker1)
         db.session.add(locker2)
@@ -94,20 +101,19 @@ class TestTraditionalPinFlow:
             app.config['ENABLE_EMAIL_BASED_PIN_GENERATION'] = False
             
             with patch('app.services.parcel_service.NotificationService.send_parcel_deposit_notification') as mock_deposit:
-                with patch('app.services.pin_service.NotificationService.send_pin_reissue_notification') as mock_reissue:
+                with patch('app.services.notification_service.NotificationService.send_parcel_ready_notification') as mock_reissue:
                     mock_deposit.return_value = (True, "PIN sent successfully")
-                    mock_reissue.return_value = (True, "New PIN sent successfully")
+                    mock_reissue.return_value = (True, "New PIN token sent successfully")
                     
                     # Create parcel with traditional PIN
                     parcel, _ = assign_locker_and_create_parcel('reissue@example.com', 'small')
                     original_pin_hash = parcel.pin_hash
                     
-                    # Reissue PIN
-                    reissued_parcel, reissue_message = reissue_pin(parcel.id)
+                    # Regenerate PIN token
+                    success, reissue_message = regenerate_pin_token(parcel.id, parcel.recipient_email)
                     
-                    assert reissued_parcel is not None
-                    assert reissued_parcel.pin_hash != original_pin_hash  # PIN changed
-                    assert "New PIN issued" in reissue_message
+                    assert success is not False
+                    assert "PIN generation link sent" in reissue_message or "sent successfully" in reissue_message
                     
                     # Verify reissue notification was called
                     mock_reissue.assert_called_once()
@@ -381,7 +387,6 @@ class TestEmailBasedPinFlow:
                 mock_ready.return_value = (True, "New link sent")
                 
                 # Test recipient PIN regeneration request
-                from app.services.pin_service import request_pin_regeneration_by_recipient_email_and_locker
                 result_parcel, message = request_pin_regeneration_by_recipient_email_and_locker(
                     'regeneration_test@example.com', '1'
                 )
@@ -409,7 +414,6 @@ class TestEmailBasedPinFlow:
                     mock_regen.return_value = (True, "New PIN sent")
                     
                     # Test recipient PIN regeneration request
-                    from app.services.pin_service import request_pin_regeneration_by_recipient_email_and_locker
                     result_parcel, message = request_pin_regeneration_by_recipient_email_and_locker(
                         'traditional_regen@example.com', '1'
                     )

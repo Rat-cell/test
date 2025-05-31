@@ -13,7 +13,15 @@ Key Tests:
 
 import pytest
 import json
+import sys
+from pathlib import Path
 from datetime import datetime
+
+# Add the campus_locker_system directory to the Python path
+current_dir = Path(__file__).parent
+project_root = current_dir.parent
+sys.path.insert(0, str(project_root))
+
 from app import create_app, db
 from app.business.locker import Locker
 from app.business.parcel import Parcel
