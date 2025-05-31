@@ -40,6 +40,9 @@ from app.services.pin_service import (
     request_pin_regeneration_by_recipient_email_and_locker
 )
 from app.persistence.models import Parcel, Locker
+# Add Repository Imports
+from app.persistence.repositories.locker_repository import LockerRepository
+from app.persistence.repositories.parcel_repository import ParcelRepository
 
 
 class TestFR05ReissuePin:
@@ -71,7 +74,7 @@ class TestFR05ReissuePin:
         with app.app_context():
             # Create test locker
             locker = Locker(id=905, location="Test FR-05 Locker", size="medium", status="occupied")
-            db.session.add(locker)
+            LockerRepository.save(locker) # Use repository
             
             # Create test parcel with expired PIN
             parcel = Parcel(
@@ -82,13 +85,13 @@ class TestFR05ReissuePin:
                 pin_hash="expired_hash:12345",
                 otp_expiry=datetime.utcnow() - timedelta(hours=1)  # Expired
             )
-            token = parcel.generate_pin_token()
-            db.session.add(parcel)
-            db.session.commit()
+            token = parcel.generate_pin_token() # generate_pin_token needs to be called before saving if it sets a value
+            ParcelRepository.save(parcel) # Use repository
             
             yield locker, parcel
             
             # Cleanup
+            # Keeping direct db.session.delete for test cleanup simplicity
             db.session.delete(parcel)
             db.session.delete(locker)
             db.session.commit()
@@ -115,7 +118,8 @@ class TestFR05ReissuePin:
                 assert "New PIN generation link sent" in message, "FR-05: Should confirm link was sent"
                 
                 # Verify token was changed by re-fetching from database
-                updated_parcel = db.session.get(Parcel, parcel_id)
+                updated_parcel = ParcelRepository.get_by_id(parcel_id) # Use repository
+                assert updated_parcel is not None, "FR-05: Updated parcel should be found"
                 assert updated_parcel.pin_generation_token != original_token, "FR-05: Token should be updated"
                 
                 # Verify notification was sent
@@ -128,7 +132,7 @@ class TestFR05ReissuePin:
         with app.app_context():
             locker, parcel = test_locker_and_parcel
             parcel.status = "picked_up"
-            db.session.commit()
+            ParcelRepository.save(parcel) # Use repository to save status change
             
             # Attempt to regenerate PIN token
             success, message = regenerate_pin_token(parcel.id, parcel.recipient_email)
@@ -176,7 +180,8 @@ class TestFR05ReissuePin:
                 assert "PIN generation link has been regenerated" in message, "FR-05: Should confirm link was sent"
                 
                 # Verify token was changed by re-fetching from database
-                updated_parcel = db.session.get(Parcel, parcel_id)
+                updated_parcel = ParcelRepository.get_by_id(parcel_id) # Use repository
+                assert updated_parcel is not None, "FR-05: Updated parcel should be found after user regeneration"
                 assert updated_parcel.pin_generation_token != original_token, "FR-05: Token should be updated"
 
     def test_fr05_user_regeneration_wrong_email(self, app, test_locker_and_parcel):
@@ -237,7 +242,8 @@ class TestFR05ReissuePin:
                 assert "PIN generation link sent" in message, "FR-05: Should confirm link sent"
                 
                 # Verify token was changed by re-fetching from database
-                updated_parcel = db.session.get(Parcel, parcel_id)
+                updated_parcel = ParcelRepository.get_by_id(parcel_id) # Use repository
+                assert updated_parcel is not None, "FR-05: Updated parcel should be found after token regeneration"
                 assert updated_parcel.pin_generation_token != original_token, "FR-05: Token should be updated"
 
     def test_fr05_token_regeneration_resets_daily_count(self, app, test_locker_and_parcel):

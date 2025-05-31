@@ -1,21 +1,25 @@
 # Admin Authentication service - orchestration layer
 from typing import Tuple, Optional, Dict, Any
 from flask import current_app, session
-from app import db
 from app.business.admin_auth import AdminUser as BusinessAdminUser, AdminAuthManager, AdminSession, AdminRole
 from app.persistence.models import AdminUser as PersistenceAdminUser
+from app.persistence.repositories.admin_repository import AdminRepository
 from app.services.audit_service import AuditService
 from datetime import datetime
-from werkzeug.security import check_password_hash
+# from werkzeug.security import check_password_hash # Not directly used here anymore
 
 class AdminAuthService:
     """NFR-03: Security - Secure admin authentication with bcrypt hashing and audit logging"""
     
     @staticmethod
+    def get_admin_count() -> int:
+        """Returns the total count of admin users via AdminRepository."""
+        return AdminRepository.get_count()
+
+    @staticmethod
     def authenticate_admin(username: str, password: str) -> Tuple[Optional[BusinessAdminUser], str]:
         """NFR-03: Security - Secure admin authentication with password verification and audit logging"""
         try:
-            # Validate login attempt format
             validation_result = AdminAuthManager.validate_login_attempt(username, password)
             if not validation_result['valid']:
                 AuditService.log_event("ADMIN_LOGIN_FAIL", {
@@ -23,50 +27,44 @@ class AdminAuthService:
                     "reason": validation_result['reason']
                 })
                 return None, validation_result['reason']
-            
-            # Query persistence layer
-            persistence_admin = PersistenceAdminUser.query.filter_by(username=username).first()
-            
+
+            persistence_admin = AdminRepository.get_by_username(username)
+
             if not persistence_admin:
                 AuditService.log_event("ADMIN_LOGIN_FAIL", {
                     "username_attempted": username,
                     "reason": "User not found"
                 })
                 return None, "Invalid credentials"
-            
-            # Convert to business entity
+
             business_admin = AdminAuthService._convert_to_business_entity(persistence_admin)
-            
-            # Verify password
+
             if not business_admin.check_password(password):
                 AuditService.log_event("ADMIN_LOGIN_FAIL", {
                     "username_attempted": username,
                     "reason": "Invalid password"
                 })
                 return None, "Invalid credentials"
-            
-            # Update last login
+
             business_admin.update_last_login()
             persistence_admin.last_login = business_admin.last_login
-            db.session.commit()
-            
-            # Login successful - set session
+            if not AdminRepository.save(persistence_admin):
+                current_app.logger.warning("Failed to update last_login for admin during authentication.")
+
             session['admin_id'] = business_admin.id
             session['admin_username'] = business_admin.username
             session.permanent = True
-            
-            # FR-07: Audit Trail - Record admin override action with timestamp and admin identity
+
             AuditService.log_event("ADMIN_LOGIN_SUCCESS", {
                 "admin_id": business_admin.id,
                 "admin_username": business_admin.username,
                 "login_time": datetime.utcnow().isoformat()
             })
-            
+
             return business_admin, "Authentication successful"
-            
+
         except Exception as e:
             current_app.logger.error(f"Error during admin authentication: {str(e)}")
-            # NFR-03: Security - Log authentication errors for security investigation
             AuditService.log_event("ADMIN_LOGIN_ERROR", details={
                 "attempted_username": username,
                 "error": str(e)
@@ -153,10 +151,11 @@ class AdminAuthService:
         if not admin_session:
             return False, "Not authenticated"
         
-        # Get admin business entity to check permissions
-        persistence_admin = db.session.get(PersistenceAdminUser, admin_session.admin_id)
+        persistence_admin = AdminRepository.get_by_id(admin_session.admin_id)
         if not persistence_admin:
-            return False, "Admin user not found"
+            current_app.logger.error(f"Admin user ID {admin_session.admin_id} from session not found in DB via repository.")
+            AdminAuthService.logout()
+            return False, "Admin user not found in database. Session logged out."
         
         business_admin = AdminAuthService._convert_to_business_entity(persistence_admin)
         
@@ -174,43 +173,37 @@ class AdminAuthService:
     def create_admin_user(username: str, password: str, role: AdminRole = AdminRole.ADMIN) -> Tuple[Optional[BusinessAdminUser], str]:
         """Create new admin user"""
         try:
-            # Validate username
             if not AdminAuthManager.validate_username(username):
                 return None, "Invalid username format"
-            
-            # Check if username already exists
-            if PersistenceAdminUser.query.filter_by(username=username).first():
+
+            if AdminRepository.get_by_username(username):
                 return None, "Username already exists"
-            
-            # Create business entity
+
             business_admin = BusinessAdminUser(username=username, role=role)
             business_admin.set_password(password)  # Will validate password strength
-            
-            # Create persistence entity
+
             persistence_admin = PersistenceAdminUser(
                 username=business_admin.username,
                 password_hash=business_admin.password_hash
             )
-            
-            db.session.add(persistence_admin)
-            db.session.commit()
-            
-            # Update business entity with generated ID
-            business_admin.id = persistence_admin.id
-            
+
+            if not AdminRepository.save(persistence_admin):
+                return None, "Error saving admin user to database."
+
+            business_admin.id = persistence_admin.id # Get ID after saving
+
             AuditService.log_event("ADMIN_USER_CREATED", {
                 "admin_id": business_admin.id,
                 "username": business_admin.username,
                 "role": business_admin.role.value,
                 "created_by": session.get('admin_id', 'system')
             })
-            
+
             return business_admin, "Admin user created successfully"
-            
-        except ValueError as e:
+
+        except ValueError as e: # From business_admin.set_password if strength fails
             return None, str(e)
         except Exception as e:
-            db.session.rollback()
             current_app.logger.error(f"Error creating admin user: {str(e)}")
             return None, "Error creating admin user"
     

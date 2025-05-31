@@ -37,6 +37,13 @@ from app.business.pin import PinManager
 from app.services.audit_service import AuditService
 from app.services.parcel_service import mark_parcel_missing_by_admin
 
+# Repository Imports
+from app.persistence.repositories.locker_repository import LockerRepository
+from app.persistence.repositories.parcel_repository import ParcelRepository
+from app.persistence.repositories.admin_repository import AdminRepository
+from app.persistence.repositories.audit_log_repository import AuditLogRepository
+from app.persistence.repositories.locker_sensor_data_repository import LockerSensorDataRepository
+
 def test_generate_pin_and_hash():
     pin, hashed_value = PinManager.generate_pin_and_hash()
     assert pin is not None
@@ -76,10 +83,16 @@ def test_assign_locker_and_create_parcel_success(init_database, app):
 def test_assign_locker_no_availability(init_database, app):
     with app.app_context():
         # Make all small lockers occupied to test failure case
-        small_lockers = Locker.query.filter_by(size='small').all()
+        # Assuming 'get_all_by_size_and_status' can fetch by size regardless of current status, or just 'get_all'
+        # For this test, we want to fetch all small lockers, then mark them occupied.
+        # A simple way: fetch all lockers, filter by size, then update.
+        all_lockers = LockerRepository.get_all() 
+        small_lockers = [l for l in all_lockers if l.size == 'small']
+        
         for locker in small_lockers:
-            locker.status = 'occupied'
-        db.session.commit()
+            if locker.status != 'occupied': # Only change if not already occupied
+                locker.status = 'occupied'
+                LockerRepository.save(locker) # Use repository to save changes
         
         result = assign_locker_and_create_parcel('no_locker@example.com', 'small')
         parcel, message = result
@@ -116,7 +129,9 @@ def test_pickup_from_out_of_service_locker(init_database, app):
         # If previous tests in the module used Locker 1, it might be occupied.
         # Let's find any available small locker.
         
-        free_small_locker_for_test = Locker.query.filter_by(size='small', status='free').first()
+        # free_small_locker_for_test = Locker.query.filter_by(size='small', status='free').first()
+        # Use LockerRepository to find an available small locker
+        free_small_locker_for_test = LockerRepository.find_available_locker_by_size('small')
         
         # If no free small locker, we might need to create one or fail the test setup.
         # For this test, let's assume init_database provides enough.
@@ -124,7 +139,8 @@ def test_pickup_from_out_of_service_locker(init_database, app):
         # Or, reset specific lockers to 'free' state if known to be used by prior tests.
         # For now, let's try to make Locker 1 free if it's not, to keep test logic simple.
         
-        target_locker_for_test = db.session.get(Locker, 1) # Still target Locker 1 for simplicity
+        # target_locker_for_test = db.session.get(Locker, 1) # Still target Locker 1 for simplicity
+        target_locker_for_test = LockerRepository.get_by_id(1) # Use Repository
         assert target_locker_for_test is not None
         if target_locker_for_test.status != 'free':
             # If Locker 1 was used by another test (e.g. test_assign_locker_and_create_parcel_success)
@@ -140,22 +156,33 @@ def test_pickup_from_out_of_service_locker(init_database, app):
             # A more robust way would be to pick any free small locker.
             
             # Let's find the first available 'small' locker and use it.
-            locker_to_use_for_deposit = Locker.query.filter_by(size='small', status='free').first()
-            if not locker_to_use_for_deposit:
+            # locker_to_use_for_deposit = Locker.query.filter_by(size='small', status='free').first()
+            locker_to_use_for_deposit = LockerRepository.find_available_locker_by_size('small') # Use Repository
+            if not locker_to_use_for_deposit: # This means free_small_locker_for_test was also None or became occupied
                 # If truly no small free lockers, then the test setup for init_database might be insufficient
                 # or other tests are consuming all small free lockers.
                 # For now, let's force Locker 1 to be free if it exists.
                 # This is a simplification for this specific test context.
-                l1 = db.session.get(Locker, 1)
+                l1 = LockerRepository.get_by_id(1) # Use Repository
                 if l1: # If locker 1 exists
                     l1.status = 'free'
                     # Remove any parcel that might have been in it from a previous test
-                    Parcel.query.filter_by(locker_id=1).delete()
-                    db.session.commit()
+                    # Parcel.query.filter_by(locker_id=1).delete()
+                    # db.session.commit() 
+                    # Deleting parcels directly can be tricky. If ParcelRepository has a method, use it.
+                    # For now, focusing on locker status for this test setup. If parcel cleanup is crucial, 
+                    # add method to ParcelRepository or use db.session as last resort for test utility.
+                    # To ensure a clean state for Locker 1, we might need to delete parcels associated with it.
+                    # This part of the logic is complex for a test setup if not handled by a dedicated fixture.
+                    # Let's assume ParcelRepository.delete_by_locker_id(1) if it existed.
+                    # For now, we save the locker status, and if a parcel exists, it might cause issues elsewhere.
+                    LockerRepository.save(l1)
                 else: # Should not happen if init_database works
                     pytest.fail("Locker ID 1 not found for test setup.")
 
-            assert db.session.get(Locker, 1).status == 'free', "Failed to make Locker 1 free for test."
+            target_locker_for_test = LockerRepository.get_by_id(1) # Re-fetch to be sure of state
+            assert target_locker_for_test is not None
+            assert target_locker_for_test.status == 'free', "Failed to make Locker 1 free for test."
 
         # Use a unique recipient for this test
         recipient_email_oos_test = 'oos_test_locker1@example.com' # Make email unique
@@ -170,22 +197,26 @@ def test_pickup_from_out_of_service_locker(init_database, app):
         # This assertion is key: we expect it to pick Locker 1.
         assert original_locker_id == 1, f"Test expected Locker 1 to be used, but got {original_locker_id}. Check available small free lockers."
 
-        locker_to_modify = db.session.get(Locker, original_locker_id)
+        # locker_to_modify = db.session.get(Locker, original_locker_id)
+        locker_to_modify = LockerRepository.get_by_id(original_locker_id) # Use Repository
         assert locker_to_modify is not None
         assert locker_to_modify.status == 'occupied' # It should be occupied now
 
         # 2. Admin marks this specific locker as 'out_of_service' (simulated)
         locker_to_modify.status = 'out_of_service'
-        db.session.add(locker_to_modify)
-        db.session.commit()
+        # db.session.add(locker_to_modify)
+        # db.session.commit()
+        LockerRepository.save(locker_to_modify) # Use Repository
 
         # Verify it's marked OOS
-        assert db.session.get(Locker, original_locker_id).status == 'out_of_service'
+        # assert db.session.get(Locker, original_locker_id).status == 'out_of_service'
+        assert LockerRepository.get_by_id(original_locker_id).status == 'out_of_service' # Use Repository
 
         # Create a known PIN for testing
         test_pin, test_hash = PinManager.generate_pin_and_hash()
         parcel.pin_hash = test_hash
-        db.session.commit()
+        # db.session.commit()
+        ParcelRepository.save(parcel) # Use Repository
 
         # 3. Attempt to pick up the parcel
         pickup_result = process_pickup(test_pin)
@@ -197,7 +228,8 @@ def test_pickup_from_out_of_service_locker(init_database, app):
         assert 'successfully picked up' in pickup_message.lower()
         
         # 4. Assert the locker status is now 'out_of_service' (and empty)
-        updated_locker = db.session.get(Locker, original_locker_id)
+        # updated_locker = db.session.get(Locker, original_locker_id)
+        updated_locker = LockerRepository.get_by_id(original_locker_id) # Use Repository
         assert updated_locker.status == 'out_of_service'
 
 def test_verify_pin_malformed_hash_string(app): # app fixture for potential logging context
@@ -299,28 +331,26 @@ def test_pickup_fail_expired_pin_audit(init_database, app):
         # 1. Deposit a parcel
         test_email_expired = 'expired_pin_audit@example.com'
         # Ensure Locker 1 is free for this deposit.
-        l1_expired = db.session.get(Locker, 1)
+        l1_expired = LockerRepository.get_by_id(1)
         if l1_expired and l1_expired.status != 'free':
              l1_expired.status = 'free'
-             Parcel.query.filter_by(locker_id=1).delete() # Clear any parcel from previous tests
-             db.session.commit()
+             ParcelRepository.delete_by_locker_id(1) # Clear any parcel from previous tests
+             LockerRepository.save(l1_expired)
         
         result = assign_locker_and_create_parcel(test_email_expired, 'small')
         parcel, _ = result
         assert parcel is not None
 
         # 2. Manually expire the parcel's OTP
-        parcel_to_expire = db.session.get(Parcel, parcel.id)
+        parcel_to_expire = ParcelRepository.get_by_id(parcel.id)
         assert parcel_to_expire is not None
         parcel_to_expire.otp_expiry = datetime.utcnow() - timedelta(days=1) # Set expiry to yesterday
-        db.session.add(parcel_to_expire)
-        db.session.commit()
+        ParcelRepository.save(parcel_to_expire)
 
         # Create a known PIN for testing
         test_pin, test_hash = PinManager.generate_pin_and_hash()
         parcel_to_expire.pin_hash = test_hash
-        db.session.add(parcel_to_expire)
-        db.session.commit()
+        ParcelRepository.save(parcel_to_expire)
 
         # 3. Attempt pickup
         process_pickup(test_pin)
@@ -379,7 +409,7 @@ def test_set_locker_occupied_to_oos(init_database, app, test_admin_user):
         l1 = db.session.get(Locker, 1)
         if l1.status != 'free':
             l1.status = 'free'
-            Parcel.query.filter_by(locker_id=1).delete()
+            ParcelRepository.delete_by_locker_id(1)
             db.session.commit()
 
         result = assign_locker_and_create_parcel('occupy_for_oos@example.com', 'small')
@@ -416,7 +446,7 @@ def test_set_locker_oos_empty_to_free(init_database, app, test_admin_user):
         assert locker is not None
         # Set it to OOS first (ensure it's empty)
         locker.status = 'out_of_service'
-        Parcel.query.filter_by(locker_id=locker_id_to_test, status='deposited').delete()
+        ParcelRepository.delete_by_locker_id(locker_id_to_test)
         db.session.commit()
         assert locker.status == 'out_of_service'
 
@@ -445,7 +475,7 @@ def test_set_locker_oos_occupied_to_free_fail(init_database, app, test_admin_use
         l1 = db.session.get(Locker, 1)
         if l1.status != 'free':
             l1.status = 'free'
-            Parcel.query.filter_by(locker_id=1).delete()
+            ParcelRepository.delete_by_locker_id(1)
             db.session.commit()
 
         result = assign_locker_and_create_parcel('oos_occupied_fail@example.com', 'small')

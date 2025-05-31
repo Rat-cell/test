@@ -2,18 +2,27 @@ from datetime import datetime, timedelta
 from flask import current_app, url_for
 from app import db
 from app.business.pin import PinManager
-from app.business.parcel import Parcel
+from app.persistence.models import Parcel as PersistenceParcel
+from app.persistence.repositories.parcel_repository import ParcelRepository
 from app.services.audit_service import AuditService
 from typing import Tuple, Optional
 
-def generate_pin_by_token(token: str) -> Tuple[Optional[Parcel], str]:
+def get_pin_expiry_hours() -> int:
+    """
+    Returns the PIN expiry duration in hours from PinManager.
+    """
+    # NFR-01: Performance - Accessing a class variable is efficient
+    # This keeps the presentation layer from directly accessing the business layer.
+    return PinManager.get_pin_expiry_hours()
+
+def generate_pin_by_token(token: str) -> Tuple[Optional[PersistenceParcel], str]:
     """
     FR-02: Generate PIN - Create a 6-digit PIN and store its salted SHA-256 hash (email-based system)
     NFR-03: Security - Token-based PIN generation with rate limiting and audit logging
     """
     try:
-        # Find parcel with matching token
-        parcel = Parcel.query.filter_by(pin_generation_token=token).first()
+        # Find parcel with matching token using repository
+        parcel = ParcelRepository.get_by_pin_generation_token(token)
         
         if not parcel:
             # NFR-03: Security - Log invalid token attempts for security monitoring
@@ -60,7 +69,12 @@ def generate_pin_by_token(token: str) -> Tuple[Optional[Parcel], str]:
         parcel.pin_generation_count += 1
         parcel.last_pin_generation = datetime.utcnow()
         
-        db.session.commit()
+        # Save parcel using repository
+        if not ParcelRepository.save(parcel):
+            # Rollback handled by repository if save fails
+            current_app.logger.error(f"Failed to save parcel {parcel.id} during PIN generation via repository.")
+            AuditService.log_event("PIN_GENERATION_FAIL_DB_SAVE", {"parcel_id": parcel.id, "token_prefix": token[:8] + "..."})
+            return None, "Database error saving PIN details."
         
         # Generate PIN generation URL for regeneration link
         pin_generation_url = url_for('main.generate_pin_by_token_route', 
@@ -94,7 +108,6 @@ def generate_pin_by_token(token: str) -> Tuple[Optional[Parcel], str]:
             return parcel, f"PIN generated successfully. Note: Email notification may have failed."
             
     except Exception as e:
-        db.session.rollback()
         current_app.logger.error(f"Error generating PIN by token: {str(e)}")
         AuditService.log_event("PIN_GENERATION_ERROR", details={
             "error": str(e),
@@ -107,7 +120,8 @@ def regenerate_pin_token(parcel_id: int, recipient_email: str, admin_reset: bool
     FR-05: Re-issue PIN - Regenerate PIN generation token for expired links
     """
     try:
-        parcel = db.session.get(Parcel, parcel_id)
+        # Fetch parcel using repository
+        parcel = ParcelRepository.get_by_id(parcel_id)
         
         if not parcel:
             return False, "Parcel not found."
@@ -127,7 +141,11 @@ def regenerate_pin_token(parcel_id: int, recipient_email: str, admin_reset: bool
         elif parcel.last_pin_generation and (datetime.utcnow() - parcel.last_pin_generation).days >= 1:
             parcel.pin_generation_count = 0  # Natural daily reset
         
-        db.session.commit()
+        # Save parcel using repository
+        if not ParcelRepository.save(parcel):
+            # Rollback handled by repository if save fails
+            current_app.logger.error(f"Failed to save parcel {parcel.id} during PIN token regeneration via repository.")
+            return False, "Database error updating PIN token details."
         
         # Generate new PIN generation URL
         pin_generation_url = url_for('main.generate_pin_by_token_route', 
@@ -158,7 +176,6 @@ def regenerate_pin_token(parcel_id: int, recipient_email: str, admin_reset: bool
             return True, f"New PIN generation link created. Note: Email notification may have failed."
             
     except Exception as e:
-        db.session.rollback()
         current_app.logger.error(f"Error regenerating PIN token: {str(e)}")
         return False, "An error occurred while regenerating the PIN token."
 
@@ -168,19 +185,16 @@ def request_pin_regeneration_by_recipient_email_and_locker(recipient_email: str,
     """
     try:
         # Find the parcel by email and locker ID, or by admin override parcel ID
+        parcel = None
         if admin_override_parcel_id:
-            # Admin override - find parcel by ID directly
-            parcel = Parcel.query.filter(
-                Parcel.id == admin_override_parcel_id,
-                Parcel.status == 'deposited'
-            ).first()
+            # Admin override - find parcel by ID directly using repository
+            parcel = ParcelRepository.get_by_id(admin_override_parcel_id)
+            # Additional check for status, though repository could be enhanced to include this
+            if parcel and parcel.status != 'deposited': 
+                parcel = None # Not the parcel we are looking for
         else:
-            # Normal user request - find by email and locker ID
-            parcel = Parcel.query.filter(
-                Parcel.recipient_email.ilike(recipient_email),
-                Parcel.locker_id == int(locker_id),
-                Parcel.status == 'deposited'
-            ).first()
+            # Normal user request - find by email and locker ID, status 'deposited'
+            parcel = ParcelRepository.get_by_email_and_locker_and_status(recipient_email, int(locker_id), 'deposited')
         
         if not parcel:
             # Return generic message for security (prevent fishing)

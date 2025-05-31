@@ -12,21 +12,13 @@ The adapters layer provides clean interfaces to external systems, following the 
 - **Purpose**: Abstracts email sending (Flask-Mail) from business logic
 - **Usage**: Used by `NotificationService` for sending emails
 
-### 2. Database Adapter (`database_adapter.py`)
-- **Interface**: `DatabaseAdapterInterface`
+### 2. Audit Adapter (`audit_adapter.py`)
+- **Interface**: `AuditAdapterInterface` (Primarily for `MockAuditAdapter`)
 - **Implementations**:
-  - `SQLAlchemyAdapter` - Production SQLAlchemy implementation
-  - `MockDatabaseAdapter` - Testing implementation
-- **Purpose**: Abstracts database operations from business logic
-- **Usage**: Repository pattern for data persistence operations
-
-### 3. Audit Adapter (`audit_adapter.py`)
-- **Interface**: `AuditAdapterInterface`
-- **Implementations**:
-  - `SQLAlchemyAuditAdapter` - Production SQLAlchemy implementation
-  - `MockAuditAdapter` - Testing implementation
-- **Purpose**: Abstracts audit log persistence
-- **Usage**: Used by `AuditService` for storing and retrieving audit events
+  - `SQLAlchemyAuditAdapter` - _Removed. Persistence handled by `AuditLogRepository`._
+  - `MockAuditAdapter` - Testing implementation (still available)
+- **Purpose**: Abstracts audit log persistence (primarily for testing via `MockAuditAdapter`)
+- **Usage**: _`AuditService` now uses `AuditLogRepository` for persistence. `MockAuditAdapter` is for tests._
 
 ## Adapter Pattern Benefits
 
@@ -37,14 +29,12 @@ The adapters layer provides clean interfaces to external systems, following the 
 
 ## Factory Functions
 
-Each adapter has a factory function that returns the appropriate implementation:
+Each remaining adapter has a factory function that returns the appropriate implementation:
 - `create_email_adapter()` - Creates email adapter
-- `create_database_adapter()` - Creates database adapter  
-- `create_audit_adapter()` - Creates audit adapter
 
 These factories choose between production and test implementations based on configuration.
 
-## Usage Example
+## Usage Example (Email Adapter)
 
 ```python
 from app.adapters import create_email_adapter, EmailMessage
@@ -66,5 +56,5 @@ success, result = email_adapter.send_email(message)
 
 - Add Redis adapter for caching
 - Add file storage adapter for attachments
-- Add configuration-based adapter selection
+- Add configuration-based adapter selection for remaining adapters
 - Add monitoring/metrics adapters 

@@ -39,6 +39,9 @@ from app import create_app, db
 from app.business.pin import PinManager
 from app.services.pin_service import generate_pin_by_token
 from app.persistence.models import Parcel, Locker
+# Repository Imports
+from app.persistence.repositories.parcel_repository import ParcelRepository
+from app.persistence.repositories.locker_repository import LockerRepository
 
 
 # Add timeout markers to prevent test suite timeouts
@@ -71,7 +74,7 @@ class TestFR02GeneratePin:
         with app.app_context():
             # Create test locker
             locker = Locker(id=901, location="Test PIN Locker", size="medium", status="occupied")
-            db.session.add(locker)
+            LockerRepository.save(locker) # Use repository
             
             # Create test parcel
             parcel = Parcel(
@@ -80,12 +83,15 @@ class TestFR02GeneratePin:
                 status="deposited",
                 pin_hash=None  # Will be set by PIN generation
             )
-            db.session.add(parcel)
-            db.session.commit()
+            ParcelRepository.save(parcel) # Use repository
             
             yield locker, parcel
             
             # Cleanup
+            # Assuming repositories don't have direct delete methods, or it's complex for cascading.
+            # For test cleanup, direct db session might be acceptable if repo methods are too restrictive.
+            # However, ideally, services or specific cleanup repo methods would be used.
+            # For now, keeping db.session.delete for cleanup simplicity until repo capabilities are expanded.
             db.session.delete(parcel)
             db.session.delete(locker)
             db.session.commit()
@@ -469,25 +475,23 @@ class TestFR02GeneratePin:
 
     def test_fr02_integration_with_parcel_service(self, app, test_locker_and_parcel):
         """
-        FR-02: Test integration with parcel service
-        Verifies PIN generation works within full system context
+        FR-02: Test integration of PIN generation with ParcelService
+        Verifies PIN is correctly associated with parcel during creation or update
         """
         with app.app_context():
             locker, parcel = test_locker_and_parcel
             
-            # Generate PIN for parcel
+            # Simulate PIN generation during parcel creation (if applicable in service)
+            # For this test, let's assume a PIN is generated and associated.
+            # We will manually generate and associate, then check.
             pin, pin_hash = PinManager.generate_pin_and_hash()
-            
-            # Update parcel with PIN hash
             parcel.pin_hash = pin_hash
-            db.session.commit()
-            
-            # Verify integration
-            assert parcel.pin_hash is not None, "FR-02: Parcel should have PIN hash after generation"
-            assert parcel.pin_hash == pin_hash, "FR-02: Parcel PIN hash should match generated hash"
-            
-            # Verify PIN verification works with stored hash
-            assert PinManager.verify_pin(parcel.pin_hash, pin), "FR-02: PIN verification should work with stored hash"
+            ParcelRepository.save(parcel) # Use repository
+
+            retrieved_parcel = ParcelRepository.get_by_id(parcel.id) # Use repository
+            assert retrieved_parcel is not None
+            assert retrieved_parcel.pin_hash == pin_hash, "FR-02: PIN hash should be stored with parcel"
+            assert PinManager.verify_pin(retrieved_parcel.pin_hash, pin), "FR-02: Stored PIN should be verifiable"
 
     def test_fr02_integration_with_pin_service(self, app):
         """
@@ -498,15 +502,15 @@ class TestFR02GeneratePin:
             # Test PIN service functionality through token-based generation
             # Create a test parcel with valid token
             parcel = Parcel(
-                locker_id=999,
+                locker_id=999, # Assuming locker 999 exists or is not strictly checked by generate_pin_token
                 recipient_email="test-service@example.com",
                 status="deposited",
-                pin_generation_token="test-token-123"
+                # pin_generation_token will be set by parcel.generate_pin_token()
             )
             # Generate token properly
-            token = parcel.generate_pin_token()
-            db.session.add(parcel)
-            db.session.commit()
+            token = parcel.generate_pin_token() # Sets pin_generation_token on parcel instance
+            # Save the parcel with the token
+            ParcelRepository.save(parcel) # Use repository to save parcel with token
             
             # Test that PIN generation works through service layer
             with patch('app.services.notification_service.NotificationService.send_pin_generation_notification') as mock_notify:
@@ -525,7 +529,8 @@ class TestFR02GeneratePin:
                 assert ':' in pin_hash, "FR-02: Service-generated hash should be salted"
                 
                 # Cleanup
-                db.session.delete(parcel)
+                # Keeping db.session.delete for cleanup simplicity
+                db.session.delete(result_parcel) # result_parcel is the one with the PIN
                 db.session.commit()
 
     def test_fr02_concurrent_pin_generation_safety(self):
@@ -578,21 +583,26 @@ class TestFR02GeneratePin:
             # Generate first PIN
             pin1, hash1 = PinManager.generate_pin_and_hash()
             parcel.pin_hash = hash1
-            db.session.commit()
+            ParcelRepository.save(parcel) # Use repository
             
-            # Generate second PIN (should invalidate first)
+            # Generate second PIN (should invalidate first by overwriting)
             pin2, hash2 = PinManager.generate_pin_and_hash()
             parcel.pin_hash = hash2
-            db.session.commit()
+            ParcelRepository.save(parcel) # Use repository
             
-            # Verify first PIN is invalidated (no longer stored)
-            current_hash = parcel.pin_hash
+            # Verify first PIN is invalidated (no longer stored because hash was overwritten)
+            # Fetch the parcel again to ensure we have the latest state from DB
+            current_parcel_state = ParcelRepository.get_by_id(parcel.id) # Use repository
+            assert current_parcel_state is not None
+            current_hash = current_parcel_state.pin_hash
+
             assert current_hash == hash2, "FR-02: Only latest PIN hash should be stored"
             
             # Verify second PIN works
             assert PinManager.verify_pin(current_hash, pin2), "FR-02: Latest PIN should verify successfully"
             
             # Verify first PIN no longer works (since hash was replaced)
+            # This relies on the fact that PinManager.verify_pin(hash2, pin1) will be false.
             assert not PinManager.verify_pin(current_hash, pin1), "FR-02: Previous PIN should not work with new hash"
 
 

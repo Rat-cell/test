@@ -1,22 +1,14 @@
-from app import db
 from flask import current_app
 import json
 import os
 import logging
 
+# Import the Locker model from its new location if LockerManager needs to type hint with it or instantiate.
+# For now, LockerManager mostly deals with locker properties (size, status) or configuration data.
+# The create_locker_from_config method does return a Locker instance, so the import is needed.
+from app.persistence.models import Locker
+
 logger = logging.getLogger(__name__)
-
-class Locker(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    location = db.Column(db.String(100), nullable=False)  # Physical location of the locker
-    size = db.Column(db.String(50), nullable=False)  # e.g., 'small', 'medium', 'large'
-    # Possible statuses: 'free', 'occupied', 'out_of_service', 'disputed_contents', 'awaiting_collection'
-    status = db.Column(db.String(50), nullable=False, default='free')
-    parcels = db.relationship('Parcel', backref='locker', lazy=True)
-
-    def __repr__(self):
-        return f'<Locker {self.id} at {self.location} ({self.size}) - {self.status}>'
-
 
 class LockerManager:
     """Business logic for locker management"""
@@ -52,10 +44,8 @@ class LockerManager:
         
         # FR-08: Look for free locker of preferred size (excludes out_of_service)
         # NFR-01: Performance - Optimized single query with indexed filtering
-        locker = Locker.query.filter_by(
-            size=preferred_size, 
-            status='free'  # FR-08: Only 'free' status lockers are available for assignment
-        ).first()
+        from app.persistence.repositories.locker_repository import LockerRepository
+        locker = LockerRepository.find_available_locker_by_size(preferred_size)
         
         return locker
     
@@ -81,7 +71,8 @@ class LockerManager:
     @staticmethod
     def is_locker_available(locker_id: int) -> bool:
         """Check if specific locker is available"""
-        locker = db.session.get(Locker, locker_id)
+        from app.persistence.repositories.locker_repository import LockerRepository
+        locker = LockerRepository.get_by_id(locker_id)
         return locker is not None and locker.status == 'free'
     
     @staticmethod
@@ -90,17 +81,17 @@ class LockerManager:
         if not LockerManager.is_valid_size(size):
             return []
         
-        return Locker.query.filter_by(
-            size=size, 
-            status='free'
-        ).all()
+        from app.persistence.repositories.locker_repository import LockerRepository
+        # Assuming a new repository method get_all_by_size_and_status will be added
+        return LockerRepository.get_all_by_size_and_status(size=size, status='free')
     
     @staticmethod
     def get_locker_utilization_stats():
         """Get locker utilization statistics"""
-        total_lockers = Locker.query.count()
-        occupied_lockers = Locker.query.filter_by(status='occupied').count()
-        out_of_service_lockers = Locker.query.filter_by(status='out_of_service').count()
+        from app.persistence.repositories.locker_repository import LockerRepository
+        total_lockers = LockerRepository.get_count()
+        occupied_lockers = LockerRepository.get_count_by_status('occupied')
+        out_of_service_lockers = LockerRepository.get_count_by_status('out_of_service')
         
         return {
             'total': total_lockers,

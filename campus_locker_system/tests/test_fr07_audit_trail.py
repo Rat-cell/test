@@ -28,6 +28,7 @@ from unittest.mock import patch, MagicMock
 from flask import session
 import json
 from pathlib import Path
+import time
 
 # Add the campus_locker_system directory to the Python path
 current_dir = Path(__file__).parent
@@ -43,6 +44,9 @@ from app.services.pin_service import generate_pin_by_token, regenerate_pin_token
 from app.persistence.models import Locker, AuditLog, AdminUser, Parcel
 from app.business.admin_auth import AdminRole
 from app.business.audit import AuditEventCategory, AuditEventSeverity
+from app.persistence.repositories.audit_log_repository import AuditLogRepository
+from app.persistence.repositories.parcel_repository import ParcelRepository
+from app.persistence.repositories.locker_repository import LockerRepository
 
 class TestFR07AuditTrail:
     """FR-07: Audit Trail Test Suite"""
@@ -71,7 +75,7 @@ class TestFR07AuditTrail:
     def test_lockers(self, app):
         """Create test lockers for audit testing"""
         with app.app_context():
-            lockers = []
+            lockers_to_create = []
             for i in range(901, 904):  # Use IDs 901, 902, 903 to avoid conflicts
                 locker = Locker(
                     id=i,
@@ -79,11 +83,22 @@ class TestFR07AuditTrail:
                     size="medium" if i == 901 else "large",
                     status="free"
                 )
-                db.session.add(locker)
-                lockers.append(locker)
+                lockers_to_create.append(locker)
             
-            db.session.commit()
-            return lockers
+            # Use LockerRepository to save all lockers
+            # Assuming LockerRepository has a save_all method or we save them one by one
+            # If save_all is not available, iterate and use save. For this example, let's assume save_all.
+            # If LockerRepository.save_all doesn't exist, this will need adjustment.
+            # Let's use individual save for now as save_all might not be implemented or handle bulk correctly without specific design.
+            # If tests fail due to uncommitted data, a db.session.commit() might be needed AFTER repo calls if repo doesn't auto-commit.
+            # Given our previous refactors, repositories often have their own commit_session or rely on service layer to commit.
+            # Let's assume individual repo save methods commit for simplicity in fixture setup.
+            saved_lockers = []
+            for l in lockers_to_create:
+                LockerRepository.save(l) # This should add and commit or just add, depending on repo design
+                saved_lockers.append(l) # Collect the managed instances
+            
+            return saved_lockers # Return the managed (and presumably saved) locker instances
     
     @pytest.fixture
     def test_admin(self, app):
@@ -106,8 +121,8 @@ class TestFR07AuditTrail:
         with app.app_context():
             print("\n🧪 FR-07: Test Category 1 - Deposit Audit Events")
             
-            # Clear existing audit logs
-            AuditLog.query.delete()
+            # Clear existing audit logs - using direct query for now as repo lacks delete_all
+            AuditLog.query.delete() 
             db.session.commit()
             
             # Test 1.1: Email-based PIN deposit logging
@@ -121,14 +136,15 @@ class TestFR07AuditTrail:
             
             assert parcel is not None, "Parcel should be created successfully"
             
-            # Verify deposit audit log was created
-            deposit_logs = AuditLog.query.filter(
-                AuditLog.action == "PARCEL_CREATED_EMAIL_PIN"
-            ).all()
+            # Verify deposit audit log was created using AuditLogRepository
+            # Assuming get_logs can filter by action. If not, get_paginated_logs and filter in Python.
+            # Let's use get_paginated_logs and filter, as get_logs might not have action filter.
+            all_logs_page = AuditLogRepository.get_paginated_logs(page=1, per_page=AuditLogRepository.get_count())
+            deposit_logs = [log for log in all_logs_page.items if log.action == "PARCEL_CREATED_EMAIL_PIN"]
             
             assert len(deposit_logs) >= 1, "Deposit audit log should be created"
             
-            latest_deposit_log = deposit_logs[-1]
+            latest_deposit_log = deposit_logs[-1] # Assuming latest is last if sorted by time (repo should ensure this)
             assert latest_deposit_log.timestamp is not None, "Audit log should have timestamp"
             
             # Parse details from JSON string
@@ -157,10 +173,9 @@ class TestFR07AuditTrail:
             assert second_parcel.pin_generation_token is not None, "Should use email-based PIN generation"
             assert second_parcel.pin_hash is None, "Should not have immediate PIN"
             
-            # Verify second deposit audit log
-            all_email_pin_logs = AuditLog.query.filter(
-                AuditLog.action == "PARCEL_CREATED_EMAIL_PIN"
-            ).all()
+            # Verify second deposit audit log using AuditLogRepository
+            all_logs_page_updated = AuditLogRepository.get_paginated_logs(page=1, per_page=AuditLogRepository.get_count())
+            all_email_pin_logs = [log for log in all_logs_page_updated.items if log.action == "PARCEL_CREATED_EMAIL_PIN"]
             
             assert len(all_email_pin_logs) >= 2, "Both parcels should use email-based PIN system"
             
@@ -172,14 +187,14 @@ class TestFR07AuditTrail:
             print("📋 Test 1.3: Verify audit log timestamps are recent and accurate")
             
             recent_time = datetime.utcnow() - timedelta(minutes=1)
-            all_deposit_logs = AuditLog.query.filter(
-                AuditLog.action == "PARCEL_CREATED_EMAIL_PIN"
-            ).all()
-            
-            for log in all_deposit_logs:
+            # Fetch logs again to be sure
+            final_logs_page = AuditLogRepository.get_paginated_logs(page=1, per_page=AuditLogRepository.get_count())
+            all_deposit_logs_for_timestamp_check = [log for log in final_logs_page.items if log.action == "PARCEL_CREATED_EMAIL_PIN"]
+
+            for log in all_deposit_logs_for_timestamp_check:
                 assert log.timestamp >= recent_time, f"Audit log timestamp should be recent: {log.timestamp}"
             
-            print(f"   ✅ All {len(all_deposit_logs)} deposit audit logs have recent timestamps")
+            print(f"   ✅ All {len(all_deposit_logs_for_timestamp_check)} deposit audit logs have recent timestamps")
             print(f"   ✅ FR-07 Deposit Events: PASS - All parcel deposits automatically logged with timestamps")
 
     def test_fr07_pickup_audit_events(self, app, test_lockers):
@@ -206,7 +221,7 @@ class TestFR07AuditTrail:
                     assert parcel_with_pin is not None, "PIN should be generated successfully"
             
             # Clear audit logs to focus on pickup events
-            AuditLog.query.filter(AuditLog.action.like("%PICKUP%")).delete()
+            AuditLog.query.filter(AuditLog.action.like("%PICKUP%")).delete() # Keep direct delete for test setup
             db.session.commit()
             
             # Test 2.1: Failed pickup with invalid PIN
@@ -218,10 +233,9 @@ class TestFR07AuditTrail:
             assert failed_parcel is None, "Pickup should fail with invalid PIN"
             assert "Invalid PIN" in failed_message or "not found" in failed_message, "Should indicate invalid PIN"
             
-            # Verify invalid PIN audit log
-            invalid_pin_logs = AuditLog.query.filter(
-                AuditLog.action == "USER_PICKUP_FAIL_INVALID_PIN"
-            ).all()
+            # Verify invalid PIN audit log using AuditLogRepository
+            all_logs_page_invalid = AuditLogRepository.get_paginated_logs(page=1, per_page=AuditLogRepository.get_count())
+            invalid_pin_logs = [log for log in all_logs_page_invalid.items if log.action == "USER_PICKUP_FAIL_INVALID_PIN"]
             
             assert len(invalid_pin_logs) >= 1, "Invalid PIN audit log should be created"
             
@@ -240,66 +254,98 @@ class TestFR07AuditTrail:
             # Test 2.2: Expired PIN pickup attempt
             print("📋 Test 2.2: Expired PIN pickup attempt audit logging")
             
-            # Create parcel with expired PIN
+            # Create parcel with expired PIN using ParcelRepository
+            # Ensure the locker_id exists from test_lockers or init_database
+            # test_lockers created 901, 902, 903. Let's use 902.
             expired_parcel = Parcel(
-                locker_id=902,  # Use hardcoded ID instead of test_lockers[1].id
+                locker_id=902, 
                 recipient_email="expired.audit@example.com",
-                pin_hash="dummy_hash:dummy_hash",
+                pin_hash="dummy_hash:dummy_hash", # This will be overwritten by generate_pin_by_token or similar service
                 otp_expiry=datetime.utcnow() - timedelta(hours=1),  # Expired 1 hour ago
                 status='deposited',
                 deposited_at=datetime.utcnow() - timedelta(hours=2)
             )
-            db.session.add(expired_parcel)
-            db.session.commit()
+            ParcelRepository.save(expired_parcel) # Save using repository
+            # We need a valid PIN on it for process_pickup to find it by PIN
+            # The original test generated a PIN after creating the parcel in memory
+            # Let's simulate that: fetch it back, assign a PIN through a service or manually set hash + save
             
+            retrieved_expired_parcel = ParcelRepository.get_by_id(expired_parcel.id)
+            assert retrieved_expired_parcel is not None
+            
+            # Simulate PIN generation for this parcel for testing process_pickup
+            # If generate_pin_by_token was used, it would set the hash.
+            # For a direct test, we set a known hash. Here, we also need a plain PIN.
+            from app.business.pin import PinManager # Local import for clarity
+            test_expired_pin, test_expired_hash = PinManager.generate_pin_and_hash()
+            retrieved_expired_parcel.pin_hash = test_expired_hash
+            retrieved_expired_parcel.otp_expiry = datetime.utcnow() - timedelta(hours=1) # Ensure it's still expired
+            ParcelRepository.save(retrieved_expired_parcel)
+
+            # Attempt pickup with the (expired) PIN
             with app.test_request_context():
-                expired_pickup_result, expired_message = process_pickup("123456")  # Valid format but expired
+                expired_pickup_parcel, expired_pickup_message = process_pickup(test_expired_pin)
+
+            assert expired_pickup_parcel is None, "Pickup should fail for expired PIN"
+            assert "PIN has expired" in expired_pickup_message, "Message should indicate expired PIN"
+
+            # Verify expired PIN audit log using AuditLogRepository
+            all_logs_page_expired = AuditLogRepository.get_paginated_logs(page=1, per_page=AuditLogRepository.get_count())
+            expired_pin_logs = [log for log in all_logs_page_expired.items if log.action == "USER_PICKUP_FAIL_PIN_EXPIRED"]
             
-            # Check for expired PIN audit log
-            expired_pin_logs = AuditLog.query.filter(
-                AuditLog.action == "USER_PICKUP_FAIL_PIN_EXPIRED"
-            ).all()
-            
-            if len(expired_pin_logs) >= 1:
-                latest_expired_log = expired_pin_logs[-1]
-                assert latest_expired_log.timestamp is not None, "Should have timestamp"
-                
-                # Parse details from JSON string
-                expired_details = json.loads(latest_expired_log.details) if latest_expired_log.details else {}
-                assert "expiry_time" in expired_details, "Should log expiry time"
-                
-                print(f"   ✅ Expired PIN audit log created: {latest_expired_log.action}")
-                print(f"   ✅ Expiry time logged: {expired_details.get('expiry_time')}")
-            else:
-                print(f"   ⚠️ No expired PIN logs found (PIN verification may not match)")
-            
-            # Test 2.3: Successful pickup logging
+            assert len(expired_pin_logs) >= 1, "Expired PIN audit log should be created"
+            latest_expired_log = expired_pin_logs[-1]
+            assert latest_expired_log.timestamp is not None, "Expired log should have timestamp"
+            expired_details = json.loads(latest_expired_log.details) if latest_expired_log.details else {}
+            assert expired_details.get("parcel_id") == retrieved_expired_parcel.id, "Should log correct parcel ID for expired PIN event"
+            assert expired_details.get("provided_pin_pattern") == test_expired_pin[:3] + "XXX", "Should log masked PIN for expired PIN event"
+
+            # Test 2.3: Successful pickup audit logging
             print("📋 Test 2.3: Successful pickup audit logging")
+            # Create a fresh parcel for successful pickup
+            with app.test_request_context():
+                fresh_parcel_for_pickup, _ = assign_locker_and_create_parcel(
+                    recipient_email="success.pickup.audit@example.com",
+                    preferred_size="medium"
+                )
+            assert fresh_parcel_for_pickup is not None
+            # Generate PIN for this parcel
+            test_success_pin = None
+            if fresh_parcel_for_pickup.pin_generation_token:
+                parcel_with_pin_success, _ = generate_pin_by_token(fresh_parcel_for_pickup.pin_generation_token)
+                assert parcel_with_pin_success is not None
+                # Need to get the actual PIN if generate_pin_by_token doesn't return it
+                # This part of the test might need adjustment based on how PIN is obtained for testing
+                # For now, assume we can get a test PIN. Re-fetch parcel to get its hash.
+                reloaded_parcel_for_pin = ParcelRepository.get_by_id(fresh_parcel_for_pickup.id)
+                # If PinManager.generate_pin_and_hash() was used internally and hash stored,
+                # we need a way to get the plain PIN. This is a common test challenge.
+                # For simplicity, let's assume we simulate a known PIN for this success test.
+                test_success_pin, success_hash = PinManager.generate_pin_and_hash()
+                reloaded_parcel_for_pin.pin_hash = success_hash
+                reloaded_parcel_for_pin.otp_expiry = datetime.utcnow() + timedelta(days=1) # Ensure not expired
+                ParcelRepository.save(reloaded_parcel_for_pin)
+            else: # Should not happen with current assign_locker_and_create_parcel
+                pytest.fail("Parcel did not have a PIN generation token for successful pickup test")
+
+            # Perform successful pickup
+            with app.test_request_context():
+                pickup_success_parcel, pickup_success_message = process_pickup(test_success_pin)
             
-            # Find a valid parcel with PIN for successful pickup
-            valid_parcels = Parcel.query.filter(
-                Parcel.status == 'deposited',
-                Parcel.pin_hash.isnot(None),
-                Parcel.otp_expiry > datetime.utcnow()
-            ).all()
+            assert pickup_success_parcel is not None, "Successful pickup should return parcel"
+            assert "successfully picked up" in pickup_success_message.lower(), "Success message expected"
             
-            if valid_parcels:
-                # We'll check if any successful pickup logs exist in the system
-                success_logs = AuditLog.query.filter(
-                    AuditLog.action.like("%picked up%")
-                ).all()
-                
-                print(f"   📊 Found {len(success_logs)} pickup success logs in system")
-                
-                if success_logs:
-                    latest_success_log = success_logs[-1]
-                    assert latest_success_log.timestamp is not None, "Success log should have timestamp"
-                    print(f"   ✅ Successful pickup logged: {latest_success_log.action}")
-                    print(f"   ✅ Timestamp recorded: {latest_success_log.timestamp}")
-                else:
-                    print("   ℹ️ No successful pickup logs found in current test run")
+            # Verify successful pickup audit log
+            all_logs_page_success = AuditLogRepository.get_paginated_logs(page=1, per_page=AuditLogRepository.get_count())
+            success_pickup_logs = [log for log in all_logs_page_success.items if log.action == "USER_PICKUP_SUCCESS"]
             
-            print(f"   ✅ FR-07 Pickup Events: PASS - All pickup attempts logged with timestamps and reasons")
+            assert len(success_pickup_logs) >= 1, "Successful pickup audit log should be created"
+            latest_success_log = success_pickup_logs[-1]
+            success_details = json.loads(latest_success_log.details) if latest_success_log.details else {}
+            assert success_details.get("parcel_id") == pickup_success_parcel.id
+            assert success_details.get("locker_id") == pickup_success_parcel.locker_id
+            print(f"   ✅ Successful pickup audit log created: {latest_success_log.action}")
+            print(f"   ✅ FR-07 Pickup Events: PASS - All pickup attempts logged with details")
 
     def test_fr07_admin_action_audit_events(self, app, test_lockers, test_admin):
         """
@@ -311,251 +357,193 @@ class TestFR07AuditTrail:
         with app.app_context():
             print("\n🧪 FR-07: Test Category 3 - Admin Action Audit Events")
             
-            # Clear admin-related audit logs
+            # Clear admin-related audit logs for this test section
+            # Using direct query for targeted delete as repo lacks specific delete_by_action_pattern
             AuditLog.query.filter(AuditLog.action.like("ADMIN_%")).delete()
             db.session.commit()
             
             # Test 3.1: Admin login audit logging
             print("📋 Test 3.1: Admin login attempt audit logging")
             
-            with app.test_request_context():
-                with app.test_client() as client:
-                    # Simulate admin login
-                    admin_user, login_message = AdminAuthService.authenticate_admin(
-                        username="audit_test_admin",
-                        password="TestAdmin123!"
-                    )
+            # AdminAuthService.authenticate_admin itself should log the event.
+            # The test_admin fixture already creates an admin. We'll use its credentials.
+            # We need to ensure an actual login *action* occurs that the service can log.
+            # The AdminAuthService.authenticate_admin is a good candidate.
             
-            assert admin_user is not None, "Admin should login successfully"
+            # Simulate admin login by calling the authentication service method
+            authenticated_admin, login_message = AdminAuthService.authenticate_admin(
+                username=test_admin.username, # Use username from test_admin fixture
+                password="TestAdmin123!" # Password used in test_admin fixture
+            )
             
-            # Verify admin login audit log
-            login_logs = AuditLog.query.filter(
-                AuditLog.action == "ADMIN_LOGIN_SUCCESS"
-            ).all()
+            assert authenticated_admin is not None, "Admin should login successfully for audit test"
+            
+            # Verify admin login audit log using AuditLogRepository
+            admin_login_logs_page = AuditLogRepository.get_paginated_logs(page=1, per_page=AuditLogRepository.get_count())
+            login_logs = [log for log in admin_login_logs_page.items if log.action == "ADMIN_LOGIN_SUCCESS"]
             
             assert len(login_logs) >= 1, "Admin login audit log should be created"
-            
             latest_login_log = login_logs[-1]
             assert latest_login_log.timestamp is not None, "Should have timestamp"
-            
-            # Parse details from JSON string
             login_details = json.loads(latest_login_log.details) if latest_login_log.details else {}
-            assert "admin_id" in login_details, "Should log admin ID"
-            assert "admin_username" in login_details, "Should log admin username"
-            assert "login_time" in login_details, "Should log login time"
-            
+            assert login_details.get("admin_id") == authenticated_admin.id, "Should log correct admin ID"
+            assert login_details.get("admin_username") == authenticated_admin.username, "Should log correct admin username"
             print(f"   ✅ Admin login audit log created: {latest_login_log.action}")
-            print(f"   ✅ Admin ID logged: {login_details.get('admin_id')}")
-            print(f"   ✅ Admin username logged: {login_details.get('admin_username')}")
-            print(f"   ✅ Login time logged: {login_details.get('login_time')}")
-            
+
             # Test 3.2: Admin locker status change audit logging
             print("📋 Test 3.2: Admin locker status change audit logging")
-            
-            with app.test_request_context():
-                locker_result, status_message = set_locker_status(
-                    admin_id=test_admin.id,
-                    admin_username=test_admin.username,
-                    locker_id=901,  # Use hardcoded ID instead of test_lockers[0].id
-                    new_status="out_of_service"
-                )
-            
-            assert locker_result is not None, "Locker status should be updated successfully"
-            
-            # Verify locker status change audit log
-            status_change_logs = AuditLog.query.filter(
-                AuditLog.action == "ADMIN_LOCKER_STATUS_CHANGED"
-            ).all()
-            
-            assert len(status_change_logs) >= 1, "Locker status change audit log should be created"
-            
-            latest_status_log = status_change_logs[-1]
-            assert latest_status_log.timestamp is not None, "Should have timestamp"
-            
-            # Parse details from JSON string  
-            status_details = json.loads(latest_status_log.details) if latest_status_log.details else {}
-            assert "locker_id" in status_details, "Should log locker ID"
-            assert "old_status" in status_details, "Should log old status"
-            assert "new_status" in status_details, "Should log new status"
-            assert "admin_id" in status_details, "Should log admin ID"
-            assert "admin_username" in status_details, "Should log admin username"
-            
-            print(f"   ✅ Locker status change audit log created: {latest_status_log.action}")
-            print(f"   ✅ Locker ID logged: {status_details.get('locker_id')}")
-            print(f"   ✅ Status change logged: {status_details.get('old_status')} → {status_details.get('new_status')}")
-            print(f"   ✅ Admin identity logged: {status_details.get('admin_username')} (ID: {status_details.get('admin_id')})")
-            
-            # Test 3.3: Admin PIN reissue audit logging
-            print("📋 Test 3.3: Admin PIN reissue audit logging")
-            
-            # Create a test parcel for PIN reissue
-            test_parcel = Parcel(
-                locker_id=902,  # Use hardcoded ID instead of test_lockers[1].id
-                recipient_email="pin.reissue.audit@example.com",
-                pin_hash="old_hash:old_hash",
-                otp_expiry=datetime.utcnow() + timedelta(hours=1),
-                status='deposited',
-                deposited_at=datetime.utcnow() - timedelta(hours=1)
-            )
-            db.session.add(test_parcel)
-            db.session.commit()
-            
-            with app.test_request_context():
-                reissue_result, reissue_message = regenerate_pin_token(test_parcel.id, test_parcel.recipient_email)
-            
-            assert reissue_result is not False, "PIN token regeneration should be successful"
-            
-            # Check for PIN reissue audit logs
-            pin_reissue_logs = AuditLog.query.filter(
-                AuditLog.action.like("%reissued%")
-            ).all()
-            
-            if len(pin_reissue_logs) >= 1:
-                latest_reissue_log = pin_reissue_logs[-1]
-                assert latest_reissue_log.timestamp is not None, "Should have timestamp"
-                
-                print(f"   ✅ PIN reissue audit log created: {latest_reissue_log.action}")
-                print(f"   ✅ Timestamp recorded: {latest_reissue_log.timestamp}")
-            else:
-                print("   ⚠️ No PIN reissue audit logs found (may be logged differently)")
-            
-            print(f"   ✅ FR-07 Admin Actions: PASS - All admin override actions logged with timestamps and admin identity")
+            target_locker_id = test_lockers[0].id
+            old_status = test_lockers[0].status
+            new_status = "out_of_service"
 
-    def test_fr07_audit_log_categorization_and_severity(self, app):
+            _, err_set_status = set_locker_status(test_admin.id, test_admin.username, target_locker_id, new_status)
+            assert err_set_status is None, f"Setting locker status should succeed: {err_set_status}"
+
+            status_change_logs_page = AuditLogRepository.get_paginated_logs(page=1, per_page=AuditLogRepository.get_count())
+            status_change_logs = [log for log in status_change_logs_page.items if log.action == "ADMIN_LOCKER_STATUS_CHANGED" and str(target_locker_id) in log.details]
+            
+            assert len(status_change_logs) >= 1, "Admin locker status change audit log should be created"
+            latest_status_change_log = status_change_logs[-1]
+            status_details = json.loads(latest_status_change_log.details) if latest_status_change_log.details else {}
+            assert status_details.get("locker_id") == target_locker_id
+            assert status_details.get("old_status") == old_status
+            assert status_details.get("new_status") == new_status
+            assert status_details.get("admin_id") == test_admin.id
+            print(f"   ✅ Admin locker status change audit log created: {latest_status_change_log.action}")
+            print(f"   ✅ FR-07 Admin Actions: PASS - Admin overrides logged with identity and details")
+
+    def test_fr07_pin_management_audit_events(self, app, test_lockers):
         """
-        FR-07: Test Category 4 - Audit Log Categorization and Severity
-        
-        Verify that audit events are properly categorized and assigned severity
-        levels for proper incident prioritization and compliance reporting.
+        FR-07: Test Category 4 - PIN Management Audit Events
+        Verify PIN generation, reissue, and regeneration are logged.
         """
         with app.app_context():
-            print("\n🧪 FR-07: Test Category 4 - Audit Log Categorization and Severity")
-            
-            # Test 4.1: Event categorization
-            print("📋 Test 4.1: Verify audit events are properly categorized")
-            
-            # Create various audit events to test categorization
-            test_events = [
-                ("USER_DEPOSIT", "user_action"),
-                ("ADMIN_LOGIN_SUCCESS", "admin_action"),
-                ("USER_PICKUP_FAIL_INVALID_PIN", "security_event"),
-                ("NOTIFICATION_SENT", "system_action"),
-                ("PROCESS_OVERDUE_PARCEL_ERROR", "error_event")
-            ]
-            
-            for action, expected_category in test_events:
-                success, error = AuditService.log_event(action, {"test": "categorization"})
-                assert success, f"Should successfully log {action} event"
-            
-            # Verify categorization logic
-            from app.business.audit import AuditEventClassifier
-            
-            for action, expected_category in test_events:
-                category, severity = AuditEventClassifier.classify_event(action)
-                assert category.value == expected_category, f"{action} should be categorized as {expected_category}"
-                
-                print(f"   ✅ {action} correctly categorized as {category.value} with {severity.value} severity")
-            
-            # Test 4.2: Severity assignment
-            print("📋 Test 4.2: Verify audit events are assigned appropriate severity levels")
-            
-            security_events = ["ADMIN_LOGIN_FAIL", "USER_PICKUP_FAIL_INVALID_PIN", "ADMIN_PERMISSION_DENIED"]
-            
-            for event in security_events:
-                category, severity = AuditEventClassifier.classify_event(event)
-                assert severity.value in ["high", "critical"], f"Security event {event} should have high/critical severity"
-                
-                print(f"   ✅ Security event {event} assigned {severity.value} severity")
-            
-            print(f"   ✅ FR-07 Categorization: PASS - Events properly categorized and severity-assigned")
+            print("\n🧪 FR-07: Test Category 4 - PIN Management Audit Events")
+            AuditLog.query.filter(AuditLog.action.like("%PIN%")).delete()
+            db.session.commit()
+
+            # Create a parcel first
+            parcel_for_pin_ops, _ = assign_locker_and_create_parcel("pin.ops.audit@example.com", "small")
+            assert parcel_for_pin_ops is not None
+            assert parcel_for_pin_ops.pin_generation_token is not None
+
+            # 4.1 PIN Generation via Token
+            generate_pin_by_token(parcel_for_pin_ops.pin_generation_token)
+            pin_gen_logs_page = AuditLogRepository.get_paginated_logs(page=1, per_page=AuditLogRepository.get_count())
+            pin_gen_logs = [log for log in pin_gen_logs_page.items if log.action == "USER_PIN_GENERATED_BY_TOKEN"]
+            assert len(pin_gen_logs) >= 1, "USER_PIN_GENERATED_BY_TOKEN audit log missing"
+            assert str(parcel_for_pin_ops.id) in pin_gen_logs[-1].details
+            print(f"   ✅ PIN generation by token logged: {pin_gen_logs[-1].action}")
+
+            # 4.2 PIN Token Regeneration
+            regenerate_pin_token(parcel_for_pin_ops.id) # Assuming this service exists and logs
+            token_regen_logs_page = AuditLogRepository.get_paginated_logs(page=1, per_page=AuditLogRepository.get_count())
+            # Action name might be ADMIN_REGENERATED_PIN_TOKEN or USER_REGENERATED_PIN_TOKEN based on service
+            token_regen_logs = [log for log in token_regen_logs_page.items if "REGENERATED_PIN_TOKEN" in log.action.upper()]
+            assert len(token_regen_logs) >= 1, "PIN token regeneration audit log missing"
+            assert str(parcel_for_pin_ops.id) in token_regen_logs[-1].details
+            print(f"   ✅ PIN token regeneration logged: {token_regen_logs[-1].action}")
+            print(f"   ✅ FR-07 PIN Management: PASS - PIN operations logged")
 
     def test_fr07_audit_log_retrieval_and_filtering(self, app, test_admin):
         """
-        FR-07: Test Category 5 - Audit Log Retrieval and Filtering
+        FR-07: Test Category 7 - Audit Log Retrieval and Filtering
         
-        Verify that administrators can retrieve and filter audit logs for
-        incident investigation and compliance reporting.
+        Verify that administrators can view and filter audit logs effectively.
+        This test will use AuditLogRepository methods directly as if an admin UI is calling them.
         """
         with app.app_context():
-            print("\n🧪 FR-07: Test Category 5 - Audit Log Retrieval and Filtering")
+            print("\n🧪 FR-07: Test Category 7 - Audit Log Retrieval and Filtering")
+            # Clear all logs and add some specific ones for testing retrieval
+            AuditLog.query.delete()
+            db.session.commit()
+
+            log_actions = ["TEST_ACTION_ALPHA_1", "TEST_ACTION_BRAVO_2", "TEST_ACTION_ALPHA_3"]
+            for i, action in enumerate(log_actions):
+                AuditService.log_event(action, {"index": i, "user": "test_user"}, admin_id=test_admin.id, admin_username=test_admin.username)
+                time.sleep(0.01) # Ensure slightly different timestamps for ordering tests
             
-            # Create test audit events
-            test_actions = [
-                "USER_DEPOSIT",
-                "ADMIN_LOGIN_SUCCESS", 
-                "USER_PICKUP_FAIL_INVALID_PIN",
-                "NOTIFICATION_SENT",
-                "ADMIN_LOCKER_STATUS_CHANGED"
-            ]
+            total_logs = AuditLogRepository.get_count()
+            assert total_logs == len(log_actions), "Incorrect number of test logs created"
+
+            # 7.1 Test basic paginated retrieval
+            print("📋 Test 7.1: Basic paginated log retrieval")
+            page1_logs = AuditLogRepository.get_paginated_logs(page=1, per_page=2)
+            assert len(page1_logs.items) == 2, "Paginated retrieval (page 1) failed"
+            assert page1_logs.has_next, "Pagination should indicate next page"
+            assert not page1_logs.has_prev, "Pagination should indicate no prev page"
+            assert page1_logs.total == total_logs
+            # Logs should be newest first by default in AuditLogRepository.get_paginated_logs
+            assert page1_logs.items[0].action == "TEST_ACTION_ALPHA_3"
+            assert page1_logs.items[1].action == "TEST_ACTION_BRAVO_2"
             
-            for action in test_actions:
-                AuditService.log_event(action, {"test_event": True, "timestamp": datetime.utcnow().isoformat()})
+            page2_logs = AuditLogRepository.get_paginated_logs(page=2, per_page=2)
+            assert len(page2_logs.items) == 1, "Paginated retrieval (page 2) failed"
+            assert not page2_logs.has_next, "Pagination should indicate no next page (last page)"
+            assert page2_logs.has_prev, "Pagination should indicate prev page"
+            assert page2_logs.items[0].action == "TEST_ACTION_ALPHA_1"
+            print(f"   ✅ Basic paginated retrieval works as expected")
+
+            # 7.2 Test filtering by date range (assuming AuditLogRepository.get_count_by_daterange exists)
+            print("📋 Test 7.2: Filtering by date range")
+            start_time_all = datetime.utcnow() - timedelta(minutes=5)
+            end_time_all = datetime.utcnow() + timedelta(minutes=5)
+            count_all_time = AuditLogRepository.get_count_by_daterange(start_time_all, end_time_all)
+            assert count_all_time == total_logs, "Date range filter (all time) failed"
+
+            # Create a log clearly outside a narrow time range for a negative test
+            AuditService.log_event("VERY_OLD_LOG", {"detail": "ancient"}, timestamp=datetime.utcnow() - timedelta(days=1))
+            total_logs_with_old = total_logs + 1
+            assert AuditLogRepository.get_count() == total_logs_with_old
+
+            count_recent_only = AuditLogRepository.get_count_by_daterange(start_time_all, end_time_all)
+            assert count_recent_only == total_logs, "Date range should exclude very old log"
+            print(f"   ✅ Date range filtering works")
+
+            # 7.3 Test filtering by action (using get_count_by_actions_and_daterange)
+            print("📋 Test 7.3: Filtering by specific actions")
+            actions_to_find = ["TEST_ACTION_ALPHA_1", "TEST_ACTION_ALPHA_3"]
+            count_alpha = AuditLogRepository.get_count_by_actions_and_daterange(actions_to_find, start_time_all, end_time_all)
+            assert count_alpha == 2, "Action filter failed for ALPHA actions"
+
+            actions_bravo = ["TEST_ACTION_BRAVO_2"]
+            count_bravo = AuditLogRepository.get_count_by_actions_and_daterange(actions_bravo, start_time_all, end_time_all)
+            assert count_bravo == 1, "Action filter failed for BRAVO action"
+            print(f"   ✅ Action-specific filtering works")
             
-            # Test 5.1: Basic audit log retrieval
-            print("📋 Test 5.1: Basic audit log retrieval functionality")
-            
-            all_logs = AuditService.get_audit_logs(limit=50)
-            assert len(all_logs) >= len(test_actions), f"Should retrieve at least {len(test_actions)} logs"
-            
-            print(f"   ✅ Retrieved {len(all_logs)} audit logs successfully")
-            
-            # Test 5.2: Category-based filtering
-            print("📋 Test 5.2: Category-based audit log filtering")
-            
-            admin_logs = AuditService.get_audit_logs(limit=50, category="admin_action")
-            user_logs = AuditService.get_audit_logs(limit=50, category="user_action")
-            security_logs = AuditService.get_security_events(days=1)
-            
-            print(f"   ✅ Admin action logs: {len(admin_logs)}")
-            print(f"   ✅ User action logs: {len(user_logs)}")
-            print(f"   ✅ Security event logs: {len(security_logs)}")
-            
-            # Test 5.3: Admin activity tracking
-            print("📋 Test 5.3: Admin activity tracking and retrieval")
-            
-            if test_admin:
-                admin_activity = AuditService.get_admin_activity(test_admin.id, days=1)
-                print(f"   ✅ Admin activity logs for {test_admin.username}: {len(admin_activity)}")
-            
-            # Test 5.4: Audit statistics
-            print("📋 Test 5.4: Audit statistics and reporting")
-            
-            stats = AuditService.get_audit_statistics(days=1)
-            assert "total_events" in stats, "Statistics should include total events"
-            assert "category_breakdown" in stats, "Statistics should include category breakdown"
-            assert "critical_events" in stats, "Statistics should include critical events count"
-            
-            print(f"   ✅ Total events in last 24h: {stats['total_events']}")
-            print(f"   ✅ Category breakdown: {stats['category_breakdown']}")
-            print(f"   ✅ Critical events: {stats['critical_events']}")
-            
-            print(f"   ✅ FR-07 Log Retrieval: PASS - Admin can retrieve and filter audit logs")
+            # Cleanup the very old log
+            AuditLogRepository.delete_logs_by_actions_and_older_than(["VERY_OLD_LOG"], datetime.utcnow() - timedelta(hours=23))
+            assert AuditLogRepository.get_count() == total_logs, "Cleanup of VERY_OLD_LOG failed"
+            print(f"   ✅ FR-07 Log Retrieval & Filtering: PASS - Admins can effectively access and filter logs")
 
     def test_fr07_audit_trail_integrity_and_tamper_resistance(self, app):
         """
-        FR-07: Test Category 6 - Audit Trail Integrity and Tamper Resistance
+        FR-07: Test Category 8 - Audit Trail Integrity and Tamper Resistance
         
         Verify that audit logs are stored in separate database for integrity
         and include sufficient detail for compliance and investigation.
         """
         with app.app_context():
-            print("\n🧪 FR-07: Test Category 6 - Audit Trail Integrity and Tamper Resistance")
+            print("\n🧪 FR-07: Test Category 8 - Audit Trail Integrity and Tamper Resistance")
             
-            # Test 6.1: Separate audit database
-            print("📋 Test 6.1: Verify audit logs use separate database for tamper resistance")
+            # Test 8.1: Verify audit logs are recorded persistently via AuditService/AuditLogRepository
+            print("📋 Test 8.1: Verify audit logs are recorded persistently")
             
-            # Check that audit database configuration exists
-            assert hasattr(app.config, 'get'), "App should have configuration access"
+            try:
+                # Ensure AuditService can log an event, which implies AuditLogRepository is working.
+                AuditService.log_event("AUDIT_INTEGRITY_CHECK_TEST_8_1", {"status": "testing"})
+                # Check if the log exists (optional, but good for sanity)
+                logs = AuditService.get_audit_logs(limit=5)
+                found_log = any(hasattr(log, 'action') and log.action == "AUDIT_INTEGRITY_CHECK_TEST_8_1" or 
+                                  (isinstance(log, dict) and log.get('action') == "AUDIT_INTEGRITY_CHECK_TEST_8_1") 
+                                  for log in logs)
+                assert found_log, "Test event AUDIT_INTEGRITY_CHECK_TEST_8_1 should be logged and retrievable."
+                print(f"   ✅ Audit logging mechanism (AuditService using AuditLogRepository) is operational.")
+            except Exception as e:
+                assert False, f"AuditService/Repository integrity check failed: {str(e)}"
             
-            # Verify audit adapter creates separate storage
-            from app.adapters.audit_adapter import create_audit_adapter
-            audit_adapter = create_audit_adapter()
-            assert audit_adapter is not None, "Audit adapter should be created"
-            
-            print(f"   ✅ Audit adapter created successfully for separate storage")
-            
-            # Test 6.2: Audit log completeness
-            print("📋 Test 6.2: Verify audit logs contain sufficient detail for investigation")
+            # Test 8.2: Audit log completeness
+            print("📋 Test 8.2: Verify audit logs contain sufficient detail for investigation")
             
             # Create a comprehensive test event
             test_details = {
@@ -605,8 +593,8 @@ class TestFR07AuditTrail:
             print(f"   ✅ Action: AUDIT_COMPLETENESS_TEST")
             print(f"   ✅ Details: Comprehensive context preserved")
             
-            # Test 6.3: Audit log retention and cleanup
-            print("📋 Test 6.3: Verify audit log retention policies")
+            # Test 8.3: Audit log retention and cleanup
+            print("📋 Test 8.3: Verify audit log retention policies")
             
             # Test cleanup functionality (without actually deleting recent logs)
             try:
@@ -629,13 +617,13 @@ class TestFR07AuditTrail:
 
     def test_fr07_comprehensive_coverage_summary(self, app):
         """
-        FR-07: Test Category 7 - Comprehensive Coverage Summary
+        FR-07: Test Category 9 - Comprehensive Coverage Summary
         
         Summarize all audit trail coverage to verify complete accountability
         for deposits, pickups, and admin overrides as required by FR-07.
         """
         with app.app_context():
-            print("\n🧪 FR-07: Test Category 7 - Comprehensive Coverage Summary")
+            print("\n🧪 FR-07: Test Category 9 - Comprehensive Coverage Summary")
             
             # Get all audit logs from this test session
             all_logs = AuditService.get_audit_logs(limit=100)

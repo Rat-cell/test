@@ -29,7 +29,9 @@ def create_app(config_class=Config):
     with app.app_context():
         # NFR-02 & NFR-04: Initialize databases with reliability and backup features
         from app.services.database_service import DatabaseService
-        
+        from app.services.admin_auth_service import AdminAuthService # Import AdminAuthService
+        from app.business.admin_auth import AdminRole # Import AdminRole
+
         app.logger.info("🗄️ Starting database initialization...")
         
         # Step 1: Initialize databases and create tables
@@ -49,26 +51,11 @@ def create_app(config_class=Config):
             app.logger.error(f"❌ Database initialization failed: {db_message}")
             # Continue anyway - some functionality may still work
         
-        # Legacy create_all() call as fallback (should be redundant now)
-        try:
-            db.create_all()
-        except Exception as e:
-            app.logger.warning(f"⚠️ Legacy db.create_all() failed: {str(e)}")
-        
-        # Create default admin user if none exists
-        from app.persistence.models import AdminUser
-        from app.business.admin_auth import AdminRole
-        if not AdminUser.query.first():
-            try:
-                from app.services.admin_auth_service import AdminAuthService
-                admin_user, message = AdminAuthService.create_admin_user("admin", "AdminPass123!", AdminRole.ADMIN)
-                if admin_user:
-                    app.logger.info("✅ Default admin user created successfully")
-                else:
-                    app.logger.warning(f"⚠️ Could not create admin user: {message}")
-            except Exception as e:
-                app.logger.warning(f"⚠️ Admin user creation failed: {str(e)}")
-                # Continue anyway - admin can be created later
+        # Legacy create_all() call as fallback (should be redundant now with DatabaseService)
+        # try:
+        #     db.create_all()
+        # except Exception as e:
+        #     app.logger.warning(f"⚠️ Legacy db.create_all() failed: {str(e)}")
         
         # Auto-seed lockers from JSON configurations if configured
         # from app.services.locker_initialization_service import LockerInitializationService

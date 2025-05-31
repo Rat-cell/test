@@ -18,10 +18,10 @@ Status: ✅ PRODUCTION READY - All FRs and NFRs implemented and verified
 """
 
 from datetime import datetime, timedelta
-from flask import current_app
+from flask import current_app, url_for
 from app import db
-from app.persistence.models import Locker
-from app.business.parcel import Parcel, ParcelManager
+from app.persistence.models import Locker, Parcel
+from app.business.parcel import ParcelManager
 from app.business.locker import LockerManager
 from app.business.pin import PinManager
 from app.services.audit_service import AuditService
@@ -31,6 +31,26 @@ import os
 import binascii
 import json
 from typing import Optional, Tuple
+from app.persistence.repositories.parcel_repository import ParcelRepository
+from app.persistence.repositories.locker_repository import LockerRepository
+
+def get_parcel_by_id(parcel_id: int) -> Optional[Parcel]:
+    """
+    Retrieve a parcel by its ID using ParcelRepository.
+    """
+    try:
+        # NFR-01: Performance - Repository handles efficient lookup
+        parcel = ParcelRepository.get_by_id(parcel_id)
+        if parcel:
+            # FR-07: Audit Trail - Log parcel data access
+            # AuditService.log_event("PARCEL_DATA_ACCESSED", {"parcel_id": parcel_id, "retrieved_by_service": "get_parcel_by_id"})
+            return parcel
+        else:
+            current_app.logger.info(f"Parcel with ID {parcel_id} not found by get_parcel_by_id via repository.")
+            return None
+    except Exception as e:
+        current_app.logger.error(f"Error retrieving parcel {parcel_id} in get_parcel_by_id via repository: {str(e)}")
+        return None
 
 def assign_locker_and_create_parcel(recipient_email: str, preferred_size: str):
     """
@@ -43,146 +63,157 @@ def assign_locker_and_create_parcel(recipient_email: str, preferred_size: str):
     # Audit: Complete operation logging for FR-07 compliance
     """
     try:
-        # NFR-01: Performance - Fast in-memory validation before database access
         if not ParcelManager.is_valid_email(recipient_email):
             return None, "Invalid email address format."
         
         if not LockerManager.is_valid_size(preferred_size):
             return None, f"Invalid parcel size: {preferred_size}. Valid sizes: {', '.join(LockerManager.VALID_SIZES)}"
         
-        # FR-01: Find available locker matching preferred size
-        # NFR-01: Performance - Single database query for optimal response time
         locker = LockerManager.find_available_locker(preferred_size)
         if not locker:
             return None, f"No available {preferred_size} lockers. Please try again later or choose a different size."
         
-        # NFR-01: Performance - Immediate status update to prevent race conditions
+        locker.status = 'occupied'
+        if not LockerRepository.save(locker):
+            current_app.logger.error(f"Failed to update locker {locker.id} status to occupied via repository.")
+            return None, "Database error updating locker status."
+        
         locker.status = 'occupied'
         db.session.commit()
         
-        # Create parcel with email-based PIN generation (no immediate PIN)
-        parcel = Parcel(
+        # Create parcel business object first for logic, then persistence object
+        parcel_data = {
+            "locker_id": locker.id,
+            "recipient_email": recipient_email,
+            "status": 'deposited',
+            "deposited_at": datetime.utcnow()
+        }
+        # Assuming Parcel business object can be initialized like this or directly create PersistenceParcel
+        # For now, let's assume direct creation of PersistenceParcel for repository
+        
+        # Create PersistenceParcel instance
+        new_parcel = Parcel(
             locker_id=locker.id,
             recipient_email=recipient_email,
             status='deposited',
             deposited_at=datetime.utcnow()
         )
         
-        # Generate PIN generation token
-        token = parcel.generate_pin_token()
+        token = new_parcel.generate_pin_token()
         
-        db.session.add(parcel)
-        db.session.commit()
-        
+        # Save using repository
+        if not ParcelRepository.save(new_parcel):
+            current_app.logger.error("Failed to save parcel using repository.")
+            return None, "Database error creating parcel."
+
         # Generate PIN generation URL
-        from flask import url_for
         pin_generation_url = url_for('main.generate_pin_by_token_route', 
                                    token=token, 
                                    _external=True)
         
-        # Send parcel ready notification with PIN generation link
         notification_success, notification_message = NotificationService.send_parcel_ready_notification(
             recipient_email=recipient_email,
-            parcel_id=parcel.id,
+            parcel_id=new_parcel.id,
             locker_id=locker.id,
-            deposited_time=parcel.deposited_at,
+            deposited_time=new_parcel.deposited_at,
             pin_generation_url=pin_generation_url
         )
         
-        # Log the parcel creation
-        # FR-07: Audit Trail - Record parcel deposit event with timestamp and details
         AuditService.log_event("PARCEL_CREATED_EMAIL_PIN", details={
-            "parcel_id": parcel.id,
+            "parcel_id": new_parcel.id,
             "locker_id": locker.id,
             "recipient_email": recipient_email,
             "notification_sent": notification_success
         })
         
         if notification_success:
-            return parcel, f"Parcel deposited successfully. PIN generation link sent to {recipient_email}."
+            return new_parcel, f"Parcel deposited successfully. PIN generation link sent to {recipient_email}."
         else:
             current_app.logger.warning(f"Parcel created but notification failed: {notification_message}")
-            return parcel, f"Parcel deposited successfully. Note: Email notification may have failed."
+            return new_parcel, f"Parcel deposited successfully. Note: Email notification may have failed."
             
     except Exception as e:
-        db.session.rollback()
         current_app.logger.error(f"Error in assign_locker_and_create_parcel: {str(e)}")
         return None, "An error occurred while assigning the locker. Please try again."
 
 def process_pickup(provided_pin: str):
     """NFR-03: Security - Secure PIN verification process with audit logging"""
     try:
-        # Find parcel with matching PIN
-        parcels = Parcel.query.filter_by(status='deposited').all()
+        # Find parcel with matching PIN using repository
+        # Parcels that could match are those in 'deposited' state
+        deposited_parcels = ParcelRepository.get_all_deposited_for_pin_check()
         
-        for parcel in parcels:
-            # Skip parcels without PIN hash (email-based PIN not yet generated)
-            if not parcel.pin_hash:
+        parcel_to_update = None
+        locker_to_update = None
+
+        for parcel_persistence_instance in deposited_parcels:
+            if not parcel_persistence_instance.pin_hash:
                 continue
                 
-            # NFR-03: Security - Verify PIN using cryptographically secure comparison
-            if PinManager.verify_pin(parcel.pin_hash, provided_pin):
-                # Check if PIN has expired
-                if PinManager.is_pin_expired(parcel.otp_expiry):
-                    # FR-07: Audit Trail - Record failed pickup attempt with timestamp and reason
-                    # FR-09: Invalid PIN Error Handling - Provide clear expired PIN error message
-                    # NFR-03: Security - Log expired PIN attempts for security monitoring
+            if PinManager.verify_pin(parcel_persistence_instance.pin_hash, provided_pin):
+                if PinManager.is_pin_expired(parcel_persistence_instance.otp_expiry):
                     AuditService.log_event("USER_PICKUP_FAIL_PIN_EXPIRED", details={
-                        "parcel_id": parcel.id,
+                        "parcel_id": parcel_persistence_instance.id,
                         "provided_pin_pattern": provided_pin[:3] + "XXX",
-                        "expiry_time": parcel.otp_expiry.isoformat() if parcel.otp_expiry else None
+                        "expiry_time": parcel_persistence_instance.otp_expiry.isoformat() if parcel_persistence_instance.otp_expiry else None
                     })
                     return None, "PIN has expired. Please request a new PIN."
                 
-                # Update parcel status
-                parcel.status = 'picked_up'
-                parcel.picked_up_at = datetime.utcnow()
+                parcel_persistence_instance.status = 'picked_up'
+                parcel_persistence_instance.picked_up_at = datetime.utcnow()
+                parcel_to_update = parcel_persistence_instance
                 
-                # Update locker status
-                locker = db.session.get(Locker, parcel.locker_id)
-                if locker:
-                    # FR-08: Only set to free if not out of service
-                    if locker.status != 'out_of_service':
-                        locker.status = 'free'
-                    # FR-08: If it was out of service, leave it as out of service
+                # Fetch locker using LockerRepository to ensure it's the persistence model
+                retrieved_locker = LockerRepository.get_by_id(parcel_persistence_instance.locker_id)
+                if retrieved_locker:
+                    if retrieved_locker.status != 'out_of_service':
+                        retrieved_locker.status = 'free'
+                    locker_to_update = retrieved_locker
                 
-                db.session.commit()
-                
-                # FR-07: Audit Trail - Record successful pickup event with timestamp and PIN verification details
-                # Log the pickup
-                AuditService.log_event(f"Parcel {parcel.id} picked up from locker {parcel.locker_id}")
-                
-                return parcel, f"Parcel successfully picked up from locker {parcel.locker_id}."
+                break
         
-        # FR-07: Audit Trail - Record failed pickup attempt with timestamp and reason (invalid PIN)
-        # FR-09: Invalid PIN Error Handling - Provide clear invalid PIN error message
-        # Log the invalid PIN attempt
+        if parcel_to_update:
+            try:
+                ParcelRepository.add_to_session(parcel_to_update)
+                if locker_to_update:
+                    LockerRepository.add_to_session(locker_to_update)
+                
+                if not ParcelRepository.commit_session():
+                    current_app.logger.error(f"Failed to commit session during pickup for parcel {parcel_to_update.id}")
+                    return None, "Database error during pickup."
+
+                AuditService.log_event(f"Parcel {parcel_to_update.id} picked up from locker {parcel_to_update.locker_id}")
+                return parcel_to_update, f"Parcel successfully picked up from locker {parcel_to_update.locker_id}."
+            except Exception as commit_e:
+                current_app.logger.error(f"Error committing pickup for parcel {parcel_to_update.id}: {str(commit_e)}")
+                return None, "An error occurred while finalizing the pickup."
+
         AuditService.log_event("USER_PICKUP_FAIL_INVALID_PIN", details={
             "provided_pin_pattern": provided_pin[:3] + "XXX",
-            "reason": "No matching deposited parcel found"
+            "reason": "No matching deposited parcel found or PIN invalid"
         })
-        
         return None, "Invalid PIN or no matching parcel found."
     
     except Exception as e:
-        db.session.rollback()
         current_app.logger.error(f"Error processing pickup: {str(e)}")
-        # FR-09: Invalid PIN Error Handling - Provide system error message
         return None, "An error occurred while processing the pickup."
 
 def retract_deposit(parcel_id: int):
     try:
-        parcel = db.session.get(Parcel, parcel_id)
+        parcel = ParcelRepository.get_by_id(parcel_id)
         if not parcel:
             return None, "Parcel not found."
         if parcel.status != 'deposited':
             return None, f"Parcel is not in 'deposited' state (current status: {parcel.status}). Cannot retract."
-        locker = db.session.get(Locker, parcel.locker_id)
+        
+        locker = LockerRepository.get_by_id(parcel.locker_id)
         if not locker:
             current_app.logger.error(f"Data inconsistency: Locker ID {parcel.locker_id} not found for parcel {parcel.id} during retraction.")
             return None, "Associated locker not found. Data inconsistency."
+
         original_locker_status = locker.status
         parcel.status = 'retracted_by_sender'
+        
         if original_locker_status == 'occupied':
             locker.status = 'free'
         elif original_locker_status == 'out_of_service':
@@ -190,9 +221,18 @@ def retract_deposit(parcel_id: int):
         else:
             current_app.logger.warning(f"Locker {locker.id} had unexpected status '{original_locker_status}' during deposit retraction for parcel {parcel.id}. Setting to 'free'.")
             locker.status = 'free'
-        db.session.add(parcel)
-        db.session.add(locker)
-        db.session.commit()
+
+        # Save changes using repository methods that manage session
+        try:
+            ParcelRepository.add_to_session(parcel)
+            LockerRepository.add_to_session(locker)
+            if not ParcelRepository.commit_session():
+                 current_app.logger.error(f"Failed to commit session during deposit retraction for parcel {parcel_id}")
+                 return None, "A database error occurred while retracting deposit (commit)."
+        except Exception as e_commit:
+            current_app.logger.error(f"Error committing deposit retraction for parcel {parcel_id}: {str(e_commit)}")
+            return None, "A database error occurred while retracting deposit (exception)."
+
         AuditService.log_event("USER_DEPOSIT_RETRACTED", details={
             "parcel_id": parcel.id,
             "locker_id": locker.id,
@@ -200,26 +240,35 @@ def retract_deposit(parcel_id: int):
         })
         return parcel, None
     except Exception as e:
-        db.session.rollback()
         current_app.logger.error(f"Error in retract_deposit for parcel {parcel_id}: {e}")
         return None, "A database error occurred while retracting deposit."
 
 def dispute_pickup(parcel_id: int):
     try:
-        parcel = db.session.get(Parcel, parcel_id)
+        parcel = ParcelRepository.get_by_id(parcel_id)
         if not parcel:
             return None, "Parcel not found."
         if parcel.status != 'picked_up':
             return None, f"Parcel is not in 'picked_up' state (current status: {parcel.status}). Cannot dispute."
-        locker = db.session.get(Locker, parcel.locker_id)
+        
+        locker = LockerRepository.get_by_id(parcel.locker_id)
         if not locker:
             current_app.logger.error(f"Data inconsistency: Locker ID {parcel.locker_id} not found for parcel {parcel.id} during pickup dispute.")
             return None, "Associated locker not found. Data inconsistency."
+
         parcel.status = 'pickup_disputed'
         locker.status = 'disputed_contents'
-        db.session.add(parcel)
-        db.session.add(locker)
-        db.session.commit()
+        
+        try:
+            ParcelRepository.add_to_session(parcel)
+            LockerRepository.add_to_session(locker)
+            if not ParcelRepository.commit_session():
+                current_app.logger.error(f"Failed to commit session during pickup dispute for parcel {parcel_id}")
+                return None, "A database error occurred while disputing pickup (commit)."
+        except Exception as e_commit:
+            current_app.logger.error(f"Error committing pickup dispute for parcel {parcel_id}: {str(e_commit)}")
+            return None, "A database error occurred while disputing pickup (exception)."
+
         AuditService.log_event("USER_PICKUP_DISPUTED", details={
             "parcel_id": parcel.id,
             "locker_id": locker.id,
@@ -227,7 +276,6 @@ def dispute_pickup(parcel_id: int):
         })
         return parcel, None
     except Exception as e:
-        db.session.rollback()
         current_app.logger.error(f"Error in dispute_pickup for parcel {parcel_id}: {e}")
         return None, "A database error occurred while disputing pickup."
 
@@ -237,39 +285,39 @@ def report_parcel_missing_by_recipient(parcel_id: int) -> Tuple[Optional[Parcel]
     FR-06: Report Missing Item - Core business logic for recipient reporting parcel as missing
     """
     try:
-        parcel = db.session.get(Parcel, parcel_id)
+        parcel = ParcelRepository.get_by_id(parcel_id)
         if not parcel:
             return None, "Parcel not found."
         
-        # FR-06: Enhanced business rule - allow reporting missing from pickup success scenarios
         current_status = parcel.status.strip() if parcel.status else "None"
-        
-        # Allow missing reports from:
-        # - 'deposited': parcel never picked up but reported missing
-        # - 'picked_up': pickup success but parcel was actually missing from locker
         allowed_statuses = ['deposited', 'picked_up']
         
         if current_status not in allowed_statuses:
-            # Enhanced error message for debugging
-            current_app.logger.warning(f"FR-06: Missing report rejected for parcel {parcel_id}. Status: '{current_status}' (type: {type(parcel.status)}), allowed: {allowed_statuses}")
+            current_app.logger.warning(f"FR-06: Missing report rejected for parcel {parcel_id}. Status: '{current_status}', allowed: {allowed_statuses}")
             return None, f"Parcel cannot be reported missing by recipient from its current state: '{current_status}'. Allowed states: {', '.join(allowed_statuses)}."
         
-        # Get the locker before updating parcel
-        locker = db.session.get(Locker, parcel.locker_id) if parcel.locker_id else None
+        locker = LockerRepository.get_by_id(parcel.locker_id) if parcel.locker_id else None
         
-        # Store original status for audit logging
         original_status = current_status
-        
-        # FR-06: Update parcel status to missing as required
         parcel.status = 'missing'
         
-        # FR-06: Take locker out of service for inspection as specified in requirements
+        locker_updated = False
         if locker:
             locker.status = 'out_of_service'
+            locker_updated = True
         
-        db.session.commit()
-        
-        # FR-06: Enhanced audit logging for missing report event
+        # Commit changes using repository
+        try:
+            ParcelRepository.add_to_session(parcel)
+            if locker_updated and locker:
+                LockerRepository.add_to_session(locker)
+            if not ParcelRepository.commit_session():
+                current_app.logger.error(f"Failed to commit session reporting parcel {parcel_id} missing by recipient.")
+                return None, "Database error occurred while reporting parcel as missing (commit)."
+        except Exception as e_commit:
+            current_app.logger.error(f"Error committing missing report for parcel {parcel_id} by recipient: {str(e_commit)}")
+            return None, f"Database error occurred while reporting parcel as missing (exception)."
+            
         AuditService.log_event("PARCEL_REPORTED_MISSING_BY_RECIPIENT", details={
             "parcel_id": parcel_id,
             "previous_status": original_status,
@@ -281,36 +329,36 @@ def report_parcel_missing_by_recipient(parcel_id: int) -> Tuple[Optional[Parcel]
         })
         
         current_app.logger.info(f"FR-06: Parcel {parcel_id} successfully reported missing by recipient. Previous status: '{original_status}'")
-        
         return parcel, None
         
     except Exception as e:
-        db.session.rollback()
         current_app.logger.error(f"Error reporting parcel {parcel_id} as missing by recipient: {str(e)}")
         return None, f"Database error occurred while reporting parcel as missing."
 
 def mark_parcel_missing_by_admin(admin_id: int, admin_username: str, parcel_id: int) -> tuple[Parcel | None, str | None]:
     """Admin function to mark a parcel as missing"""
     try:
-        parcel = db.session.get(Parcel, parcel_id)
+        parcel = ParcelRepository.get_by_id(parcel_id)
         if not parcel:
             return None, "Parcel not found."
 
         if parcel.status == 'missing':
-            return parcel, "Parcel is already marked as missing." # No error, but no change
+            return parcel, "Parcel is already marked as missing."
 
         original_parcel_status = parcel.status
         parcel.status = 'missing'
-        db.session.add(parcel)
+        
+        locker_to_update = None
+        original_locker_status = "N/A"
+        locker_updated = False
 
-        # ALWAYS set locker to out_of_service when marking parcel as missing
-        # This ensures investigation can take place
         if parcel.locker_id:
-            locker = db.session.get(Locker, parcel.locker_id)
+            locker = LockerRepository.get_by_id(parcel.locker_id)
             if locker:
                 original_locker_status = locker.status
                 locker.status = 'out_of_service'
-                db.session.add(locker)
+                locker_to_update = locker
+                locker_updated = True
                 
                 AuditService.log_event("LOCKER_SET_OUT_OF_SERVICE_FOR_MISSING_PARCEL", details={
                     "admin_id": admin_id,
@@ -323,7 +371,17 @@ def mark_parcel_missing_by_admin(admin_id: int, admin_username: str, parcel_id: 
             else:
                 current_app.logger.warning(f"Locker ID {parcel.locker_id} not found for parcel {parcel.id} being marked missing by admin.")
         
-        db.session.commit()
+        # Commit changes using repository
+        try:
+            ParcelRepository.add_to_session(parcel)
+            if locker_updated and locker_to_update:
+                LockerRepository.add_to_session(locker_to_update)
+            if not ParcelRepository.commit_session():
+                current_app.logger.error(f"Failed to commit session marking parcel {parcel_id} missing by admin.")
+                return None, "A database error occurred while marking parcel missing (commit)."
+        except Exception as e_commit:
+            current_app.logger.error(f"Error committing missing mark for parcel {parcel_id} by admin: {str(e_commit)}")
+            return None, "A database error occurred while marking parcel missing (exception)."
 
         AuditService.log_event("ADMIN_MARKED_PARCEL_MISSING", details={
             "admin_id": admin_id,
@@ -334,114 +392,116 @@ def mark_parcel_missing_by_admin(admin_id: int, admin_username: str, parcel_id: 
         })
         return parcel, None
     except Exception as e:
-        db.session.rollback()
         current_app.logger.error(f"Error in mark_parcel_missing_by_admin for parcel {parcel_id}: {e}")
         return None, "A database error occurred while marking parcel missing."
 
 def process_overdue_parcels():
     max_pickup_days = current_app.config.get('PARCEL_MAX_PICKUP_DAYS', 7)
-    deposited_parcels = Parcel.query.filter(
-        Parcel.status == 'deposited',
-        Parcel.deposited_at.isnot(None)
-    ).all()
+    cutoff_datetime = datetime.utcnow() - timedelta(days=max_pickup_days)
+    
+    # Use repository to fetch eligible parcels
+    deposited_parcels = ParcelRepository.get_all_deposited_older_than(cutoff_datetime)
+    
     processed_count = 0
-    items_to_update_in_session = []
+    items_to_update_in_repository = []
+
     for parcel in deposited_parcels:
         if not isinstance(parcel.deposited_at, datetime):
             AuditService.log_event("PROCESS_OVERDUE_FAIL_INVALID_DEPOSITED_AT", {
                 "parcel_id": parcel.id, 
                 "deposited_at_type": str(type(parcel.deposited_at)),
-                "reason": "Parcel has invalid or missing deposited_at timestamp."
+                "reason": "Parcel has invalid or missing deposited_at timestamp (post-repo fetch)."
             })
             continue
-        if datetime.utcnow() > parcel.deposited_at + timedelta(days=max_pickup_days):
-            try:
-                locker = parcel.locker
+        
+        try:
+            locker = parcel.locker
+            if not locker:
+                locker = LockerRepository.get_by_id(parcel.locker_id)
                 if not locker:
                     AuditService.log_event("PROCESS_OVERDUE_FAIL_NO_LOCKER", {
                         "parcel_id": parcel.id, 
                         "reason": "Locker not found for deposited parcel."
                     })
                     continue
-                old_parcel_status = parcel.status
-                old_locker_status = locker.status
-                parcel.status = 'return_to_sender'
-                if locker.status in ['occupied', 'out_of_service']:
-                    locker.status = 'awaiting_collection'
-                else:
-                    locker.status = 'free'
-                items_to_update_in_session.append(parcel)
-                if old_locker_status != locker.status:
-                    items_to_update_in_session.append(locker)
-                AuditService.log_event("PARCEL_MARKED_RETURN_TO_SENDER", {
-                    "parcel_id": parcel.id,
-                    "locker_id": locker.id,
-                    "old_parcel_status": old_parcel_status,
-                    "new_parcel_status": parcel.status, # 'return_to_sender'
-                    "old_locker_status": old_locker_status,
-                    "new_locker_status": locker.status,
-                    "max_pickup_days_configured": max_pickup_days
-                })
-                processed_count += 1
-            except Exception as e:
-                current_app.logger.error(f"Error processing parcel ID {parcel.id} for overdue status: {str(e)}")
-                AuditService.log_event("PROCESS_OVERDUE_PARCEL_ERROR", {
-                    "parcel_id": parcel.id, 
-                    "error": str(e),
-                    "action": "Skipped this parcel, continued with batch."
-                })
-                continue
-    if items_to_update_in_session:
-        try:
-            db.session.add_all(items_to_update_in_session)
-            db.session.commit()
+
+            old_parcel_status = parcel.status
+            old_locker_status = locker.status
+            parcel.status = 'return_to_sender'
+            
+            if locker.status in ['occupied', 'out_of_service']:
+                locker.status = 'awaiting_collection'
+            else:
+                locker.status = 'free' 
+            
+            items_to_update_in_repository.append(parcel)
+            if old_locker_status != locker.status:
+                items_to_update_in_repository.append(locker)
+
+            AuditService.log_event("PARCEL_MARKED_RETURN_TO_SENDER", {
+                "parcel_id": parcel.id,
+                "locker_id": locker.id,
+                "old_parcel_status": old_parcel_status,
+                "new_parcel_status": parcel.status,
+                "old_locker_status": old_locker_status,
+                "new_locker_status": locker.status,
+                "max_pickup_days_configured": max_pickup_days
+            })
+            processed_count += 1
         except Exception as e:
-            db.session.rollback()
+            current_app.logger.error(f"Error processing parcel ID {parcel.id} for overdue status: {str(e)}")
+            AuditService.log_event("PROCESS_OVERDUE_PARCEL_ERROR", {
+                "parcel_id": parcel.id, 
+                "error": str(e),
+                "action": "Skipped this parcel, continued with batch."
+            })
+            continue
+            
+    if items_to_update_in_repository:
+        try:
+            for item in items_to_update_in_repository:
+                if isinstance(item, Parcel):
+                    ParcelRepository.add_to_session(item)
+                elif isinstance(item, Locker):
+                    LockerRepository.add_to_session(item)
+                else:
+                    current_app.logger.warning(f"Unknown item type in process_overdue_parcels batch: {type(item)}")
+            
+            if not ParcelRepository.commit_session():
+                current_app.logger.error(f"Error committing batch of overdue parcels via repository.")
+                AuditService.log_event("PROCESS_OVERDUE_BATCH_COMMIT_ERROR_REPO", {
+                    "error": "Commit failed via ParcelRepository.commit_session()", 
+                    "num_items_intended_for_update_in_batch": len(items_to_update_in_repository)
+                })
+                return 0, "Error committing batch of overdue parcels."
+
+        except Exception as e:
             current_app.logger.error(f"Error committing batch of overdue parcels: {str(e)}")
             AuditService.log_event("PROCESS_OVERDUE_BATCH_COMMIT_ERROR", {
                 "error": str(e), 
                 "num_parcels_intended_for_update_in_batch": processed_count
             })
             return 0, f"Error committing batch of overdue parcels: {str(e)}"
+            
     return processed_count, f"{processed_count} overdue parcels processed."
 
-# FR-04: Send Reminder After 24h of Occupancy - Main processing function
 def process_reminder_notifications():
-    """
-    FR-04: Send Reminder After 24h of Occupancy - Process and send reminder notifications for parcels
-    """
     try:
-        # FR-04: Get configurable reminder timing from environment
-        from flask import current_app
         reminder_hours = current_app.config.get('REMINDER_HOURS_AFTER_DEPOSIT', 24)
-        
-        # FR-04: Find parcels that need reminder notifications
-        from datetime import datetime, timedelta
-        from app.persistence.models import Parcel
-        
-        # FR-04: Calculate cutoff time for eligible parcels
         cutoff_time = datetime.utcnow() - timedelta(hours=reminder_hours)
         
-        # FR-04: Query for parcels that need reminders
-        # - Status must be 'deposited' (not picked up yet)
-        # - Deposited before cutoff time (older than configured hours)
-        # - No reminder sent yet (reminder_sent_at is NULL)
-        eligible_parcels = Parcel.query.filter(
-            Parcel.status == 'deposited',
-            Parcel.deposited_at <= cutoff_time,
-            Parcel.reminder_sent_at.is_(None)  # FR-04: No reminder sent yet
-        ).all()
+        # Use repository to get eligible parcels
+        eligible_parcels = ParcelRepository.get_all_deposited_needing_reminder(cutoff_time)
         
-        # FR-04: Process each eligible parcel
         processed_count = 0
         error_count = 0
         
+        parcels_to_update = []
+
         for parcel in eligible_parcels:
             try:
-                # FR-04: Generate PIN regeneration URL for the reminder email
                 pin_generation_url = f"http://localhost/generate-pin/{parcel.pin_generation_token}" if parcel.pin_generation_token else "http://localhost/request-new-pin"
                 
-                # FR-04: Send individual reminder notification
                 success, message = NotificationService.send_24h_reminder_notification(
                     recipient_email=parcel.recipient_email,
                     parcel_id=parcel.id,
@@ -451,34 +511,35 @@ def process_reminder_notifications():
                 )
                 
                 if success:
-                    # FR-04: Mark reminder as sent to prevent duplicates
                     parcel.reminder_sent_at = datetime.utcnow()
-                    db.session.commit()
+                    parcels_to_update.append(parcel)
                     processed_count += 1
                     
-                    # FR-04: Log successful reminder for audit trail
                     AuditService.log_event("FR-04_REMINDER_SENT_SUCCESS", {
-                        "parcel_id": parcel.id,
-                        "locker_id": parcel.locker_id,
+                        "parcel_id": parcel.id, "locker_id": parcel.locker_id,
                         "recipient_email_domain": parcel.recipient_email.split('@')[1] if '@' in parcel.recipient_email else 'unknown',
                         "deposited_hours_ago": int((datetime.utcnow() - parcel.deposited_at).total_seconds() / 3600),
                         "configured_reminder_hours": reminder_hours
                     })
                 else:
                     error_count += 1
-                    # FR-04: Log failed reminder attempt
                     AuditService.log_event("FR-04_REMINDER_SENT_FAILED", {
-                        "parcel_id": parcel.id,
-                        "error_message": message,
+                        "parcel_id": parcel.id, "error_message": message,
                         "recipient_email_domain": parcel.recipient_email.split('@')[1] if '@' in parcel.recipient_email else 'unknown'
                     })
-                    
             except Exception as e:
                 error_count += 1
                 current_app.logger.error(f"FR-04: Error processing reminder for parcel {parcel.id}: {str(e)}")
-                continue
-        
-        # FR-04: Log overall processing results
+            
+        if parcels_to_update:
+            if not ParcelRepository.save_all(parcels_to_update):
+                current_app.logger.error("FR-04: Failed to batch update reminder_sent_at for parcels via repository.")
+                AuditService.log_event("FR-04_REMINDER_DB_UPDATE_FAILED", {
+                    "num_parcels_sent_not_marked": len(parcels_to_update),
+                    "reason": "ParcelRepository.save_all returned false"
+                })
+                error_count += len(parcels_to_update)
+
         AuditService.log_event("FR-04_BULK_REMINDER_PROCESSING_COMPLETED", {
             "total_eligible_parcels": len(eligible_parcels),
             "processed_count": processed_count,
@@ -491,27 +552,23 @@ def process_reminder_notifications():
         
     except Exception as e:
         current_app.logger.error(f"FR-04: Critical error in reminder processing: {str(e)}")
+        try:
+            AuditService.log_event("FR-04_REMINDER_PROCESSING_CRITICAL_ERROR", {"error": str(e)})
+        except:
+            pass
         return 0, 1
 
-# FR-04: Send Individual Reminder - Admin action for specific parcel
 def send_individual_reminder(parcel_id: int, admin_id: int, admin_username: str):
-    """
-    FR-04: Send Reminder After 24h of Occupancy - Send reminder notification for a specific parcel (admin-initiated)
-    """
     try:
-        # FR-04: Validate parcel exists and is eligible for reminder
-        parcel = db.session.get(Parcel, parcel_id)
+        parcel = ParcelRepository.get_by_id(parcel_id)
         if not parcel:
             return False, "Parcel not found"
         
-        # FR-04: Check if parcel is in a state where reminder makes sense
         if parcel.status != 'deposited':
             return False, f"Parcel is not in 'deposited' status (current: {parcel.status}). Reminders are only sent for deposited parcels."
         
-        # FR-04: Generate PIN regeneration URL for the reminder email
         pin_generation_url = f"http://localhost/generate-pin/{parcel.pin_generation_token}" if parcel.pin_generation_token else "http://localhost/request-new-pin"
         
-        # FR-04: Send individual reminder notification
         success, message = NotificationService.send_24h_reminder_notification(
             recipient_email=parcel.recipient_email,
             parcel_id=parcel.id,
@@ -521,43 +578,34 @@ def send_individual_reminder(parcel_id: int, admin_id: int, admin_username: str)
         )
         
         if success:
-            # FR-04: Update reminder sent timestamp (admin can override automatic reminders)
             parcel.reminder_sent_at = datetime.utcnow()
-            db.session.commit()
-            
-            # FR-04: Log admin-initiated individual reminder for audit trail
+            if not ParcelRepository.save(parcel):
+                current_app.logger.error(f"FR-04: Failed to update reminder_sent_at for parcel {parcel_id} (admin individual) via repository.")
+                AuditService.log_event("FR-04_ADMIN_INDIVIDUAL_REMINDER_DB_FAIL", {
+                    "parcel_id": parcel.id, "admin_id": admin_id
+                })
+                return True, f"Reminder sent to {parcel.recipient_email}, but DB update of sent time failed."
+
             AuditService.log_event("FR-04_ADMIN_INDIVIDUAL_REMINDER_SENT", {
-                "admin_id": admin_id,
-                "admin_username": admin_username,
-                "parcel_id": parcel.id,
+                "admin_id": admin_id, "admin_username": admin_username, "parcel_id": parcel.id,
                 "locker_id": parcel.locker_id,
                 "recipient_email_domain": parcel.recipient_email.split('@')[1] if '@' in parcel.recipient_email else 'unknown',
                 "deposited_hours_ago": int((datetime.utcnow() - parcel.deposited_at).total_seconds() / 3600),
                 "reminder_type": "admin_initiated_individual"
             })
-            
             return True, f"Reminder sent successfully to {parcel.recipient_email}"
         else:
-            # FR-04: Log failed admin reminder attempt
             AuditService.log_event("FR-04_ADMIN_INDIVIDUAL_REMINDER_FAILED", {
-                "admin_id": admin_id,
-                "admin_username": admin_username,
-                "parcel_id": parcel.id,
+                "admin_id": admin_id, "admin_username": admin_username, "parcel_id": parcel.id,
                 "error_message": message,
                 "recipient_email_domain": parcel.recipient_email.split('@')[1] if '@' in parcel.recipient_email else 'unknown'
             })
-            
             return False, f"Failed to send reminder: {message}"
             
     except Exception as e:
         current_app.logger.error(f"FR-04: Error sending individual reminder for parcel {parcel_id}: {str(e)}")
-        
-        # FR-04: Log exception in admin individual reminder
         AuditService.log_event("FR-04_ADMIN_INDIVIDUAL_REMINDER_EXCEPTION", {
-            "admin_id": admin_id,
-            "admin_username": admin_username,
-            "parcel_id": parcel_id,
+            "admin_id": admin_id, "admin_username": admin_username, "parcel_id": parcel_id,
             "error_details": str(e)
         })
-        
         return False, f"An unexpected error occurred: {str(e)}" 
