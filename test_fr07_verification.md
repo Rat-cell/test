@@ -141,7 +141,7 @@ def log_audit_event(action, details):
     
     # Step 2: Create audit record
     audit_log = AuditLog(
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(datetime.UTC),
         action=action,
         details=json.dumps(details),
         category=category.value,

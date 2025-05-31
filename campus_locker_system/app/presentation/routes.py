@@ -21,6 +21,8 @@ from app.services.notification_service import NotificationService
 from app.services.database_service import DatabaseService
 from app.services.admin_auth_service import AdminAuthService
 from .decorators import admin_required
+from datetime import datetime
+import datetime as dt
 
 @main_bp.route('/health', methods=['GET'])
 def health_check():
@@ -182,8 +184,7 @@ def report_missing_parcel_by_recipient(parcel_id):
 
         flash('Your parcel has been reported as missing. The administrators have been notified and will investigate.', 'success')
 
-        from datetime import datetime
-        now = datetime.utcnow()
+        now = datetime.now(dt.UTC)
         report_time = now.strftime('%Y-%m-%d %H:%M:%S')
         reference_date = now.strftime('%Y%m%d')
 

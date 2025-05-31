@@ -915,7 +915,6 @@ def test_admin_manage_lockers_no_sensor_data_default_true(logged_in_admin_client
 def test_generate_pin_by_token_success(mock_service, client, init_database, app):
     """Test successful PIN generation via email token"""
     with app.app_context():
-        from app.business.parcel import Parcel
         
         # Create mock parcel
         mock_parcel = Parcel(
@@ -976,7 +975,6 @@ def test_generate_pin_by_token_exception_handling(mock_service, client, init_dat
 def test_admin_regenerate_pin_token_success(logged_in_admin_client, init_database, app):
     """Test admin regeneration of PIN token"""
     with app.app_context():
-        from app.business.parcel import Parcel
         
         # Create parcel with email-based PIN
         parcel = Parcel(
@@ -1007,7 +1005,6 @@ def test_admin_regenerate_pin_token_parcel_not_found(logged_in_admin_client, ini
 def test_admin_regenerate_pin_token_email_disabled(logged_in_admin_client, init_database, app):
     """Test admin regeneration when email-based PIN is disabled"""
     with app.app_context():
-        from app.business.parcel import Parcel
         
         # Disable email-based PIN generation
         app.config['ENABLE_EMAIL_BASED_PIN_GENERATION'] = False
@@ -1029,7 +1026,6 @@ def test_admin_regenerate_pin_token_email_disabled(logged_in_admin_client, init_
 def test_deposit_confirmation_email_pin_display(client, init_database, app):
     """Test deposit confirmation page displays email PIN information correctly"""
     with app.app_context():
-        from app.business.parcel import Parcel
         
         # Configure for email-based PIN generation
         app.config['ENABLE_EMAIL_BASED_PIN_GENERATION'] = True
@@ -1079,7 +1075,6 @@ def test_deposit_confirmation_traditional_pin_display(client, init_database, app
 def test_admin_view_parcel_email_pin_information(logged_in_admin_client, init_database, app):
     """Test admin parcel view displays email PIN generation information"""
     with app.app_context():
-        from app.business.parcel import Parcel
         
         # Create parcel with email-based PIN
         parcel = Parcel(
@@ -1105,7 +1100,6 @@ def test_admin_view_parcel_email_pin_information(logged_in_admin_client, init_da
 def test_admin_view_parcel_traditional_pin_information(logged_in_admin_client, init_database, app):
     """Test admin parcel view displays traditional PIN information"""
     with app.app_context():
-        from app.business.parcel import Parcel
         from app.business.pin import PinManager
         
         # Create parcel with traditional PIN

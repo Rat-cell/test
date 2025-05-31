@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import datetime as dt
 from flask import current_app, url_for
 from app import db
 from app.business.pin import PinManager
@@ -6,6 +7,15 @@ from app.persistence.models import Parcel as PersistenceParcel
 from app.persistence.repositories.parcel_repository import ParcelRepository
 from app.services.audit_service import AuditService
 from typing import Tuple, Optional
+
+def _safe_token_prefix(token: str) -> str:
+    """
+    Helper function to safely create token prefix for logging
+    Maintains security by not logging full tokens while handling None values
+    """
+    if not token:
+        return "None or empty"
+    return token[:8] + "..." if len(token) > 8 else token
 
 def get_pin_expiry_hours() -> int:
     """
@@ -17,40 +27,50 @@ def get_pin_expiry_hours() -> int:
 
 def generate_pin_by_token(token: str) -> Tuple[Optional[PersistenceParcel], str]:
     """
-    FR-02: Generate PIN - Create a 6-digit PIN and store its salted SHA-256 hash (email-based system)
-    NFR-03: Security - Token-based PIN generation with rate limiting and audit logging
+    FR-02: Generate PIN - Generate PIN using email-based token system
+    NFR-03: Security - Cryptographically secure PIN generation with audit logging
+    Follows hexagonal architecture: Service layer coordinates between business logic and repositories
     """
     try:
-        # Find parcel with matching token using repository
+        # Validate token input (business rule validation)
+        if not token:
+            current_app.logger.warning("PIN generation attempted with empty or None token")
+            AuditService.log_event("PIN_GENERATION_FAIL_INVALID_TOKEN", details={
+                "token_prefix": _safe_token_prefix(token),
+                "reason": "Invalid token format"
+            })
+            return None, "Invalid token provided."
+        
+        # Repository layer: Fetch parcel by PIN generation token
         parcel = ParcelRepository.get_by_pin_generation_token(token)
         
         if not parcel:
             # NFR-03: Security - Log invalid token attempts for security monitoring
             AuditService.log_event("PIN_GENERATION_FAIL_INVALID_TOKEN", details={
-                "token_prefix": token[:8] + "..." if len(token) > 8 else token,
+                "token_prefix": _safe_token_prefix(token),
                 "reason": "Token not found"
             })
             return None, "Invalid or expired token."
         
-        # Check if parcel is in correct status
+        # Business rule: Check if parcel is in correct status
         if parcel.status != 'deposited':
             AuditService.log_event("PIN_GENERATION_FAIL_INVALID_STATUS", details={
                 "parcel_id": parcel.id,
                 "status": parcel.status,
-                "token_prefix": token[:8] + "..."
+                "token_prefix": _safe_token_prefix(token)
             })
             return None, f"Parcel is not available for pickup (status: {parcel.status})."
         
-        # Check if token is still valid
+        # Business rule: Check if token is still valid
         if not parcel.is_pin_token_valid():
             AuditService.log_event("PIN_GENERATION_FAIL_TOKEN_EXPIRED", details={
                 "parcel_id": parcel.id,
                 "token_expiry": parcel.pin_generation_token_expiry.isoformat() if parcel.pin_generation_token_expiry else None,
-                "token_prefix": token[:8] + "..."
+                "token_prefix": _safe_token_prefix(token)
             })
             return None, "Token has expired. Please request a new PIN generation link."
         
-        # NFR-03: Security - Check rate limiting to prevent abuse
+        # Business rule: Check rate limiting to prevent abuse
         max_daily_generations = current_app.config.get('MAX_PIN_GENERATIONS_PER_DAY', 3)
         if not parcel.can_generate_pin(max_daily_generations):
             AuditService.log_event("PIN_GENERATION_FAIL_RATE_LIMIT", details={
@@ -60,28 +80,35 @@ def generate_pin_by_token(token: str) -> Tuple[Optional[PersistenceParcel], str]
             })
             return None, f"Daily PIN generation limit reached ({max_daily_generations} per day). Please try again tomorrow."
         
-        # FR-02 & NFR-03: Generate new 6-digit PIN with salted SHA-256 hash
+        # Business layer: Generate new 6-digit PIN with salted SHA-256 hash
         new_pin, new_pin_hash = PinManager.generate_pin_and_hash()
         
-        # NFR-03: Security - Store salted hash (invalidates previous PIN for same parcel)
+        # Update domain model with new PIN data
         parcel.pin_hash = new_pin_hash
         parcel.otp_expiry = PinManager.generate_expiry_time()
         parcel.pin_generation_count += 1
-        parcel.last_pin_generation = datetime.utcnow()
+        parcel.last_pin_generation = datetime.now(dt.UTC)
         
-        # Save parcel using repository
+        # Repository layer: Persist changes
         if not ParcelRepository.save(parcel):
             # Rollback handled by repository if save fails
             current_app.logger.error(f"Failed to save parcel {parcel.id} during PIN generation via repository.")
-            AuditService.log_event("PIN_GENERATION_FAIL_DB_SAVE", {"parcel_id": parcel.id, "token_prefix": token[:8] + "..."})
+            AuditService.log_event("PIN_GENERATION_FAIL_DB_SAVE", {
+                "parcel_id": parcel.id, 
+                "token_prefix": _safe_token_prefix(token)
+            })
             return None, "Database error saving PIN details."
         
         # Generate PIN generation URL for regeneration link
-        pin_generation_url = url_for('main.generate_pin_by_token_route', 
-                                   token=parcel.pin_generation_token, 
-                                   _external=True)
+        try:
+            pin_generation_url = url_for('main.generate_pin_by_token_route', 
+                                       token=parcel.pin_generation_token, 
+                                       _external=True)
+        except RuntimeError:
+            # Not in request context (e.g., during testing) - use a placeholder URL
+            pin_generation_url = f"http://localhost/generate-pin/{parcel.pin_generation_token}"
         
-        # Send PIN via email using notification service
+        # External adapter: Send PIN via email using notification service
         from app.services.notification_service import NotificationService
         notification_success, notification_message = NotificationService.send_pin_generation_notification(
             recipient_email=parcel.recipient_email,
@@ -92,8 +119,7 @@ def generate_pin_by_token(token: str) -> Tuple[Optional[PersistenceParcel], str]
             pin_generation_url=pin_generation_url
         )
         
-        # Log the PIN generation
-        # FR-07: Audit Trail - Record PIN generation event with timestamp and security details
+        # Audit logging: Record PIN generation event with timestamp and security details
         AuditService.log_event("PIN_GENERATED_VIA_EMAIL", details={
             "parcel_id": parcel.id,
             "locker_id": parcel.locker_id,
@@ -111,7 +137,7 @@ def generate_pin_by_token(token: str) -> Tuple[Optional[PersistenceParcel], str]
         current_app.logger.error(f"Error generating PIN by token: {str(e)}")
         AuditService.log_event("PIN_GENERATION_ERROR", details={
             "error": str(e),
-            "token_prefix": token[:8] + "..." if len(token) > 8 else token
+            "token_prefix": _safe_token_prefix(token)
         })
         return None, "An error occurred while generating the PIN."
 
@@ -138,7 +164,7 @@ def regenerate_pin_token(parcel_id: int, recipient_email: str, admin_reset: bool
         # Reset generation count if it's a new day OR if admin is resetting
         if admin_reset:
             parcel.pin_generation_count = 0  # Admin reset always resets the limit
-        elif parcel.last_pin_generation and (datetime.utcnow() - parcel.last_pin_generation).days >= 1:
+        elif parcel.last_pin_generation and (datetime.now(dt.UTC) - parcel.last_pin_generation).days >= 1:
             parcel.pin_generation_count = 0  # Natural daily reset
         
         # Save parcel using repository
@@ -148,9 +174,13 @@ def regenerate_pin_token(parcel_id: int, recipient_email: str, admin_reset: bool
             return False, "Database error updating PIN token details."
         
         # Generate new PIN generation URL
-        pin_generation_url = url_for('main.generate_pin_by_token_route', 
-                                   token=token, 
-                                   _external=True)
+        try:
+            pin_generation_url = url_for('main.generate_pin_by_token_route', 
+                                       token=token, 
+                                       _external=True)
+        except RuntimeError:
+            # Not in request context (e.g., during testing) - use a placeholder URL
+            pin_generation_url = f"http://localhost/generate-pin/{token}"
         
         # Send new parcel ready notification via notification service
         from app.services.notification_service import NotificationService

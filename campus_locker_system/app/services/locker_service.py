@@ -6,6 +6,7 @@ from app.persistence.repositories.parcel_repository import ParcelRepository as P
 from app.services.audit_service import AuditService
 from flask import current_app
 from datetime import datetime # Added for missing parcel reference date
+import datetime as dt
 from typing import List, Dict, Any # Added for type hinting
 
 # FR-08: Out of Service - Admin locker status management
@@ -42,7 +43,7 @@ def set_locker_status(admin_id: int, admin_username: str, locker_id: int, new_st
             missing_parcels = PclRepo.get_all_by_locker_id_and_status(locker_id, 'missing')
             if missing_parcels:
                 for missing_parcel in missing_parcels:
-                    ref_date = datetime.utcnow().strftime('%Y%m%d')
+                    ref_date = datetime.now(dt.UTC).strftime('%Y%m%d')
                     reference_number = f"MISSING-{missing_parcel.id}-{ref_date}"
                     missing_parcel.locker_id = None
                     # PclRepo.add_to_session(missing_parcel) # Add to a list for batch save later
@@ -160,3 +161,8 @@ def get_all_lockers_with_parcel_counts() -> List[Dict[str, Any]]:
     except Exception as e:
         current_app.logger.error(f"Error in get_all_lockers_with_parcel_counts: {str(e)}")
         return [] # Return empty list on error 
+
+def generate_reference_number(self, parcel_id):
+    """Generate a reference number for tracking purposes"""
+    ref_date = datetime.now(dt.UTC).strftime('%Y%m%d')
+    return f"PKG-{parcel_id:06d}-{ref_date}" 

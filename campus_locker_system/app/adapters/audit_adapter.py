@@ -9,6 +9,7 @@ _as the SQLAlchemy-based persistence is handled by AuditLogRepository._
 from abc import ABC, abstractmethod
 from typing import List, Optional, Tuple, Dict, Any
 from datetime import datetime, timedelta # timedelta is not used directly here anymore but kept for context
+import datetime as dt
 from flask import current_app # current_app is not used by MockAuditAdapter but good to keep for file context
 # from app.persistence.models import AuditLog # Not needed by MockAuditAdapter
 # import json # Not needed by MockAuditAdapter
@@ -67,7 +68,7 @@ class MockAuditAdapter(AuditAdapterInterface):
             'id': self.next_id,
             'action': action,
             'details': details,
-            'timestamp': datetime.utcnow()
+            'timestamp': datetime.now(dt.UTC)
         }
         self.audit_events.append(event)
         self.next_id += 1
@@ -98,7 +99,7 @@ class MockAuditAdapter(AuditAdapterInterface):
     
     def cleanup_old_logs(self, retention_days: int) -> Tuple[int, str]:
         """Mock clean up old logs based on retention policy"""
-        cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
+        cutoff_date = datetime.now(dt.UTC) - timedelta(days=retention_days)
         original_count = len(self.audit_events)
         self.audit_events = [event for event in self.audit_events if event['timestamp'] >= cutoff_date]
         deleted_count = original_count - len(self.audit_events)
@@ -109,7 +110,7 @@ class MockAuditAdapter(AuditAdapterInterface):
         total_logs = len(self.audit_events)
         recent_logs_24h = 0
         if total_logs > 0:
-            last_24h = datetime.utcnow() - timedelta(hours=24)
+            last_24h = datetime.now(dt.UTC) - timedelta(hours=24)
             recent_logs_24h = len([event for event in self.audit_events if event['timestamp'] >= last_24h])
         
         action_counts_dict: Dict[str, int] = {}

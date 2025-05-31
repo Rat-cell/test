@@ -34,11 +34,10 @@ class LockerRepository:
     @staticmethod
     def save(persistence_locker: PersistenceLocker) -> bool:
         """Saves (adds and commits) a persistence locker."""
-        # This simple save assumes add & commit. For updates on existing objects,
-        # if it's already tracked by the session, a commit might be enough.
-        # SQLAlchemy's session.add() can handle both new and existing (for merging state).
         try:
-            db.session.add(persistence_locker)
+            # Use merge to handle both new and existing objects correctly
+            # merge() handles objects that might already be attached to a different session
+            db.session.merge(persistence_locker)
             db.session.commit()
             return True
         except Exception as e:
@@ -48,17 +47,19 @@ class LockerRepository:
 
     @staticmethod
     def find_available_locker_by_size(size: str) -> Optional[PersistenceLocker]:
-        """Finds an available locker of a specific size."""
-        # Note: This is a more complex query that was previously in LockerManager.
-        # It's being moved here to centralize DB access. 
-        # The business logic of *what defines* available might still partially reside in LockerManager
-        # or be passed as criteria to this repository method.
+        """
+        Finds an available locker of a specific size with database-level locking.
+        Uses SELECT FOR UPDATE to prevent race conditions in concurrent assignments.
+        """
         try:
-            # Assuming 'free' is the status for available lockers.
-            # This might need adjustment based on actual Locker model and status values.
-            return PersistenceLocker.query.filter_by(size=size, status='free').first()
+            # Use SELECT FOR UPDATE to lock the row we're about to modify
+            # This prevents other transactions from selecting the same locker
+            return (PersistenceLocker.query
+                   .filter_by(size=size, status='free')
+                   .with_for_update()  # PostgreSQL/MySQL: SELECT ... FOR UPDATE
+                   .first())
         except Exception as e:
-            current_app.logger.error(f"Error finding available locker of size '{size}': {str(e)}")
+            current_app.logger.error(f"Error finding available locker of size '{size}' with locking: {str(e)}")
             return None
 
     @staticmethod

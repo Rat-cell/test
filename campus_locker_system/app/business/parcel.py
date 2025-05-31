@@ -1,7 +1,9 @@
 from datetime import datetime
+import datetime as dt
 # from app import db # db import no longer needed here for model definition
 # import secrets # Moved to Parcel model in models.py
 import re # Used by ParcelManager.is_valid_email
+from app.business.pin import PinManager
 
 # --- Parcel SQLAlchemy Model definition and its methods (generate_pin_token, etc.) moved to app/persistence/models.py --- 
 # class Parcel(db.Model):
@@ -53,7 +55,7 @@ class ParcelManager:
         """Calculate age of parcel in days"""
         if not deposited_at:
             return 0
-        return (datetime.utcnow() - deposited_at).days
+        return (datetime.now(dt.UTC) - deposited_at).days
     
     @staticmethod
     def is_overdue(deposited_at: datetime, max_pickup_days: int) -> bool:

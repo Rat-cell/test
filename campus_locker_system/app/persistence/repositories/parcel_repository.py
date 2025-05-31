@@ -122,7 +122,9 @@ class ParcelRepository:
     def save(persistence_parcel: PersistenceParcel) -> bool:
         """Saves a single parcel instance (adds and commits)."""
         try:
-            db.session.add(persistence_parcel)
+            # Use merge to handle both new and existing objects correctly
+            # merge() handles objects that might already be attached to a different session
+            db.session.merge(persistence_parcel)
             db.session.commit()
             return True
         except Exception as e:

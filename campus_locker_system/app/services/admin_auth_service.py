@@ -6,6 +6,7 @@ from app.persistence.models import AdminUser as PersistenceAdminUser
 from app.persistence.repositories.admin_repository import AdminRepository
 from app.services.audit_service import AuditService
 from datetime import datetime
+import datetime as dt
 # from werkzeug.security import check_password_hash # Not directly used here anymore
 
 class AdminAuthService:
@@ -58,7 +59,7 @@ class AdminAuthService:
             AuditService.log_event("ADMIN_LOGIN_SUCCESS", {
                 "admin_id": business_admin.id,
                 "admin_username": business_admin.username,
-                "login_time": datetime.utcnow().isoformat()
+                "login_time": datetime.now(dt.UTC).isoformat()
             })
 
             return business_admin, "Authentication successful"
@@ -127,7 +128,7 @@ class AdminAuthService:
     def update_session_activity() -> None:
         """Update last activity timestamp in session"""
         if 'admin_id' in session:
-            session['last_activity'] = datetime.utcnow().isoformat()
+            session['last_activity'] = datetime.now(dt.UTC).isoformat()
     
     @staticmethod
     def logout() -> None:

@@ -2,6 +2,27 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail # Add this
 from .config import Config
+from datetime import datetime
+import datetime as dt
+import sqlite3
+
+# Configure SQLite datetime adapters for Python 3.12+ compatibility
+# This fixes the DeprecationWarning: "The default datetime adapter is deprecated"
+# Following SQLite3 documentation recommendations for replacement recipes
+def adapt_datetime_iso(dt_obj):
+    """Convert datetime to ISO string for SQLite storage (Python 3.12+ compatible)"""
+    return dt_obj.isoformat()
+
+def convert_datetime(dt_string):
+    """Convert ISO string from SQLite back to datetime object (Python 3.12+ compatible)"""
+    if isinstance(dt_string, bytes):
+        dt_string = dt_string.decode('utf-8')
+    return datetime.fromisoformat(dt_string.replace(' ', 'T'))
+
+# Register the new adapters and converters for Python 3.12+ compatibility
+sqlite3.register_adapter(datetime, adapt_datetime_iso)
+sqlite3.register_converter("datetime", convert_datetime)
+sqlite3.register_converter("DATETIME", convert_datetime)
 
 db = SQLAlchemy()
 mail = Mail() # Add this
@@ -133,7 +154,7 @@ def _start_automatic_reminder_scheduler(app):
                         "error_count": error_count,
                         "total_eligible": processed_count + error_count,
                         "trigger_source": "automatic_background_scheduler",
-                        "execution_time": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+                        "execution_time": datetime.now(dt.UTC).strftime('%Y-%m-%d %H:%M:%S'),
                         "next_execution_in_hours": interval_hours
                     })
                     

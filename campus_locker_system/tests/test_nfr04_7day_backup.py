@@ -5,12 +5,14 @@ NFR-04 Configurable Backup Interval Test
 Focused test for the configurable scheduled backup functionality
 """
 
+import pytest
 import tempfile
 import os
 import shutil
 import sqlite3
 import time
 from datetime import datetime, timedelta
+import datetime as dt
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -46,7 +48,7 @@ def test_nfr04_configurable_backup_logic():
             print(f"    Testing {interval_days}-day interval")
             
             # Create fake old backup (older than interval)
-            old_date = datetime.now() - timedelta(days=interval_days + 1)
+            old_date = datetime.now(dt.UTC) - timedelta(days=interval_days + 1)
             timestamp = old_date.strftime('%Y%m%d_%H%M%S')
             fake_old_backup = backup_dir / f'campus_locker_scheduled_{interval_days}day_{timestamp}.db'
             
@@ -56,7 +58,7 @@ def test_nfr04_configurable_backup_logic():
             os.utime(fake_old_backup, (old_timestamp, old_timestamp))
             
             # Check if configured interval has passed since last backup
-            interval_cutoff = datetime.now().timestamp() - (interval_days * 24 * 60 * 60)
+            interval_cutoff = datetime.now(dt.UTC).timestamp() - (interval_days * 24 * 60 * 60)
             file_time = fake_old_backup.stat().st_mtime
             
             should_backup_old = file_time < interval_cutoff
@@ -71,7 +73,7 @@ def test_nfr04_configurable_backup_logic():
         
         # Test with 7-day interval and 1-day-old backup
         interval_days = 7
-        recent_date = datetime.now() - timedelta(days=1)
+        recent_date = datetime.now(dt.UTC) - timedelta(days=1)
         timestamp = recent_date.strftime('%Y%m%d_%H%M%S')
         fake_recent_backup = backup_dir / f'campus_locker_scheduled_{interval_days}day_{timestamp}.db'
         
@@ -85,7 +87,7 @@ def test_nfr04_configurable_backup_logic():
         most_recent = max(scheduled_backups, key=lambda f: f.stat().st_mtime)
         most_recent_time = most_recent.stat().st_mtime
         
-        interval_cutoff = datetime.now().timestamp() - (interval_days * 24 * 60 * 60)
+        interval_cutoff = datetime.now(dt.UTC).timestamp() - (interval_days * 24 * 60 * 60)
         should_backup_recent = most_recent_time < interval_cutoff
         print(f"    Most recent file time: {datetime.fromtimestamp(most_recent_time)}")
         print(f"    Should create backup (recent exists): {should_backup_recent}")
@@ -158,7 +160,7 @@ def test_nfr04_configurable_backup_file_creation():
         
         audit_cursor.execute(
             "INSERT INTO audit_log (timestamp, action, details) VALUES (?, ?, ?)",
-            (datetime.now(), "TEST_ACTION", "Test audit entry")
+            (datetime.now(dt.UTC).isoformat(), "TEST_ACTION", "Test audit entry")
         )
         
         audit_conn.commit()
@@ -171,7 +173,7 @@ def test_nfr04_configurable_backup_file_creation():
             print(f"    Testing {interval_days}-day backup interval")
             
             # Simulate scheduled backup creation with configurable interval
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now(dt.UTC).strftime('%Y%m%d_%H%M%S')
             
             db_files = ['campus_locker.db', 'campus_locker_audit.db']
             backed_up_files = []

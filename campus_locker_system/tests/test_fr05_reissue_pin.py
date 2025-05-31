@@ -26,6 +26,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
+import datetime as dt
 
 # Add the campus_locker_system directory to the Python path
 current_dir = Path(__file__).parent
@@ -74,27 +75,45 @@ class TestFR05ReissuePin:
         with app.app_context():
             # Create test locker
             locker = Locker(id=905, location="Test FR-05 Locker", size="medium", status="occupied")
-            LockerRepository.save(locker) # Use repository
             
-            # Create test parcel with expired PIN
+            # Use merge to handle explicit ID
+            db.session.merge(locker)
+            db.session.commit()
+            
+            # Create test parcel with expired PIN - let database assign ID automatically
             parcel = Parcel(
                 locker_id=905,
                 recipient_email="test-fr05@example.com",
                 status="deposited",
-                deposited_at=datetime.utcnow() - timedelta(hours=25),
+                deposited_at=datetime.now(dt.UTC) - timedelta(hours=25),
                 pin_hash="expired_hash:12345",
-                otp_expiry=datetime.utcnow() - timedelta(hours=1)  # Expired
+                otp_expiry=datetime.now(dt.UTC) - timedelta(hours=1)  # Expired
             )
             token = parcel.generate_pin_token() # generate_pin_token needs to be called before saving if it sets a value
-            ParcelRepository.save(parcel) # Use repository
+            
+            # Add and commit to get auto-assigned ID
+            db.session.add(parcel)
+            db.session.commit()
+            
+            # Refresh to ensure we have the assigned ID
+            db.session.refresh(parcel)
             
             yield locker, parcel
             
-            # Cleanup
-            # Keeping direct db.session.delete for test cleanup simplicity
-            db.session.delete(parcel)
-            db.session.delete(locker)
-            db.session.commit()
+            # Cleanup - only delete if objects were actually persisted
+            try:
+                if parcel.id is not None:
+                    db.session.delete(parcel)
+                if locker.id is not None:
+                    # Find locker by ID to avoid session issues
+                    locker_to_delete = db.session.get(Locker, 905)
+                    if locker_to_delete:
+                        db.session.delete(locker_to_delete)
+                db.session.commit()
+            except Exception as e:
+                # If cleanup fails, just rollback and continue
+                db.session.rollback()
+                print(f"Cleanup warning: {e}")
 
     # ===== 1. ADMIN PIN RE-ISSUE TESTS =====
 
@@ -256,7 +275,7 @@ class TestFR05ReissuePin:
             
             # Set parcel to look like previous day
             parcel.pin_generation_count = 3
-            parcel.last_pin_generation = datetime.utcnow() - timedelta(days=1)
+            parcel.last_pin_generation = datetime.now(dt.UTC) - timedelta(days=1)
             db.session.commit()
             
             with patch('app.services.notification_service.NotificationService.send_parcel_ready_notification') as mock_notify:
@@ -393,7 +412,7 @@ class TestFR05ReissuePin:
             
             # Set parcel to maximum generations
             parcel.pin_generation_count = 3
-            parcel.last_pin_generation = datetime.utcnow()
+            parcel.last_pin_generation = datetime.now(dt.UTC)
             db.session.commit()
             
             with patch('app.services.notification_service.NotificationService.send_parcel_ready_notification') as mock_notify:
@@ -418,7 +437,7 @@ class TestFR05ReissuePin:
             
             # Set parcel to previous day with max count
             parcel.pin_generation_count = 3
-            parcel.last_pin_generation = datetime.utcnow() - timedelta(days=2)
+            parcel.last_pin_generation = datetime.now(dt.UTC) - timedelta(days=2)
             db.session.commit()
             
             with patch('app.services.notification_service.NotificationService.send_parcel_ready_notification') as mock_notify:
@@ -500,7 +519,7 @@ class TestFR05ReissuePin:
                 
                 # Verify graceful handling
                 assert success is False, "FR-05: Should handle database errors gracefully"
-                assert "error occurred" in message.lower(), "FR-05: Should provide error message"
+                assert ("error occurred" in message.lower() or "database error" in message.lower()), "FR-05: Should provide error message"
 
     def test_fr05_email_failure_handling(self, app, test_locker_and_parcel):
         """

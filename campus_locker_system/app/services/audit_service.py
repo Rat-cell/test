@@ -6,6 +6,7 @@ from app.persistence.repositories.audit_log_repository import AuditLogRepository
 from app.persistence.models import AuditLog as AuditLogEntity
 import json
 from datetime import datetime, timedelta
+import datetime as dt
 
 class AuditService:
     """
@@ -74,9 +75,17 @@ class AuditService:
         try:
             actions_filter = None
             if action:
-                actions_filter = AuditService._get_actions_by_category(action)
-                if not actions_filter: # If action is invalid or has no actions, return empty
-                    return []
+                # First try to treat action as a specific action name
+                # Check if it's an exact action by looking for it in all categories
+                from app.business.audit import AuditEventClassifier
+                if action in AuditEventClassifier.EVENT_CLASSIFICATIONS:
+                    # It's a specific action
+                    actions_filter = [action]
+                else:
+                    # Try to treat it as a category name
+                    actions_filter = AuditService._get_actions_by_category(action)
+                    if not actions_filter: # If action is invalid or has no actions, return empty
+                        return []
             
             start_dt: Optional[datetime] = None
             end_dt: Optional[datetime] = None
@@ -107,7 +116,7 @@ class AuditService:
         if not security_actions:
             return []
             
-        start_dt = datetime.utcnow() - timedelta(days=days)
+        start_dt = datetime.now(dt.UTC) - timedelta(days=days)
         
         return AuditLogRepository.get_logs(
             limit=-1, # No limit from repository, handled by days
@@ -118,7 +127,7 @@ class AuditService:
     @staticmethod
     def get_admin_activity(admin_id: int, days: int = 30) -> List[AuditLogEntity]:
         """Get recent admin activity using AuditLogRepository."""
-        start_dt = datetime.utcnow() - timedelta(days=days)
+        start_dt = datetime.now(dt.UTC) - timedelta(days=days)
         
         # The direct like query for admin_id in JSON is hard to replicate cleanly without JSON specific DB functions.
         # The AuditLog model now has admin_id directly. So we can filter by that.
@@ -136,7 +145,7 @@ class AuditService:
         
         try:
             for category_name, retention_days in retention_policy.items():
-                cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
+                cutoff_date = datetime.now(dt.UTC) - timedelta(days=retention_days)
                 category_actions = AuditService._get_actions_by_category(category_name)
                 
                 if category_actions:
@@ -163,8 +172,8 @@ class AuditService:
     @staticmethod
     def get_audit_statistics(days: int = 30) -> Dict[str, Any]:
         """Get audit log statistics using AuditLogRepository."""
-        start_dt = datetime.utcnow() - timedelta(days=days)
-        now_dt = datetime.utcnow()
+        start_dt = datetime.now(dt.UTC) - timedelta(days=days)
+        now_dt = datetime.now(dt.UTC)
 
         total_events = AuditLogRepository.get_count_by_daterange(start_date=start_dt, end_date=now_dt)
         

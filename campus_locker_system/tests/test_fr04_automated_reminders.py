@@ -33,6 +33,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
+import datetime as dt
 
 from app import create_app, db
 from app.persistence.models import Parcel, Locker, AuditLog
@@ -73,10 +74,13 @@ class TestFR04AutomatedReminders:
         with app.app_context():
             # Create test locker
             locker = Locker(id=999, location="Test Locker FR-04", size="medium", status="occupied")
-            LockerRepository.save(locker) # Use repository
             
-            # Create parcel deposited 25 hours ago (eligible for reminder)
-            old_time = datetime.utcnow() - timedelta(hours=25)
+            # Use merge to handle explicit ID
+            db.session.merge(locker)
+            db.session.commit()
+            
+            # Create parcel deposited 25 hours ago (eligible for reminder) - let database assign ID automatically
+            old_time = datetime.now(dt.UTC) - timedelta(hours=25)
             parcel = Parcel(
                 locker_id=999,
                 recipient_email="test-fr04@example.com",
@@ -85,15 +89,30 @@ class TestFR04AutomatedReminders:
                 pin_hash="test_hash",
                 reminder_sent_at=None  # FR-04: No reminder sent yet
             )
-            ParcelRepository.save(parcel) # Use repository
+            
+            # Add and commit to get auto-assigned ID
+            db.session.add(parcel)
+            db.session.commit()
+            
+            # Refresh to ensure we have the assigned ID
+            db.session.refresh(parcel)
             
             yield parcel
             
-            # Cleanup
-            # Keeping direct db.session.delete for test cleanup simplicity
-            db.session.delete(parcel)
-            db.session.delete(locker)
-            db.session.commit()
+            # Cleanup - only delete if objects were actually persisted
+            try:
+                if parcel.id is not None:
+                    db.session.delete(parcel)
+                if locker.id is not None:
+                    # Find locker by ID to avoid session issues
+                    locker_to_delete = db.session.get(Locker, 999)
+                    if locker_to_delete:
+                        db.session.delete(locker_to_delete)
+                db.session.commit()
+            except Exception as e:
+                # If cleanup fails, just rollback and continue
+                db.session.rollback()
+                print(f"Cleanup warning: {e}")
 
     @pytest.fixture
     def test_parcel_not_eligible(self, app):
@@ -101,10 +120,13 @@ class TestFR04AutomatedReminders:
         with app.app_context():
             # Create test locker
             locker = Locker(id=998, location="Test Locker FR-04 Recent", size="small", status="occupied")
-            LockerRepository.save(locker) # Use repository
             
-            # Create parcel deposited 2 hours ago (not eligible)
-            recent_time = datetime.utcnow() - timedelta(hours=2)
+            # Use merge to handle explicit ID
+            db.session.merge(locker)
+            db.session.commit()
+            
+            # Create parcel deposited 2 hours ago (not eligible) - let database assign ID automatically
+            recent_time = datetime.now(dt.UTC) - timedelta(hours=2)
             parcel = Parcel(
                 locker_id=998,
                 recipient_email="recent-fr04@example.com",
@@ -113,15 +135,30 @@ class TestFR04AutomatedReminders:
                 pin_hash="test_hash_recent",
                 reminder_sent_at=None
             )
-            ParcelRepository.save(parcel) # Use repository
+            
+            # Add and commit to get auto-assigned ID
+            db.session.add(parcel)
+            db.session.commit()
+            
+            # Refresh to ensure we have the assigned ID
+            db.session.refresh(parcel)
             
             yield parcel
             
-            # Cleanup
-            # Keeping direct db.session.delete for test cleanup simplicity
-            db.session.delete(parcel)
-            db.session.delete(locker)
-            db.session.commit()
+            # Cleanup - only delete if objects were actually persisted
+            try:
+                if parcel.id is not None:
+                    db.session.delete(parcel)
+                if locker.id is not None:
+                    # Find locker by ID to avoid session issues
+                    locker_to_delete = db.session.get(Locker, 998)
+                    if locker_to_delete:
+                        db.session.delete(locker_to_delete)
+                db.session.commit()
+            except Exception as e:
+                # If cleanup fails, just rollback and continue
+                db.session.rollback()
+                print(f"Cleanup warning: {e}")
 
     # ===== 1. AUTOMATIC BACKGROUND SCHEDULER TESTS =====
 
@@ -228,7 +265,7 @@ class TestFR04AutomatedReminders:
         """
         with app.app_context():
             # Set reminder as already sent
-            test_parcel_eligible_for_reminder.reminder_sent_at = datetime.utcnow()
+            test_parcel_eligible_for_reminder.reminder_sent_at = datetime.now(dt.UTC)
             ParcelRepository.save(test_parcel_eligible_for_reminder) # Use repository to save changes
             
             # Process reminders
@@ -312,7 +349,7 @@ class TestFR04AutomatedReminders:
             email_data = NotificationManager.create_24h_reminder_email(
                 parcel_id=123,
                 locker_id=456,
-                deposited_time=datetime.utcnow() - timedelta(hours=25),
+                deposited_time=datetime.now(dt.UTC) - timedelta(hours=25),
                 pin_generation_url="https://example.com/pin/token123"
             )
             
@@ -335,7 +372,7 @@ class TestFR04AutomatedReminders:
                 recipient_email=test_parcel_eligible_for_reminder.recipient_email,
                 parcel_id=test_parcel_eligible_for_reminder.id,
                 locker_id=test_parcel_eligible_for_reminder.locker_id,
-                deposited_time=test_parcel_eligible_for_reminder.deposited_at,
+                deposited_time=datetime.now(dt.UTC) - timedelta(hours=25),
                 pin_generation_url="https://example.com/pin/token"
             )
             

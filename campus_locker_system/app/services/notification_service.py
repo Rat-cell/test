@@ -5,6 +5,7 @@ from app.business.notification import NotificationManager, FormattedEmail, Notif
 from app.services.audit_service import AuditService
 from app.adapters.email_adapter import create_email_adapter, EmailMessage
 from datetime import datetime
+import datetime as dt
 
 class NotificationService:
     """Service layer for notification orchestration"""
@@ -181,7 +182,7 @@ class NotificationService:
                     "parcel_id": parcel_id,
                     "locker_id": locker_id,
                     "deposited_time": deposited_time.isoformat() if deposited_time else None,
-                    "hours_since_deposit": (datetime.utcnow() - deposited_time).total_seconds() / 3600 if deposited_time else None,
+                    "hours_since_deposit": (datetime.now(dt.UTC) - deposited_time).total_seconds() / 3600 if deposited_time else None,
                     "configured_reminder_hours": current_app.config.get('REMINDER_HOURS_AFTER_DEPOSIT', 24)  # FR-04: Log configured timing
                 })
                 return True, f"Reminder sent to {recipient_email}"

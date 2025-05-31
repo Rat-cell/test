@@ -24,6 +24,7 @@ import argparse
 import sqlite3
 import shutil
 from datetime import datetime
+import datetime as dt
 from pathlib import Path
 
 def load_json_config(config_file='databases/lockers-hwr.json'):
@@ -45,7 +46,7 @@ def create_backup(db_path):
     if not db_path.exists():
         return None
     
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now(dt.UTC).strftime('%Y%m%d_%H%M%S')
     
     # NFR-04: Backup - Store backups in dedicated backups directory
     backup_dir = db_path.parent / 'backups'

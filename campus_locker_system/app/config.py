@@ -78,7 +78,9 @@ class Config:
         'connect_args': {
             'check_same_thread': False,  # Allow multi-threaded access
             'timeout': 60,               # 60-second timeout for database locks
-        }
+        },
+        # Configure SQLite to properly handle UTC timezone-aware datetimes
+        'module': 'sqlite3'  # Ensure consistent SQLite behavior
     }
     
     # NFR-02: Reliability - Database crash safety and reliability features

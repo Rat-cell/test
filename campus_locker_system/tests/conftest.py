@@ -10,12 +10,23 @@ class TestConfig(Config):
     SERVER_NAME = 'localhost'
     MAIL_SUPPRESS_SEND = True
     MAIL_DEFAULT_SENDER = 'test@example.com'
+    # Disable auto-seeding during tests to prevent conflicts
+    ENABLE_DEFAULT_LOCKER_SEEDING = False
 
 @pytest.fixture(scope='function')
 def app():
     app = create_app()
     app.config.from_object(TestConfig)
-    return app
+    
+    with app.app_context():
+        # Create all tables but don't seed any data
+        db.create_all()
+        
+        yield app
+        
+        # Clean up
+        db.session.remove()
+        db.drop_all()
 
 @pytest.fixture(scope='function')
 def client(app):
@@ -24,8 +35,6 @@ def client(app):
 @pytest.fixture(scope='function')
 def init_database(app):
     with app.app_context():
-        db.create_all()
-
         # Always pre-populate lockers for each test
         locker1 = Locker(size='small', status='free')
         locker2 = Locker(size='medium', status='free')
@@ -35,6 +44,3 @@ def init_database(app):
         db.session.commit()
 
         yield db  # Provide the db object to tests
-
-        db.session.remove()
-        db.drop_all()

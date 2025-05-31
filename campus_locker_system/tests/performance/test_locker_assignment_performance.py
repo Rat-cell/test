@@ -8,7 +8,7 @@ import time
 import statistics
 from app import db
 from app.services.parcel_service import assign_locker_and_create_parcel
-from app.business.parcel import Parcel
+from app.persistence.models import Parcel
 from app.persistence.models import Locker
 
 # Repository Imports

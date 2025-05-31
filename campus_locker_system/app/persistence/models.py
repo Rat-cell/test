@@ -1,9 +1,37 @@
 from app import db
-from datetime import datetime
+from datetime import datetime, timedelta
+import datetime as dt
 import bcrypt # Added bcrypt import
+import uuid
+from sqlalchemy import TypeDecorator, DateTime
 # Removed imports of Parcel and Locker from business layer, as they will be defined here.
 # from app.business.parcel import Parcel 
 # from app.business.locker import Locker
+
+# --- UTC DateTime Type for Proper Timezone Handling ---
+class UTCDateTime(TypeDecorator):
+    """
+    Custom SQLAlchemy type for proper UTC timezone handling
+    Follows hexagonal architecture: Persistence layer handles data conversion
+    """
+    impl = DateTime
+    cache_ok = True
+    
+    def process_bind_param(self, value, dialect):
+        """Convert timezone-aware datetime to naive UTC for storage"""
+        if value is not None:
+            if value.tzinfo is not None:
+                # Convert to UTC and make naive for storage
+                value = value.utctimetuple()
+                value = datetime(*value[:6])
+        return value
+    
+    def process_result_value(self, value, dialect):
+        """Convert stored naive datetime back to timezone-aware UTC"""
+        if value is not None:
+            # Assume stored datetime is UTC and make it timezone-aware
+            value = value.replace(tzinfo=dt.timezone.utc)
+        return value
 
 # --- Locker Model Definition ---
 class Locker(db.Model):
@@ -26,51 +54,60 @@ class Parcel(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     locker_id = db.Column(db.Integer, db.ForeignKey('locker.id'), nullable=True)  # Allow null for detached missing parcels
     pin_hash = db.Column(db.String(128), nullable=True)  # SHA-256 hash - now nullable for email-based PIN generation
-    otp_expiry = db.Column(db.DateTime, nullable=True)  # Now nullable for email-based PIN generation
+    otp_expiry = db.Column(UTCDateTime, nullable=True)  # Now nullable for email-based PIN generation
     recipient_email = db.Column(db.String(120), nullable=False)
     # Possible statuses: 'deposited', 'picked_up', 'missing', 'expired', 'retracted_by_sender', 'pickup_disputed', 'awaiting_return', 'return_to_sender'
     status = db.Column(db.String(50), nullable=False, default='deposited')
-    deposited_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow) # New field
-    picked_up_at = db.Column(db.DateTime, nullable=True)  # Pickup timestamp
+    deposited_at = db.Column(UTCDateTime, nullable=False, default=datetime.now(dt.UTC)) # New field
+    picked_up_at = db.Column(UTCDateTime, nullable=True)  # Pickup timestamp
     
     # Email-based PIN generation fields
     pin_generation_token = db.Column(db.String(128), nullable=True)  # Unique token for PIN generation
-    pin_generation_token_expiry = db.Column(db.DateTime, nullable=True)  # Token expiry time
+    pin_generation_token_expiry = db.Column(UTCDateTime, nullable=True)  # Token expiry time
     pin_generation_count = db.Column(db.Integer, nullable=False, default=0)  # Track PIN generation attempts
-    last_pin_generation = db.Column(db.DateTime, nullable=True)  # Last PIN generation timestamp
+    last_pin_generation = db.Column(UTCDateTime, nullable=True)  # Last PIN generation timestamp
     
     # FR-04: Send Reminder After 24h of Occupancy - Track reminder sent status
-    reminder_sent_at = db.Column(db.DateTime, nullable=True)  # When the 24h reminder was sent
+    reminder_sent_at = db.Column(UTCDateTime, nullable=True)  # When the 24h reminder was sent
 
     def __repr__(self):
         return f'<Parcel {self.id} in Locker {self.locker_id} - Status: {self.status}>'
     
-    def generate_pin_token(self):
-        """Generate a secure token for PIN generation. Moved from business.parcel for model cohesion."""
-        import secrets # Keep import local if only used here
-        from datetime import timedelta # Keep import local
-        from flask import current_app # Keep import local
-
-        self.pin_generation_token = secrets.token_urlsafe(32)
-        expiry_hours = current_app.config.get('PIN_GENERATION_TOKEN_EXPIRY_HOURS', 24)
-        self.pin_generation_token_expiry = datetime.utcnow() + timedelta(hours=expiry_hours)
+    def generate_pin_token(self, expiry_hours=1):
+        """
+        Generate new PIN generation token with expiry
+        Follows hexagonal architecture: Domain model generates and returns business value
+        """
+        self.pin_generation_token = str(uuid.uuid4())
+        self.pin_generation_token_expiry = datetime.now(dt.UTC) + timedelta(hours=expiry_hours)
         return self.pin_generation_token
     
     def is_pin_token_valid(self):
-        """Check if the PIN generation token is still valid. Moved from business.parcel."""
+        """Check if PIN generation token is still valid"""
         if not self.pin_generation_token or not self.pin_generation_token_expiry:
             return False
-        return datetime.utcnow() < self.pin_generation_token_expiry
+        return datetime.now(dt.UTC) < self.pin_generation_token_expiry
     
-    def can_generate_pin(self, max_daily_generations: int):
-        """Check if user can generate another PIN today. Moved from business.parcel."""
+    def can_reissue_pin(self):
+        """Check if PIN can be reissued based on business rules"""
         if not self.last_pin_generation:
             return True
-        # Check if it's been a day since last generation
-        if (datetime.utcnow() - self.last_pin_generation).days >= 1:
-            self.pin_generation_count = 0 # Reset count for new day
+        # Allow reissue after 24 hours
+        if (datetime.now(dt.UTC) - self.last_pin_generation).days >= 1:
             return True
-        return self.pin_generation_count < max_daily_generations
+        return False
+    
+    def can_generate_pin(self, max_daily_generations: int = 3):
+        """
+        Domain business rule: Check if PIN generation is allowed based on daily limits
+        Follows hexagonal architecture: Business rules contained in domain model
+        """
+        # If it's a new day, reset is allowed
+        if self.last_pin_generation and (datetime.now(dt.UTC) - self.last_pin_generation).days >= 1:
+            return True
+        # Check if within daily generation limit (handle None values)
+        current_count = self.pin_generation_count or 0
+        return current_count < max_daily_generations
 
 # --- AdminUser Model Definition ---
 class AdminUser(db.Model):
@@ -78,7 +115,7 @@ class AdminUser(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)  # bcrypt hash
-    last_login = db.Column(db.DateTime, nullable=True)  # Track last login time
+    last_login = db.Column(UTCDateTime, nullable=True)  # Track last login time
 
     def set_password(self, password):
         password_bytes = password.encode('utf-8')
@@ -99,7 +136,7 @@ class AuditLog(db.Model):
     __bind_key__ = 'audit'
 
     id = db.Column(db.Integer, primary_key=True)
-    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    timestamp = db.Column(UTCDateTime, nullable=False, default=datetime.now(dt.UTC))
     action = db.Column(db.String(255), nullable=False)
     details = db.Column(db.Text, nullable=True)
     admin_id = db.Column(db.Integer, nullable=True)
@@ -113,7 +150,7 @@ class LockerSensorData(db.Model):
     __tablename__ = 'locker_sensor_data' # Explicit table name
     id = db.Column(db.Integer, primary_key=True)
     locker_id = db.Column(db.Integer, db.ForeignKey('locker.id'), nullable=False)
-    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    timestamp = db.Column(UTCDateTime, nullable=False, default=datetime.now(dt.UTC))
     has_contents = db.Column(db.Boolean, nullable=False)
 
     def __repr__(self):

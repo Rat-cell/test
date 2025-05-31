@@ -54,7 +54,7 @@ def assign_locker_and_create_parcel(recipient_email: str, preferred_size: str):
             locker_id=locker.id,
             recipient_email=recipient_email,
             status='deposited',
-            deposited_at=datetime.utcnow()
+            deposited_at=datetime.now(datetime.UTC)
         )
         
         # Generate PIN generation token
