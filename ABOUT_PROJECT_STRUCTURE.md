@@ -120,32 +120,36 @@ This folder contains all the actual code that makes our app work.
 
 ### 🏗️ Application Structure (`app/` folder)
 
-Our app follows a special pattern called "Hexagonal Architecture." Think of it like organizing a house into different rooms for different purposes.
+Our app follows a special pattern called "Hexagonal Architecture." Think of it like organizing a house into different rooms for different purposes. This architecture helps keep the core business rules separate from external concerns like the database or user interface, making the system more flexible and easier to test.
 
 #### `📁 presentation/`
-- **What it is**: The "face" of our application - what users see and interact with
-- **Why we need it**: Contains web pages, forms, and user interfaces
-- **Think of it as**: The storefront of a shop - where customers interact
+- **What it is**: The "face" of our application - what users see and interact with (e.g., web pages, API endpoints).
+- **Why we need it**: Handles incoming requests and outgoing responses, translating them for the application services.
+- **Think of it as**: The storefront of a shop or the reception desk - where customers interact and make requests.
 
 #### `📁 business/`
-- **What it is**: The "brain" of our application - where all the important decisions happen
-- **Why we need it**: Contains the core logic and rules of our locker system
-- **Think of it as**: The manager's office - where business decisions are made
-
-#### `📁 adapters/`
-- **What it is**: Translators that help different parts of our app talk to each other
-- **Why we need it**: Converts information between different formats
-- **Think of it as**: Interpreters at the United Nations - help different systems communicate
-
-#### `📁 persistence/`
-- **What it is**: Where we save and retrieve data from the database
-- **Why we need it**: Remembers information even when the app is turned off
-- **Think of it as**: The filing cabinet - where all records are stored
+- **What it is**: The "brain" of our application - where all the important decisions and core domain logic reside.
+- **Why we need it**: Contains the essential rules and processes of our locker system, independent of how data is stored or displayed.
+- **Think of it as**: The manager's office combined with the core operational workflows - where the fundamental business policies and logic are defined and executed.
 
 #### `📁 services/`
-- **What it is**: Helper functions that do specific jobs
-- **Why we need it**: Breaks down complex tasks into smaller, manageable pieces
-- **Think of it as**: Specialized departments in a company (HR, Accounting, etc.)
+- **What it is**: Application services that orchestrate use cases and coordinate business logic with data persistence.
+- **Why we need it**: Acts as an intermediary between the presentation layer and the business logic/persistence layers. They define the available operations and manage transactions.
+- **Think of it as**: Specialized department heads who manage specific workflows, using the core business rules and delegating data tasks to the persistence layer.
+
+#### `📁 persistence/`
+- **What it is**: Responsible for all data storage and retrieval operations.
+- **Why we need it**: Provides an abstraction over the database, allowing the rest of the application to be database-agnostic. It remembers information even when the app is turned off.
+- **Contains**:
+    - `models.py`: Centralized SQLAlchemy data model definitions (the blueprint of our data).
+    - `repositories/`: A subdirectory containing repository classes (e.g., `LockerRepository`, `ParcelRepository`). Each repository implements the actual data access logic (CRUD operations) for its associated model, hiding the specific database technology (SQLite in this case) from the services and business logic.
+- **Think of it as**: The secure records room and archive, with librarians (repositories) who know exactly how to find and store information (models).
+
+#### `📁 adapters/`
+- **What it is**: Connects our application to external systems or translates data for external concerns. This is where the "ports and adapters" concept of Hexagonal Architecture becomes very clear.
+- **Why we need it**: Allows our core application to remain independent of specific external tools or interfaces. For example, an adapter might handle sending emails via a specific email service, or fetching data from an external API.
+- **What it might contain**: Adapters for email notifications, payment gateways (if any), or other third-party service integrations. Some previous adapters (like direct SQLAlchemy adapters) have been streamlined or removed as repositories now handle direct data persistence concerns.
+- **Think of it as**: Specialized translators and connectors that allow our application to interact with the outside world (e.g., a mail service adapter, a UI adapter if the presentation layer itself is considered an adapter).
 
 ### 🗄️ Data Storage - Enhanced in v2.1.3
 

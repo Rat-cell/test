@@ -1,5 +1,37 @@
 # 📋 Campus Locker System - Changelog
 
+## [2.1.9] - 2025-05-31
+
+### 🏛️ Architectural Refactoring - Hexagonal Architecture Implementation
+
+To enhance modularity, testability, and long-term maintainability, the application underwent a significant refactoring to align with Hexagonal Architecture principles. This involved a clear separation of concerns, with business logic at the core, surrounded by application services and infrastructure adapters.
+
+#### **Key Changes:**
+- **Implemented Repository Pattern**: Database interactions have been abstracted into dedicated repository classes, decoupling services and business logic from direct data persistence mechanisms.
+  - Created `AdminUserRepository` for admin user data.
+  - Created `LockerRepository` for locker data.
+  - Created `ParcelRepository` for parcel data.
+  - Created `AuditLogRepository` for audit log data.
+  - Created `LockerSensorDataRepository` for locker sensor data.
+- **Service Layer Refactoring**: Core services were updated to utilize the new repository layer for all data operations. This includes:
+  - `AdminAuthService`
+  - `ParcelService`
+  - `PinService`
+  - `LockerService`
+  - `AuditService`
+  - `DatabaseService`
+  - `LockerConfigurationService`
+- **Business Logic Refactoring**: Core business logic classes (`LockerManager`, `ParcelManager`) were also refactored to delegate data persistence through repositories.
+- **Centralized Data Models**: SQLAlchemy model definitions (e.g., `Locker`, `Parcel`) were consolidated from various business layer files into a central `app/persistence/models.py`.
+- **Adapter Streamlining**: Removed redundant adapter classes (e.g., `SQLAlchemyAuditAdapter`, `SQLAlchemyAdapter`) as their responsibilities are now handled by the repository layer and direct service interactions where appropriate.
+- **Test Suite Adaptation**: Test files were updated to align with the new architecture. Tests now primarily interact with the service layer or repositories, rather than making direct database calls (e.g., `db.session.commit()`, `Model.query`), ensuring tests are focused on business rules and service contracts.
+
+#### **Impact & Benefits:**
+- **Improved Modularity**: Clearer boundaries between application layers.
+- **Enhanced Testability**: Easier to mock dependencies (like repositories) for unit and integration testing.
+- **Increased Maintainability**: Changes in one area (e.g., database technology) are less likely to impact other parts of the application.
+- **Decoupled Business Logic**: Core domain logic is independent of infrastructure concerns.
+
 ## [2.1.8] - 2025-05-31
 
 ### 🧪 Complete Test Suite Excellence & Final NFR Implementation - FR01 COMPLETE & ALL NFRs ACHIEVED ✅
