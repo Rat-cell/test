@@ -11,13 +11,17 @@ from app.services.parcel_service import assign_locker_and_create_parcel
 from app.business.parcel import Parcel
 from app.persistence.models import Locker
 
+# Repository Imports
+from app.persistence.repositories.locker_repository import LockerRepository
+from app.persistence.repositories.parcel_repository import ParcelRepository
+
 class TestLockerAssignmentPerformance:
     
     def test_single_locker_assignment_performance(self, init_database, app):
         """Test performance of single locker assignment"""
         with app.app_context():
             # Warm up the database connection
-            Locker.query.count()
+            LockerRepository.get_count()
             
             # Measure single assignment
             start_time = time.perf_counter()
@@ -225,14 +229,14 @@ class TestLockerAssignmentPerformance:
         with app.app_context():
             print(f"\n📊 Database Performance Analysis:")
             
-            # Check initial database state
-            initial_locker_count = Locker.query.count()
-            initial_parcel_count = Parcel.query.count()
+            # Check initial database state using repositories
+            initial_locker_count = LockerRepository.get_count()
+            initial_parcel_count = ParcelRepository.get_count()
             
             print(f"   Initial State:")
             print(f"   - Total Lockers: {initial_locker_count}")
             print(f"   - Total Parcels: {initial_parcel_count}")
-            print(f"   - Free Lockers: {Locker.query.filter_by(status='free').count()}")
+            print(f"   - Free Lockers: {LockerRepository.get_count_by_status('free')}")
             
             # Measure database query performance
             query_times = []
@@ -240,7 +244,8 @@ class TestLockerAssignmentPerformance:
             # Test locker availability queries
             for _ in range(10):
                 start_time = time.perf_counter()
-                available_lockers = Locker.query.filter_by(status='free').all()
+                all_lockers = LockerRepository.get_all()
+                available_lockers = [l for l in all_lockers if l.status == 'free']
                 end_time = time.perf_counter()
                 
                 query_time_ms = (end_time - start_time) * 1000

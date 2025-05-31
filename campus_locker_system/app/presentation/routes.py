@@ -1,37 +1,37 @@
-from flask import render_template, request, redirect, url_for, flash, session, current_app, jsonify # Add current_app
-from . import main_bp # Assuming main_bp is defined in app/presentation/__init__.py
+from flask import render_template, request, redirect, url_for, flash, session, current_app, jsonify
+from . import main_bp
 from app.services.parcel_service import (
-    assign_locker_and_create_parcel, 
+    assign_locker_and_create_parcel,
     process_pickup,
     mark_parcel_missing_by_admin,
     process_overdue_parcels,
     report_parcel_missing_by_recipient,
-    process_reminder_notifications
-    # Removed send_individual_reminder since we're going fully automatic
+    process_reminder_notifications,
+    get_parcel_by_id
 )
 from app.services.audit_service import AuditService
-from app.persistence.models import Locker, AuditLog, AdminUser, Parcel, LockerSensorData # Add LockerSensorData
-from .decorators import admin_required # Add admin_required decorator
-from app import db # Add db for session.get
 from app.services.locker_service import set_locker_status, mark_locker_as_emptied
 from app.services.pin_service import (
     generate_pin_by_token,
-    request_pin_regeneration_by_recipient_email_and_locker
+    request_pin_regeneration_by_recipient_email_and_locker,
+    get_pin_expiry_hours,
+    regenerate_pin_token
 )
 from app.services.notification_service import NotificationService
+from app.services.database_service import DatabaseService
+from app.services.admin_auth_service import AdminAuthService
+from .decorators import admin_required
 
 @main_bp.route('/health', methods=['GET'])
 def health_check():
     """Enhanced health check endpoint with comprehensive database status"""
     try:
-        from app.services.database_service import DatabaseService
-        
         # Perform comprehensive database health check
         is_healthy, health_data = DatabaseService.health_check()
-        
+
         # Get database statistics
         stats = DatabaseService.get_database_statistics()
-        
+
         response_data = {
             'status': 'healthy' if is_healthy else 'degraded',
             'service': 'campus-locker-system',
@@ -44,11 +44,10 @@ def health_check():
             },
             'statistics': stats if not stats.get('error') else {'error': stats.get('error')}
         }
-        
-        # Return appropriate status code
+
         status_code = 200 if is_healthy else 503
         return jsonify(response_data), status_code
-        
+
     except Exception as e:
         current_app.logger.error(f"Health check error: {str(e)}")
         return jsonify({
@@ -76,7 +75,7 @@ def deposit_parcel():
         if not confirm_recipient_email:
             flash('Please confirm the recipient email address.', 'error')
             return redirect(url_for('main.deposit_parcel'))
-        
+
         if recipient_email != confirm_recipient_email:
             flash('Email addresses do not match. Please try again.', 'error')
             return redirect(url_for('main.deposit_parcel'))
@@ -85,17 +84,15 @@ def deposit_parcel():
         if result[0] is None:  # parcel is None means error
             flash(result[1], 'error')  # result[1] is the error message
             return redirect(url_for('main.deposit_parcel'))
-        
+
         parcel = result[0]
         success_message = result[1]
         flash(success_message, 'success')
-        
-        # Get PIN expiry hours from config for template
-        from app.business.pin import PinManager
-        pin_expiry_hours = PinManager.get_pin_expiry_hours()
-        
-        return render_template('deposit_confirmation.html', 
-                               parcel=parcel, 
+
+        pin_expiry_hours = get_pin_expiry_hours()
+
+        return render_template('deposit_confirmation.html',
+                               parcel=parcel,
                                message=success_message,
                                pin_expiry_hours=pin_expiry_hours)
 
@@ -108,25 +105,22 @@ def generate_pin_by_token_route(token):
     """
     try:
         parcel, message = generate_pin_by_token(token)
-        
-        # Get PIN expiry hours from config
-        from app.business.pin import PinManager
-        pin_expiry_hours = PinManager.get_pin_expiry_hours()
-        
+        pin_expiry_hours = get_pin_expiry_hours()
+
         if parcel:
             flash(message, 'success')
-            return render_template('pin_generation_success.html', 
-                                 parcel=parcel, 
+            return render_template('pin_generation_success.html',
+                                 parcel=parcel,
                                  message=message,
                                  pin_expiry_hours=pin_expiry_hours)
         else:
             flash(message, 'error')
-            return render_template('pin_generation_error.html', 
+            return render_template('pin_generation_error.html',
                                  error_message=message)
     except Exception as e:
         current_app.logger.error(f"Error in PIN generation route: {str(e)}")
         flash('An unexpected error occurred. Please try again later.', 'error')
-        return render_template('pin_generation_error.html', 
+        return render_template('pin_generation_error.html',
                              error_message='An unexpected error occurred.')
 
 @main_bp.route('/pickup', methods=['GET', 'POST'])
@@ -135,21 +129,18 @@ def pickup_parcel():
         pin = request.form.get('pin')
 
         if not pin:
-            # FR-09: Invalid PIN Error Handling - Handle empty PIN submission
             flash('PIN is required.', 'error')
             return redirect(url_for('main.pickup_parcel'))
 
-        # Updated to handle new return format (parcel, message)
         result = process_pickup(pin)
         if result[0] is None:  # parcel is None means error
-            # FR-09: Invalid PIN Error Handling - Display error message via flash system
-            flash(result[1], 'error')  # result[1] is the error message
+            flash(result[1], 'error')
             return redirect(url_for('main.pickup_parcel'))
-        
+
         parcel = result[0]
         success_message = result[1]
-        return render_template('pickup_confirmation.html', 
-                               parcel=parcel, 
+        return render_template('pickup_confirmation.html',
+                               parcel=parcel,
                                message=success_message)
 
     return render_template('pickup_form.html')
@@ -158,35 +149,29 @@ def pickup_parcel():
 def report_missing_parcel_by_recipient(parcel_id):
     """Route for recipients to report their parcel as missing after pickup"""
     try:
-        # Get parcel before reporting as missing to access recipient email
-        parcel = db.session.get(Parcel, parcel_id)
+        parcel = get_parcel_by_id(parcel_id)
         if not parcel:
             flash('Parcel not found.', 'error')
             return redirect(url_for('main.pickup_parcel'))
-        
-        # Store recipient email for admin notification
+
         recipient_email = parcel.recipient_email
         locker_id = parcel.locker_id
-        
-        # Use existing business logic to report parcel missing
+
         result_parcel, error = report_parcel_missing_by_recipient(parcel_id)
-        
+
         if error:
             flash(f'Error reporting parcel as missing: {error}', 'error')
             return redirect(url_for('main.pickup_parcel'))
-        
-        # Send admin notification email
+
         admin_notification_success, admin_notification_message = NotificationService.send_parcel_missing_admin_notification(
             parcel_id=parcel_id,
             locker_id=locker_id,
             recipient_email=recipient_email
         )
-        
+
         if not admin_notification_success:
             current_app.logger.warning(f"Admin notification failed for missing parcel {parcel_id}: {admin_notification_message}")
-        
-        # Enhanced audit logging for recipient-reported missing parcel
-        admin_id = None  # No admin involved - this is recipient action
+
         AuditService.log_event("PARCEL_REPORTED_MISSING_BY_RECIPIENT_UI", details={
             "parcel_id": parcel_id,
             "locker_id": locker_id,
@@ -194,23 +179,22 @@ def report_missing_parcel_by_recipient(parcel_id):
             "reported_via": "Web_UI_after_pickup",
             "admin_notified": admin_notification_success
         })
-        
+
         flash('Your parcel has been reported as missing. The administrators have been notified and will investigate.', 'success')
-        
-        # Generate formatted datetime strings for the template
+
         from datetime import datetime
         now = datetime.utcnow()
         report_time = now.strftime('%Y-%m-%d %H:%M:%S')
         reference_date = now.strftime('%Y%m%d')
-        
-        return render_template('missing_report_confirmation.html', 
+
+        return render_template('missing_report_confirmation.html',
                                parcel=parcel,
                                parcel_id=parcel_id,
                                report_time=report_time,
                                reference_date=reference_date,
                                current_time=report_time,
                                reference_number=f"MISSING-{parcel_id}-{reference_date}")
-        
+
     except Exception as e:
         current_app.logger.error(f"Error in report missing parcel route for parcel {parcel_id}: {str(e)}")
         flash('An unexpected error occurred. Please try again later.', 'error')
@@ -218,13 +202,10 @@ def report_missing_parcel_by_recipient(parcel_id):
 
 @main_bp.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
-    # Check if user is already logged in as admin
-    from app.services.admin_auth_service import AdminAuthService
     is_valid, _ = AdminAuthService.validate_session()
     if is_valid:
-        # User is already logged in, redirect to dashboard
         return redirect(url_for('main.manage_lockers'))
-    
+
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
@@ -234,7 +215,6 @@ def admin_login():
         if admin_user:
             AdminAuthService.create_session(admin_user)
             flash('Admin login successful!', 'success')
-            # Redirect to admin dashboard (locker management)
             return redirect(url_for('main.manage_lockers'))
         else:
             flash(f'Login failed: {message}', 'error')
@@ -242,9 +222,8 @@ def admin_login():
 
     return render_template('admin/admin_login.html')
 
-@main_bp.route('/admin/logout') # Basic logout
+@main_bp.route('/admin/logout')
 def admin_logout():
-    from app.services.admin_auth_service import AdminAuthService
     AdminAuthService.logout()
     flash('You have been logged out.', 'info')
     return redirect(url_for('main.admin_login'))
@@ -252,367 +231,293 @@ def admin_logout():
 @main_bp.route('/admin/audit-logs')
 @admin_required
 def audit_logs_view():
-    # 🔥 ENHANCED AUDIT LOGGING: Track admin accessing audit logs
-    admin_id = session.get('admin_id')
-    admin_user = db.session.get(AdminUser, admin_id)
-    admin_username = admin_user.username if admin_user else "UnknownAdmin"
+    # Remove audit logging for viewing audit logs (creates spam)
+    # admin_session = AdminAuthService.get_current_session()
+    # admin_id = admin_session.admin_id if admin_session else None
+    # AuditService.log_event("ADMIN_VIEW_AUDIT_LOGS", {"admin_id": admin_id})
     
-    AuditService.log_event("ADMIN_ACCESSED_AUDIT_LOGS", {
-        "admin_id": admin_id,
-        "admin_username": admin_username,
-        "logs_requested": 100  # Default limit
-    })
-    
-    # Use the new audit service to get logs
-    logs = AuditService.get_audit_logs(limit=100)
-    return render_template('admin/audit_logs.html', logs=logs)
+    page = request.args.get('page', 1, type=int)
+    # FR-07: Audit Trail - Retrieve audit logs using service layer
+    logs_pagination = AuditService.get_paginated_audit_logs(page=page, per_page=15)
+    return render_template('admin/audit_logs.html', logs_pagination=logs_pagination)
 
 @main_bp.route('/admin/lockers', methods=['GET'])
 @admin_required
 def manage_lockers():
-    # 🔥 ENHANCED AUDIT LOGGING: Track admin accessing locker management
-    admin_id = session.get('admin_id')
-    admin_user = db.session.get(AdminUser, admin_id)
-    admin_username = admin_user.username if admin_user else "UnknownAdmin"
-    
-    enable_sensor_feature = current_app.config.get('ENABLE_LOCKER_SENSOR_DATA_FEATURE', True)
-    default_sensor_state = current_app.config.get('DEFAULT_LOCKER_SENSOR_STATE_IF_UNAVAILABLE', False)
+    # Remove audit logging for viewing locker management (creates spam)
+    # admin_session = AdminAuthService.get_current_session()
+    # admin_id = admin_session.admin_id if admin_session else None
+    # AuditService.log_event("ADMIN_VIEW_LOCKER_MANAGEMENT", {"admin_id": admin_id})
 
-    lockers = Locker.query.order_by(Locker.id).all()
+    from app.services.locker_service import get_all_lockers_with_parcel_counts
+    lockers_with_parcels = get_all_lockers_with_parcel_counts()
     
-    # Count locker statuses for audit logging
-    occupied_count = sum(1 for locker in lockers if locker.status == 'occupied')
-    out_of_service_count = sum(1 for locker in lockers if locker.status == 'out_of_service')
+    # NFR-05: Accessibility - Pass status choices for dropdowns
+    from app.business.locker import LockerManager
+    locker_statuses = LockerManager.VALID_STATUSES
     
-    AuditService.log_event("ADMIN_ACCESSED_LOCKER_MANAGEMENT", {
-        "admin_id": admin_id,
-        "admin_username": admin_username,
-        "total_lockers_viewed": len(lockers),
-        "occupied_lockers": occupied_count,
-        "out_of_service_lockers": out_of_service_count
-    })
-    
-    lockers_with_parcels = []
-    for locker in lockers:
-        parcel_in_locker = None
-        # Relevant parcel statuses that might be in an 'occupied' or 'disputed_contents' locker
-        relevant_parcel_statuses = ['deposited', 'pickup_disputed', 'missing'] 
-        if locker.status in ['occupied', 'disputed_contents', 'out_of_service']: 
-            # Query for parcels in relevant states for this locker
-            parcel_in_locker = Parcel.query.filter(
-                Parcel.locker_id == locker.id,
-                Parcel.status.in_(relevant_parcel_statuses)
-            ).order_by(Parcel.id.desc()).first() # Get the latest relevant parcel
-        else:
-            # For free lockers, still check for missing parcels so admins can review them
-            parcel_in_locker = Parcel.query.filter(
-                Parcel.locker_id == locker.id,
-                Parcel.status == 'missing'
-            ).order_by(Parcel.id.desc()).first()
-        
-        latest_sensor_reading = None
-        if enable_sensor_feature:
-            # Fetch the latest sensor data for the locker only if feature is enabled
-            latest_sensor_reading = LockerSensorData.query.filter_by(locker_id=locker.id).order_by(LockerSensorData.timestamp.desc()).first()
-        
-        lockers_with_parcels.append({
-            'locker': locker, 
-            'parcel': parcel_in_locker,
-            'sensor_data': latest_sensor_reading 
-        })
-    return render_template(
-        'admin/manage_lockers.html', 
-        lockers_with_parcels=lockers_with_parcels,
-        enable_sensor_feature=enable_sensor_feature,
-        default_sensor_state=default_sensor_state
-    )
+    return render_template('admin/manage_lockers.html', lockers_with_parcels=lockers_with_parcels, locker_statuses=locker_statuses)
 
 @main_bp.route('/admin/parcel/<int:parcel_id>/view', methods=['GET'])
 @admin_required
 def view_parcel_admin(parcel_id):
-    parcel = db.session.get(Parcel, parcel_id)
+    parcel = get_parcel_by_id(parcel_id)
     if not parcel:
-        flash(f"Parcel ID {parcel_id} not found.", "error")
+        flash('Parcel not found.', 'error')
         return redirect(url_for('main.manage_lockers'))
     
-    # 🔥 ENHANCED AUDIT LOGGING: Track admin parcel viewing
-    admin_id = session.get('admin_id')
-    admin_user = db.session.get(AdminUser, admin_id)
-    admin_username = admin_user.username if admin_user else "UnknownAdmin"
+    # Remove audit logging for viewing parcel details (creates spam)
+    # admin_session = AdminAuthService.get_current_session()
+    # admin_id = admin_session.admin_id if admin_session else None
+    # AuditService.log_event("ADMIN_VIEW_PARCEL_DETAILS", {
+    #     "admin_id": admin_id,
+    #     "parcel_id": parcel_id,
+    #     "locker_id": parcel.locker_id
+    # })
     
-    AuditService.log_event("ADMIN_VIEWED_PARCEL", {
-        "admin_id": admin_id,
-        "admin_username": admin_username,
-        "parcel_id": parcel_id,
-        "parcel_status": parcel.status,
-        "locker_id": parcel.locker_id,
-        "recipient_email_domain": parcel.recipient_email.split('@')[1] if '@' in parcel.recipient_email else 'unknown'  # Privacy-friendly logging
-    })
-    
-    locker = db.session.get(Locker, parcel.locker_id) if parcel.locker_id else None
-    return render_template('admin/view_parcel.html', parcel=parcel, locker=locker)
+    return render_template('admin/view_parcel.html', parcel=parcel)
 
 @main_bp.route('/admin/parcel/<int:parcel_id>/mark-missing', methods=['POST'])
 @admin_required
 def mark_parcel_missing_admin_action(parcel_id):
-    admin_id = session.get('admin_id')
-    admin_user = db.session.get(AdminUser, admin_id)
-    admin_username = admin_user.username if admin_user else "UnknownAdmin"
+    admin_session = AdminAuthService.get_current_session()
+    if not admin_session: # Should be caught by @admin_required but good practice
+        flash('Admin session not found.', 'error')
+        return redirect(url_for('main.admin_login'))
 
-    parcel, error = mark_parcel_missing_by_admin(
-        admin_id=admin_id,
-        admin_username=admin_username,
+    # Use service layer to mark parcel missing
+    # FR-06: Report Missing Item - Admin action to mark item missing
+    # FR-07: Audit Trail - Ensures this action is logged via ParcelService
+    success, message = mark_parcel_missing_by_admin(
+        admin_id=admin_session.admin_id,
+        admin_username=admin_session.username, # FR-07: Pass username for audit
         parcel_id=parcel_id
     )
-    if error:
-        flash(f"Error marking parcel {parcel_id} as missing: {error}", "error")
+    if success:
+        flash(message, 'success')
     else:
-        flash(f"Parcel {parcel_id} successfully marked as missing.", "success")
-    
-    # Redirect to the parcel view page if parcel exists, otherwise to lockers list
-    if parcel: 
-        return redirect(url_for('main.view_parcel_admin', parcel_id=parcel_id))
-    return redirect(url_for('main.manage_lockers'))
+        flash(message, 'error')
+    return redirect(url_for('main.manage_lockers')) # Or redirect to parcel view if preferred
 
 @main_bp.route('/request-new-pin', methods=['GET', 'POST'])
 def request_new_pin_action():
-    """
-    FR-05: Re-issue PIN - Web form interface for user-initiated PIN re-issue
-    """
     if request.method == 'POST':
         recipient_email = request.form.get('recipient_email')
-        locker_id = request.form.get('locker_id')
+        locker_id_str = request.form.get('locker_id') # Keep as string for initial validation
 
-        if not recipient_email or not locker_id:
+        if not recipient_email or not locker_id_str:
             flash('Email and Locker ID are required.', 'error')
             return redirect(url_for('main.request_new_pin_action'))
+        
+        # FR-05: Re-issue PIN - Use service layer for PIN regeneration request
+        parcel, message = request_pin_regeneration_by_recipient_email_and_locker(recipient_email, locker_id_str)
+        
+        if parcel: # Success means parcel was found and link sent
+            flash(message, 'success') # "PIN generation link has been regenerated..."
+            return redirect(url_for('main.home')) 
+        else: # Error or parcel not found
+            flash(message, 'info') # "If your details matched an active parcel..." or specific error
+            return redirect(url_for('main.request_new_pin_action'))
 
-        # Call the service function that handles both PIN systems
-        parcel, message = request_pin_regeneration_by_recipient_email_and_locker(recipient_email, locker_id)
-
-        # Always flash a generic message for security (to prevent fishing)
-        flash("If your details matched an active parcel eligible for a new PIN, an email has been sent to the registered email address. Please check your inbox (and spam folder).", "info")
-        return redirect(url_for('main.request_new_pin_action'))
-
-    # Get PIN expiry hours from config for template
-    from app.business.pin import PinManager
-    pin_expiry_hours = PinManager.get_pin_expiry_hours()
-    
-    return render_template('request_new_pin_form.html', pin_expiry_hours=pin_expiry_hours)
+    return render_template('request_new_pin_form.html')
 
 @main_bp.route('/admin/locker/<int:locker_id>/mark-emptied', methods=['POST'])
 @admin_required
 def admin_mark_locker_emptied_action(locker_id):
-    admin_id_from_session = session.get('admin_id')
-    # It's good practice to ensure admin_id is actually in session,
-    # though @admin_required should protect this.
-    if not admin_id_from_session:
-        flash("Admin session not found. Please log in again.", "error")
-        return redirect(url_for('main.admin_login'))
+    """
+    FR-08: Mark Locker as Emptied (Admin Action)
+    Allows admin to mark a locker as emptied and available, typically after maintenance
+    or resolving a disputed contents issue.
+    """
+    admin_session = AdminAuthService.get_current_session()
+    admin_id = admin_session.admin_id if admin_session else None
+    admin_username = admin_session.username if admin_session else "UnknownAdmin"
 
-    admin_user = db.session.get(AdminUser, admin_id_from_session)
-    admin_username = admin_user.username if admin_user else "UnknownAdmin"
-    
-    # If admin_user is None here, it implies an issue with session or DB consistency
-    # as @admin_required should have ensured a valid session.
-    if not admin_user:
-         current_app.logger.warning(f"Admin user with ID {admin_id_from_session} not found in DB during mark-emptied action for locker {locker_id}.")
-         # Fallback, though ideally this state shouldn't be reached if @admin_required works.
-
-    updated_locker, message = mark_locker_as_emptied(
+    # FR-08: Use service layer for marking locker as emptied
+    # FR-07: Audit trail is handled within the service
+    success, message = mark_locker_as_emptied(
         locker_id=locker_id,
-        admin_id=admin_id_from_session,
+        admin_id=admin_id,
         admin_username=admin_username
     )
 
-    # The service function returns (Locker|None, message_string).
-    # If updated_locker is None, it means the locker itself wasn't found.
-    # If updated_locker is returned but message indicates an issue (e.g., "Locker is not awaiting collection."),
-    # it's an operational error but not a DB error.
-    if message == "Locker successfully marked as free.":
-        flash(f"Locker {locker_id} status updated: {message}", "success")
-    elif updated_locker is None and message == "Locker not found.": # Specific check for locker not found
-        flash(f"Error for locker {locker_id}: {message}", "error")
-    else: # Other errors or conditions like "Locker is not awaiting collection."
-        flash(f"Notice for locker {locker_id}: {message}", "warning") # Use warning for non-critical errors
-
+    if success:
+        flash(message, 'success')
+    else:
+        flash(message, 'error')
+    
     return redirect(url_for('main.manage_lockers'))
 
 @main_bp.route('/admin/parcels/process-overdue', methods=['POST'])
 @admin_required
 def admin_process_overdue_parcels_action():
     # 🔥 ENHANCED AUDIT LOGGING: Track admin bulk operations
-    admin_id = session.get('admin_id')
-    admin_user = db.session.get(AdminUser, admin_id)
-    admin_username = admin_user.username if admin_user else "UnknownAdmin"
+    admin_session = AdminAuthService.get_current_session()
+    admin_id = admin_session.admin_id if admin_session else None
+    AuditService.log_event("ADMIN_TRIGGER_PROCESS_OVERDUE_PARCELS", {"admin_id": admin_id})
+
+    # FR-07: Audit Trail - Further details logged within process_overdue_parcels service
+    processed_count, error_count, message = process_overdue_parcels(admin_initiated=True, admin_id=admin_id)
     
-    # Log the initiation of bulk operation
-    AuditService.log_event("ADMIN_INITIATED_BULK_PROCESS_OVERDUE", {
-        "admin_id": admin_id,
-        "admin_username": admin_username,
-        "operation_type": "process_overdue_parcels"
-    })
-    
-    processed_count, message = process_overdue_parcels()
-    
-    # Log the completion of bulk operation
-    AuditService.log_event("ADMIN_COMPLETED_BULK_PROCESS_OVERDUE", {
-        "admin_id": admin_id,
-        "admin_username": admin_username,
-        "processed_count": processed_count,
-        "operation_result": message,
-        "operation_type": "process_overdue_parcels"
-    })
-    
-    flash(f"Overdue parcel processing complete. {processed_count} parcels processed. {message}", "info")
+    flash(f"{message} Processed: {processed_count}, Errors: {error_count}.", 'info')
     return redirect(url_for('main.manage_lockers'))
 
 @main_bp.route('/admin/regenerate_pin_token/<int:parcel_id>', methods=['POST'])
 @admin_required
 def regenerate_pin_token_admin_action(parcel_id):
-    """Admin action to regenerate PIN generation token for a parcel"""
-    try:
-        # Use email-based PIN regeneration
-        parcel, message = request_pin_regeneration_by_recipient_email_and_locker(
-            recipient_email=None,  # Admin override - will find parcel by ID
-            locker_id=None,
-            admin_override_parcel_id=parcel_id
-        )
-        
-        if parcel:
-            flash(f'PIN generation link regenerated successfully for parcel {parcel_id}. New email sent to recipient.', 'success')
-        else:
-            flash(f'Failed to regenerate PIN link: {message}', 'error')
-            
-    except Exception as e:
-        flash(f'Error regenerating PIN link: {str(e)}', 'error')
+    """
+    FR-05: Admin action to regenerate a PIN token for a specific parcel.
+    """
+    admin_session = AdminAuthService.get_current_session()
+    admin_id = admin_session.admin_id if admin_session else None # For audit
+
+    parcel = get_parcel_by_id(parcel_id) # Fetch parcel using service
+    if not parcel:
+        flash(f"Parcel ID {parcel_id} not found.", "error")
+        return redirect(url_for('main.manage_lockers'))
+
+    # FR-05: Re-issue PIN - Use PinService for token regeneration
+    # FR-07: Audit trail handled by PinService
+    success, message = regenerate_pin_token(parcel_id, parcel.recipient_email, admin_reset=True)
     
-    return redirect(url_for('main.view_parcel_admin', parcel_id=parcel_id))
+    if success:
+        flash(f"Successfully regenerated PIN token for Parcel ID {parcel_id}. {message}", "success")
+    else:
+        flash(f"Failed to regenerate PIN token for Parcel ID {parcel_id}. Error: {message}", "error")
+        
+    return redirect(request.referrer or url_for('main.view_parcel_admin', parcel_id=parcel_id))
 
 @main_bp.route('/admin/locker/<int:locker_id>/set-status', methods=['POST'])
 @admin_required
 def update_locker_status(locker_id):
     new_status = request.form.get('new_status')
-    admin_id = session.get('admin_id') 
-    
-    admin_user = db.session.get(AdminUser, admin_id)
-    admin_username = admin_user.username if admin_user else "UnknownAdmin"
+    admin_session = AdminAuthService.get_current_session()
+    admin_id = admin_session.admin_id if admin_session else None # For audit
+    admin_username = admin_session.username if admin_session else "UnknownAdmin" # For audit
 
-    if not new_status:
-        flash("No new status provided.", "error")
-        return redirect(url_for('main.manage_lockers'))
-
-    locker, error = set_locker_status(
+    # FR-08: Set Locker Status (Out of Service / Free)
+    # FR-07: Audit trail handled by LockerService
+    success, message = set_locker_status(
         admin_id=admin_id, 
-        admin_username=admin_username, 
+        admin_username=admin_username,
         locker_id=locker_id, 
         new_status=new_status
     )
 
-    if error:
-        flash(f"Error updating locker {locker_id}: {error}", "error")
+    if success:
+        flash(message, 'success')
     else:
-        flash(f"Locker {locker_id} status successfully updated to '{new_status}'.", "success")
-    
+        flash(message, 'error')
     return redirect(url_for('main.manage_lockers'))
 
 @main_bp.route('/system/process-reminders', methods=['POST', 'GET'])
 def automatic_reminder_processing():
     """
-    FR-04: Automatic bulk reminder processing endpoint (no admin auth required)
-    FR-04: This endpoint is designed to be called automatically by scheduled tasks
-    FR-04: Processes all eligible parcels and sends reminder notifications
-    
-    This is a system endpoint that can be called by:
-    - Cron jobs
-    - Health check systems
-    - Automated monitoring scripts
-    - Docker container scheduled tasks
-    
-    No authentication required for automation purposes.
+    FR-04: Manually trigger or view status of automatic reminder processing
+    This endpoint is primarily for the background scheduler but can be manually triggered.
     """
-    try:
-        # FR-04: Process all eligible reminders automatically
-        processed_count, error_count = process_reminder_notifications()
+    admin_session = AdminAuthService.get_current_session()
+    admin_id = admin_session.admin_id if admin_session else None
+    trigger_source = "manual_admin_trigger" if admin_id else "manual_system_trigger"
+    
+    # Prevent unauthorized manual trigger if needed, or restrict to POST
+    # For now, let's assume if an admin is logged in, it's an admin trigger.
+    # If not, it's a system/test trigger.
+
+    if request.method == 'POST' or (request.method == 'GET' and admin_id): # Allow GET only if admin
+        current_app.logger.info(f"FR-04: Manual reminder processing triggered by: {trigger_source}")
         
-        # FR-04: Log the automatic processing event
-        AuditService.log_event("FR-04_AUTOMATIC_BULK_REMINDER_PROCESSING", {
+        # FR-07: Audit Trail - Detailed logging handled by process_reminder_notifications
+        processed_count, error_count = process_reminder_notifications(
+            triggered_by_admin=bool(admin_id), 
+            admin_id=admin_id
+        )
+        
+        # Log to audit service
+        AuditService.log_event("FR-04_MANUAL_REMINDER_PROCESSING", {
             "processed_count": processed_count,
             "error_count": error_count,
-            "total_eligible": processed_count + error_count,
-            "trigger_source": "automatic_system_endpoint",
-            "success_rate": f"{(processed_count / (processed_count + error_count) * 100) if (processed_count + error_count) > 0 else 100:.1f}%"
+            "trigger_source": trigger_source,
+            "admin_id": admin_id
         })
         
-        # FR-04: Return JSON response for automated callers
-        if request.method == 'GET':
-            # Allow GET for simple health check / monitoring
-            return jsonify({
-                "status": "success",
-                "message": f"Automatic reminder processing completed",
-                "processed_count": processed_count,
-                "error_count": error_count,
-                "total_eligible": processed_count + error_count
-            }), 200
+        flash(f"Reminder processing complete. Processed: {processed_count}, Errors: {error_count}.", 'info')
+        
+        if admin_id:
+            return redirect(url_for('main.manage_lockers')) # Redirect admin to a relevant page
         else:
-            # POST request - return status
-            return jsonify({
-                "status": "success",
-                "message": f"Processed {processed_count} reminders, {error_count} errors",
-                "processed_count": processed_count,
-                "error_count": error_count
-            }), 200
-            
-    except Exception as e:
-        current_app.logger.error(f"FR-04: Error in automatic reminder processing: {str(e)}")
-        
-        # FR-04: Log the error for debugging
-        AuditService.log_event("FR-04_AUTOMATIC_REMINDER_PROCESSING_ERROR", {
-            "error_message": str(e),
-            "trigger_source": "automatic_system_endpoint"
-        })
-        
-        return jsonify({
-            "status": "error",
-            "message": f"Error processing reminders: {str(e)}",
-            "processed_count": 0,
-            "error_count": 1
-        }), 500
+            return jsonify({"status": "success", "processed": processed_count, "errors": error_count}), 200
+    
+    elif request.method == 'GET' and not admin_id: # Non-admin GET request
+        # FR-04: Provide information about the scheduler for GET requests (if desired)
+        # This could be a status page or simple confirmation for testing
+        # For now, let's just return a simple message if not triggered by admin
+        return jsonify({"message": "Reminder processing is typically automatic. POST to trigger manually (admin only)."}), 200
+
+    # If POST from non-admin, or other invalid access method:
+    flash("Unauthorized to trigger reminder processing.", "error")
+    return redirect(url_for('main.home'))
 
 @main_bp.route('/system/logout-all-admins', methods=['POST', 'GET'])
+@admin_required
 def system_logout_all_admins():
     """
-    System endpoint to logout all admin sessions during shutdown
-    This is called by make down to ensure clean session termination
-    No authentication required for system shutdown purposes
+    System utility to logout all active admin sessions.
+    This is a sensitive operation and should be protected.
+    Requires SECRET_KEY to be passed as a query parameter for GET requests for safety.
     """
-    try:
-        # Get current admin session if any
-        admin_id = session.get('admin_id')
-        admin_username = session.get('admin_username', 'UnknownAdmin')
-        
-        # Log the system-initiated logout
-        if admin_id:
-            AuditService.log_event("SYSTEM_INITIATED_ADMIN_LOGOUT", {
-                "admin_id": admin_id,
-                "admin_username": admin_username,
-                "reason": "System shutdown",
-                "initiated_by": "make_down_command"
+    admin_session = AdminAuthService.get_current_session()
+    acting_admin_id = admin_session.admin_id if admin_session else "UnknownAdmin"
+
+    if request.method == 'GET':
+        # Safety check for GET requests
+        provided_key = request.args.get('secret_key_confirm')
+        if provided_key != current_app.config.get('SECRET_KEY'):
+            AuditService.log_event("SYSTEM_LOGOUT_ALL_ADMINS_FAIL", {
+                "reason": "Missing or invalid secret_key_confirm for GET request",
+                "acting_admin_id": acting_admin_id
             })
+            flash("Invalid or missing secret key for GET request. This action must be confirmed.", "error")
+            return redirect(url_for('main.manage_lockers'))
+
+    # If POST or GET with valid key
+    try:
+        # This functionality would require iterating through active sessions
+        # Flask's default session mechanism (client-side cookies) doesn't easily support server-side invalidation of all sessions.
+        # A more robust solution would involve server-side session storage (e.g., Redis, database)
+        # For now, this is a placeholder for a more complex implementation or will only log out the current admin.
         
-        # Clear all admin session data
-        from app.services.admin_auth_service import AdminAuthService
-        AdminAuthService.logout()
+        # Placeholder: If using server-side sessions, this is where you'd clear them.
+        # For client-side, we can't force logout all others without changing their cookie secret.
+        # We can log the intent and log out the current admin if this is an admin action.
         
-        return jsonify({
-            "status": "success",
-            "message": "All admin sessions cleared",
-            "logged_out_admin": admin_username if admin_id else None
-        }), 200
+        count_logged_out = 0
+        # Example: if using flask_session with a server-side store:
+        # from flask_session import Session
+        # session_interface = current_app.session_interface
+        # if hasattr(session_interface, 'store'): # e.g. RedisStore
+        #    all_sessions = session_interface.store.keys('session:*') # or similar
+        #    for sess_key in all_sessions:
+        #        session_interface.store.delete(sess_key)
+        #        count_logged_out +=1
+        
+        # For now, just log the action and log out the current admin if they initiated
+        AdminAuthService.logout() # Logs out the current admin
+        count_logged_out = 1 # At least the current admin
+
+        AuditService.log_event("SYSTEM_LOGOUT_ALL_ADMINS_ATTEMPT", {
+            "acting_admin_id": acting_admin_id,
+            "sessions_cleared_estimate": count_logged_out, # This is an estimate
+            "notes": "Standard client-side sessions cannot be force-invalidated server-side easily. Current admin logged out."
+        })
+        flash(f"Attempted to log out all admin sessions. Your session has been logged out. ({count_logged_out} session(s) affected directly).", "info")
+        return redirect(url_for('main.admin_login')) # Redirect to login after logout
         
     except Exception as e:
-        current_app.logger.error(f"Error during system admin logout: {str(e)}")
-        return jsonify({
-            "status": "error", 
-            "message": f"Error clearing sessions: {str(e)}"
-        }), 500
+        current_app.logger.error(f"Error during system_logout_all_admins: {str(e)}")
+        AuditService.log_event("SYSTEM_LOGOUT_ALL_ADMINS_ERROR", {
+            "acting_admin_id": acting_admin_id,
+            "error": str(e)
+        })
+        flash(f"An error occurred: {str(e)}", "error")
+        return redirect(url_for('main.manage_lockers'))

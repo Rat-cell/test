@@ -11,9 +11,14 @@ from typing import Tuple, Dict, List, Any
 from flask import current_app
 from app import db
 from app.persistence.models import AdminUser, AuditLog, LockerSensorData
-from app.business.locker import Locker
-from app.business.parcel import Parcel
+from app.persistence.models import Locker as PersistenceLocker, Parcel as PersistenceParcel
 import logging
+from app.services.admin_auth_service import AdminAuthService
+from app.business.admin_auth import AdminRole
+from app.persistence.repositories.locker_repository import LockerRepository
+from app.persistence.repositories.parcel_repository import ParcelRepository
+from app.persistence.repositories.audit_log_repository import AuditLogRepository
+from app.persistence.repositories.locker_sensor_data_repository import LockerSensorDataRepository
 
 logger = logging.getLogger(__name__)
 
@@ -80,16 +85,16 @@ class DatabaseService:
                 logger.info("🆕 New databases detected, will seed initial data")
             
             # Also seed if database exists but has no lockers (empty deployment)
-            elif Locker.query.count() == 0:
+            elif LockerRepository.get_count() == 0:
                 should_seed = True
-                logger.info("📭 Empty database detected, will seed initial data")
+                logger.info("📭 Empty database detected (no lockers), will seed initial data")
             
             if should_seed:
                 DatabaseService.seed_initial_data()
                 logger.info("🌱 Initial data seeded")
             else:
-                existing_count = Locker.query.count()
-                logger.info(f"📊 Database has {existing_count} existing lockers, skipping seeding")
+                existing_locker_count = LockerRepository.get_count()
+                logger.info(f"📊 Database has {existing_locker_count} existing lockers, skipping seeding")
             
             # 6. Health check
             health_result = DatabaseService.health_check()
@@ -146,9 +151,9 @@ class DatabaseService:
             # Check if all expected tables exist with correct columns
             for table_name, expected_columns in expected_tables.items():
                 if table_name == 'locker':
-                    table_columns = [c.name for c in Locker.__table__.columns]
+                    table_columns = [c.name for c in PersistenceLocker.__table__.columns]
                 elif table_name == 'parcel':
-                    table_columns = [c.name for c in Parcel.__table__.columns]
+                    table_columns = [c.name for c in PersistenceParcel.__table__.columns]
                 elif table_name == 'admin_user':
                     table_columns = [c.name for c in AdminUser.__table__.columns]
                 elif table_name == 'locker_sensor_data':
@@ -191,13 +196,21 @@ class DatabaseService:
     def seed_initial_data():
         """Seed initial data for testing/development"""
         try:
-            # Create admin user if none exists
-            if AdminUser.query.count() == 0:
-                admin_user = AdminUser(username='admin')
-                admin_user.set_password('AdminPass123!')  # Meets password strength requirements
-                db.session.add(admin_user)
-                logger.info("👤 Created default admin user")
-            
+            # Create admin user if none exists, using AdminAuthService
+            if AdminAuthService.get_admin_count() == 0:
+                logger.info("No admin users found by DatabaseService. Attempting to create default admin.")
+                admin_user, message = AdminAuthService.create_admin_user(
+                    current_app.config.get('DEFAULT_ADMIN_USERNAME', 'admin'),
+                    current_app.config.get('DEFAULT_ADMIN_PASSWORD', 'AdminPass123!'),
+                    AdminRole.ADMIN
+                )
+                if admin_user:
+                    logger.info(f"👤 Default admin user '{admin_user.username}' created by DatabaseService.")
+                else:
+                    logger.warning(f"⚠️ Could not create default admin user via DatabaseService: {message}")
+            else:
+                logger.info(f"Admin users already exist (Count: {AdminAuthService.get_admin_count()}). DatabaseService skipping default admin creation.")
+
             # Create lockers using configuration service
             from app.services.locker_configuration_service import LockerConfigurationService
             success, message = LockerConfigurationService.seed_lockers_from_configuration()
@@ -206,14 +219,9 @@ class DatabaseService:
                 logger.info(f"🏗️ {message}")
             else:
                 logger.error(f"❌ Locker seeding failed: {message}")
-                # Don't raise exception - admin user creation should still succeed
-            
-            db.session.commit()
             
         except Exception as e:
-            db.session.rollback()
             logger.error(f"❌ Error seeding initial data: {str(e)}")
-            raise
     
     @staticmethod
     def health_check() -> Tuple[bool, Dict[str, Any]]:
@@ -232,7 +240,7 @@ class DatabaseService:
         try:
             # Test main database connection
             try:
-                locker_count = Locker.query.count()
+                locker_count = LockerRepository.get_count()
                 health_data['main_database'] = 'connected'
                 health_data['record_counts']['lockers'] = locker_count
             except Exception as e:
@@ -241,7 +249,7 @@ class DatabaseService:
             
             # Test audit database connection
             try:
-                audit_count = AuditLog.query.count()
+                audit_count = AuditLogRepository.get_count()
                 health_data['audit_database'] = 'connected'
                 health_data['record_counts']['audit_logs'] = audit_count
             except Exception as e:
@@ -250,9 +258,9 @@ class DatabaseService:
             
             # Test other tables
             try:
-                health_data['record_counts']['parcels'] = Parcel.query.count()
-                health_data['record_counts']['admins'] = AdminUser.query.count()
-                health_data['record_counts']['sensor_data'] = LockerSensorData.query.count()
+                health_data['record_counts']['parcels'] = ParcelRepository.get_count()
+                health_data['record_counts']['admins'] = AdminAuthService.get_admin_count()
+                health_data['record_counts']['sensor_data'] = LockerSensorDataRepository.get_count()
             except Exception as e:
                 health_data['issues'].append(f"Table query error: {str(e)}")
             
@@ -271,54 +279,37 @@ class DatabaseService:
     
     @staticmethod
     def get_database_statistics() -> Dict[str, Any]:
-        """Get comprehensive database statistics"""
+        """Provide overall database statistics"""
+        stats = {
+            'total_lockers': 0,
+            'occupied_lockers': 0,
+            'free_lockers': 0,
+            'out_of_service_lockers': 0,
+            'total_parcels': 0,
+            'deposited_parcels': 0,
+            'picked_up_parcels': 0,
+            'audit_log_entries': 0,
+            'admin_users': 0
+        }
         try:
-            stats = {
-                'record_counts': {
-                    'lockers': Locker.query.count(),
-                    'parcels': Parcel.query.count(),
-                    'admin_users': AdminUser.query.count(),
-                    'audit_logs': AuditLog.query.count(),
-                    'sensor_data': LockerSensorData.query.count()
-                },
-                'locker_status_breakdown': {},
-                'parcel_status_breakdown': {},
-                'database_files': {}
-            }
+            # Use repositories for counts
+            stats['total_lockers'] = LockerRepository.get_count()
+            stats['occupied_lockers'] = LockerRepository.get_count_by_status('occupied')
+            stats['free_lockers'] = LockerRepository.get_count_by_status('free')
+            stats['out_of_service_lockers'] = LockerRepository.get_count_by_status('out_of_service')
             
-            # Locker status breakdown
-            from sqlalchemy import func
-            locker_statuses = db.session.query(
-                Locker.status, 
-                func.count(Locker.status)
-            ).group_by(Locker.status).all()
+            stats['total_parcels'] = ParcelRepository.get_count()
+            stats['deposited_parcels'] = ParcelRepository.get_count_by_status('deposited')
+            stats['picked_up_parcels'] = ParcelRepository.get_count_by_status('picked_up')
             
-            stats['locker_status_breakdown'] = {status: count for status, count in locker_statuses}
-            
-            # Parcel status breakdown
-            parcel_statuses = db.session.query(
-                Parcel.status, 
-                func.count(Parcel.status)
-            ).group_by(Parcel.status).all()
-            
-            stats['parcel_status_breakdown'] = {status: count for status, count in parcel_statuses}
-            
-            # Database file sizes
-            db_dir = current_app.config.get('DATABASE_DIR', '/app/databases')
-            for db_file in ['campus_locker.db', 'campus_locker_audit.db']:
-                file_path = os.path.join(db_dir, db_file)
-                if os.path.exists(file_path):
-                    size_bytes = os.path.getsize(file_path)
-                    stats['database_files'][db_file] = {
-                        'size_bytes': size_bytes,
-                        'size_mb': round(size_bytes / (1024 * 1024), 2)
-                    }
+            # AuditLog and AdminUser counts
+            stats['audit_log_entries'] = AuditLogRepository.get_count()
+            stats['admin_users'] = AdminAuthService.get_admin_count()
             
             return stats
-            
         except Exception as e:
             logger.error(f"Error getting database statistics: {str(e)}")
-            return {'error': str(e)}
+            return {'error': str(e), **stats}
     
     @staticmethod
     def backup_databases(backup_dir: str = '/app/backups') -> Tuple[bool, str]:

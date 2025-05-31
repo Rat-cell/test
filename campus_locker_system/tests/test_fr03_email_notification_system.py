@@ -40,6 +40,9 @@ from app.business.notification import NotificationManager, NotificationType, Ema
 from app.services.notification_service import NotificationService
 from app.persistence.models import Parcel, Locker
 from app.adapters.email_adapter import EmailMessage, create_email_adapter
+# Add Repository Imports
+from app.persistence.repositories.locker_repository import LockerRepository
+from app.persistence.repositories.parcel_repository import ParcelRepository
 
 
 class TestFR03EmailNotificationSystem:
@@ -72,7 +75,7 @@ class TestFR03EmailNotificationSystem:
         with app.app_context():
             # Create test locker
             locker = Locker(id=903, location="Test Email Locker", size="medium", status="occupied")
-            db.session.add(locker)
+            LockerRepository.save(locker) # Use repository
             
             # Create test parcel
             parcel = Parcel(
@@ -82,12 +85,12 @@ class TestFR03EmailNotificationSystem:
                 deposited_at=datetime.utcnow(),
                 pin_generation_token="test-token-123"
             )
-            db.session.add(parcel)
-            db.session.commit()
+            ParcelRepository.save(parcel) # Use repository
             
             yield locker, parcel
             
             # Cleanup
+            # Keeping direct db.session.delete for test cleanup simplicity as previously discussed.
             db.session.delete(parcel)
             db.session.delete(locker)
             db.session.commit()

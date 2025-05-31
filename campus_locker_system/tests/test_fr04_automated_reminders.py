@@ -39,6 +39,9 @@ from app.persistence.models import Parcel, Locker, AuditLog
 from app.services.parcel_service import process_reminder_notifications
 from app.services.notification_service import NotificationService
 from app.business.notification import NotificationManager
+# Add Repository Imports
+from app.persistence.repositories.locker_repository import LockerRepository
+from app.persistence.repositories.parcel_repository import ParcelRepository
 
 
 class TestFR04AutomatedReminders:
@@ -70,7 +73,7 @@ class TestFR04AutomatedReminders:
         with app.app_context():
             # Create test locker
             locker = Locker(id=999, location="Test Locker FR-04", size="medium", status="occupied")
-            db.session.add(locker)
+            LockerRepository.save(locker) # Use repository
             
             # Create parcel deposited 25 hours ago (eligible for reminder)
             old_time = datetime.utcnow() - timedelta(hours=25)
@@ -82,12 +85,12 @@ class TestFR04AutomatedReminders:
                 pin_hash="test_hash",
                 reminder_sent_at=None  # FR-04: No reminder sent yet
             )
-            db.session.add(parcel)
-            db.session.commit()
+            ParcelRepository.save(parcel) # Use repository
             
             yield parcel
             
             # Cleanup
+            # Keeping direct db.session.delete for test cleanup simplicity
             db.session.delete(parcel)
             db.session.delete(locker)
             db.session.commit()
@@ -98,7 +101,7 @@ class TestFR04AutomatedReminders:
         with app.app_context():
             # Create test locker
             locker = Locker(id=998, location="Test Locker FR-04 Recent", size="small", status="occupied")
-            db.session.add(locker)
+            LockerRepository.save(locker) # Use repository
             
             # Create parcel deposited 2 hours ago (not eligible)
             recent_time = datetime.utcnow() - timedelta(hours=2)
@@ -110,12 +113,12 @@ class TestFR04AutomatedReminders:
                 pin_hash="test_hash_recent",
                 reminder_sent_at=None
             )
-            db.session.add(parcel)
-            db.session.commit()
+            ParcelRepository.save(parcel) # Use repository
             
             yield parcel
             
             # Cleanup
+            # Keeping direct db.session.delete for test cleanup simplicity
             db.session.delete(parcel)
             db.session.delete(locker)
             db.session.commit()
@@ -226,7 +229,7 @@ class TestFR04AutomatedReminders:
         with app.app_context():
             # Set reminder as already sent
             test_parcel_eligible_for_reminder.reminder_sent_at = datetime.utcnow()
-            db.session.commit()
+            ParcelRepository.save(test_parcel_eligible_for_reminder) # Use repository to save changes
             
             # Process reminders
             processed_count, error_count = process_reminder_notifications()

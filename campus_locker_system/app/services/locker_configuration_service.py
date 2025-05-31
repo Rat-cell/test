@@ -12,8 +12,9 @@ import logging
 from typing import Dict, List, Tuple, Any
 from flask import current_app
 
-from app.business.locker import LockerManager, Locker
-from app import db
+from app.business.locker import LockerManager
+from app.persistence.models import Locker
+from app.persistence.repositories.locker_repository import LockerRepository
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +153,7 @@ class LockerConfigurationService:
                 return True, "Locker seeding disabled"
             
             # Check if lockers already exist
-            existing_count = Locker.query.count()
+            existing_count = LockerRepository.get_count()
             if existing_count > 0:
                 logger.info(f"📊 Found {existing_count} existing lockers, skipping seeding")
                 return True, f"Skipped seeding - {existing_count} lockers already exist"
@@ -171,15 +172,16 @@ class LockerConfigurationService:
             for locker_config in config.get('lockers', []):
                 try:
                     locker = LockerManager.create_locker_from_config(locker_config)
-                    db.session.add(locker)
+                    LockerRepository.add_to_session(locker)
                     created_lockers.append(locker)
                 except Exception as e:
                     logger.error(f"❌ Error creating locker from config {locker_config}: {e}")
-                    db.session.rollback()
                     return False, f"Error creating locker: {e}"
             
             # Commit all lockers
-            db.session.commit()
+            if not LockerRepository.commit_session():
+                logger.error(f"❌ Failed to commit batch of new lockers during seeding.")
+                return False, "Database commit error during locker seeding."
             
             source = config.get('metadata', {}).get('source', 'unknown')
             success_msg = f"Successfully created {len(created_lockers)} lockers from {source} configuration"
@@ -188,7 +190,6 @@ class LockerConfigurationService:
             return True, success_msg
             
         except Exception as e:
-            db.session.rollback()
             error_msg = f"Locker seeding failed: {str(e)}"
             logger.error(f"❌ {error_msg}")
             return False, error_msg
@@ -201,7 +202,6 @@ class LockerConfigurationService:
             metadata = config.get('metadata', {})
             
             # Get current database stats
-            from app.business.locker import LockerManager
             db_stats = LockerManager.get_locker_utilization_stats()
             
             return {
@@ -230,7 +230,7 @@ class LockerConfigurationService:
     def export_current_configuration() -> Dict[str, Any]:
         """Export current database state as configuration"""
         try:
-            lockers = Locker.query.all()
+            lockers = LockerRepository.get_all()
             
             config = {
                 "metadata": {

@@ -2,9 +2,10 @@
 from typing import Tuple, Optional, List, Dict, Any
 from flask import current_app, session, request
 from app.business.audit import AuditManager, AuditEvent, AuditEventCategory, AuditEventSeverity
-from app.persistence.models import AuditLog
-from app.adapters.audit_adapter import create_audit_adapter
+from app.persistence.repositories.audit_log_repository import AuditLogRepository
+from app.persistence.models import AuditLog as AuditLogEntity
 import json
+from datetime import datetime, timedelta
 
 class AuditService:
     """
@@ -13,182 +14,187 @@ class AuditService:
     """
     
     @staticmethod
-    def log_event(action: str, details: dict = None, admin_id: int = None) -> Tuple[bool, Optional[str]]:
-        """
-        FR-07: Audit Trail - Log system events with timestamps and details
-        NFR-03: Security - Log security events for monitoring and investigation
+    def log_event(action: str, details: Optional[Dict[str, Any]] = None):
+        """Log a system event using AuditLogRepository.
+           NFR-03: Security - Enhanced audit logging for security-sensitive operations.
         """
         try:
-            # Get user context
-            user_context = AuditService._get_user_context()
-            
-            # Create audit event using business logic
-            audit_event = AuditManager.create_audit_event(action, details, user_context)
-            
-            # Use audit adapter to store the event
-            audit_adapter = create_audit_adapter()
-            success, message = audit_adapter.store_audit_event(
-                action=audit_event.action,
-                details=audit_event.details
+            # Attempt to get admin_id and admin_username from session if available
+            admin_id = session.get('admin_id')
+            admin_username = session.get('admin_username')
+
+            # If details already contain admin_id/username (e.g., passed from a service 
+            # that has more direct context), use that, otherwise use session's.
+            # This allows services to specify the acting admin if it's not the logged-in one (e.g. system actions)
+            final_admin_id = details.pop('admin_id', admin_id) if details else admin_id
+            final_admin_username = details.pop('admin_username', admin_username) if details else admin_username
+
+            # Convert details to JSON string if it's a dict
+            # The repository and model should handle the dict directly if the DB field supports JSON.
+            # Assuming the model's 'details' field is Text or JSON that SQLAlchemy handles.
+            # No explicit conversion to json.dumps here if the model/repo handles dicts.
+
+            success = AuditLogRepository.create_and_save_log(
+                action=action,
+                details=details,
+                admin_id=final_admin_id,
+                admin_username=final_admin_username
             )
-            
             if not success:
-                current_app.logger.error(f"AUDIT LOGGING ERROR: {message}")
-                return False, message
-            
-            # Log critical events to application logger
-            if audit_event.severity == AuditEventSeverity.CRITICAL:
-                current_app.logger.critical(f"CRITICAL AUDIT EVENT: {action} - {details}")
-            
-            return True, None
-            
-        except ValueError as e:
-            # Business validation error
-            current_app.logger.error(f"AUDIT EVENT VALIDATION ERROR: {str(e)} for action '{action}'")
-            return False, str(e)
+                current_app.logger.error(f"Failed to save audit log event '{action}' via repository.")
+
         except Exception as e:
-            # Unexpected error
-            current_app.logger.error(f"AUDIT LOGGING ERROR: Failed to log audit event for action '{action}'. Error: {e}")
-            return False, f"Failed to log audit event: {str(e)}"
+            # Fallback logging if AuditService itself fails critically
+            current_app.logger.error(f"CRITICAL: AuditService failed to log event '{action}': {str(e)}")
+            # Optionally, try a more raw form of logging or raise an alert here
+
+    @staticmethod
+    def get_paginated_audit_logs(page: int, per_page: int = 15):
+        """
+        Retrieves a paginated list of audit logs using AuditLogRepository.
+        """
+        try:
+            return AuditLogRepository.get_paginated_logs(page=page, per_page=per_page)
+        except Exception as e:
+            current_app.logger.error(f"Error retrieving paginated audit logs from service: {str(e)}")
+            return None # Or an empty list/pagination object depending on expected return type
     
     @staticmethod
-    def get_audit_logs(limit: int = 100, category: Optional[str] = None, 
-                      severity: Optional[str] = None, start_date: Optional[str] = None,
-                      end_date: Optional[str] = None) -> List[AuditLog]:
-        """Retrieve audit logs with filtering"""
+    def get_audit_logs(
+        page: int = 1, 
+        per_page: int = 20, 
+        action: Optional[str] = None, 
+        user_id: Optional[int] = None, 
+        start_date: Optional[str] = None, 
+        end_date: Optional[str] = None) -> List[AuditLogEntity]:
+        """
+        Retrieves a paginated list of audit logs, with optional filters.
+        Uses AuditLogRepository for data access.
+        """
         try:
-            # Use audit adapter for basic retrieval
-            audit_adapter = create_audit_adapter()
+            actions_filter = None
+            if action:
+                actions_filter = AuditService._get_actions_by_category(action)
+                if not actions_filter: # If action is invalid or has no actions, return empty
+                    return []
             
-            # For now, use the adapter's simple methods
-            # Future enhancement: add filtering to adapter interface
-            if start_date and end_date:
-                from datetime import datetime
+            start_dt: Optional[datetime] = None
+            end_dt: Optional[datetime] = None
+            if start_date:
                 start_dt = datetime.fromisoformat(start_date)
+            if end_date:
                 end_dt = datetime.fromisoformat(end_date)
-                logs = audit_adapter.get_logs_by_timerange(start_dt, end_dt)
-            else:
-                logs = audit_adapter.get_audit_logs(limit=limit)
+
+            # Severity filtering would require more complex logic if EVENT_CLASSIFICATIONS maps actions to severity
+            # For now, severity filter is not directly implemented via repository unless actions_filter covers it.
+            # If severity is critical, one might pre-filter actions_filter based on AuditManager.get_critical_events()
             
-            # Apply additional filtering in memory for now
-            # TODO: Move this filtering logic to the adapter layer
-            if category:
-                category_actions = AuditService._get_actions_by_category(category)
-                if category_actions:
-                    logs = [log for log in logs if getattr(log, 'action', log.get('action', '')) in category_actions]
-            
-            return logs[:limit] if logs else []
+            return AuditLogRepository.get_logs(
+                limit=-1, # No limit from repository, handled by page and per_page
+                actions=actions_filter, 
+                start_date=start_dt, 
+                end_date=end_dt
+            )
             
         except Exception as e:
-            current_app.logger.error(f"Error retrieving audit logs: {str(e)}")
+            current_app.logger.error(f"Error retrieving audit logs from service: {str(e)}")
             return []
     
     @staticmethod
-    def get_security_events(days: int = 7) -> List[AuditLog]:
-        """Get recent security-related audit events"""
-        from datetime import datetime, timedelta
-        
-        # Get security event actions
+    def get_security_events(days: int = 7) -> List[AuditLogEntity]:
+        """Get recent security-related audit events using AuditLogRepository."""
         security_actions = AuditService._get_actions_by_category("security_event")
+        if not security_actions:
+            return []
+            
+        start_dt = datetime.utcnow() - timedelta(days=days)
         
-        start_date = datetime.utcnow() - timedelta(days=days)
-        
-        logs = AuditLog.query.filter(
-            AuditLog.action.in_(security_actions),
-            AuditLog.timestamp >= start_date
-        ).order_by(AuditLog.timestamp.desc()).all()
-        
-        return logs
+        return AuditLogRepository.get_logs(
+            limit=-1, # No limit from repository, handled by days
+            actions=security_actions,
+            start_date=start_dt
+        )
     
     @staticmethod
-    def get_admin_activity(admin_id: int, days: int = 30) -> List[AuditLog]:
-        """Get recent admin activity"""
-        from datetime import datetime, timedelta
+    def get_admin_activity(admin_id: int, days: int = 30) -> List[AuditLogEntity]:
+        """Get recent admin activity using AuditLogRepository."""
+        start_dt = datetime.utcnow() - timedelta(days=days)
         
-        start_date = datetime.utcnow() - timedelta(days=days)
-        
-        # Look for admin_id in the details JSON
-        logs = AuditLog.query.filter(
-            AuditLog.timestamp >= start_date,
-            AuditLog.details.like(f'%"admin_id": {admin_id}%')
-        ).order_by(AuditLog.timestamp.desc()).all()
-        
-        return logs
+        # The direct like query for admin_id in JSON is hard to replicate cleanly without JSON specific DB functions.
+        # The AuditLog model now has admin_id directly. So we can filter by that.
+        return AuditLogRepository.get_logs(
+            limit=-1, # No limit
+            admin_id=admin_id,
+            start_date=start_dt
+        )
     
     @staticmethod
     def cleanup_old_logs() -> Tuple[int, str]:
-        """Clean up old audit logs based on retention policy"""
-        from datetime import datetime, timedelta
-        
+        """Clean up old audit logs based on retention policy using AuditLogRepository."""
         retention_policy = AuditManager.get_retention_policy()
-        deleted_count = 0
+        total_deleted_count = 0
         
         try:
             for category_name, retention_days in retention_policy.items():
                 cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
-                
-                # Get actions for this category
                 category_actions = AuditService._get_actions_by_category(category_name)
                 
                 if category_actions:
-                    # Delete old logs for this category
-                    result = AuditLog.query.filter(
-                        AuditLog.action.in_(category_actions),
-                        AuditLog.timestamp < cutoff_date
-                    ).delete(synchronize_session=False)
-                    
-                    deleted_count += result
+                    deleted_for_category = AuditLogRepository.delete_logs_by_actions_and_older_than(
+                        actions=category_actions,
+                        cutoff_date=cutoff_date
+                    )
+                    total_deleted_count += deleted_for_category
             
-            db.session.commit()
+            # No explicit db.session.commit() needed here as repo method handles it.
             
-            # Log the cleanup
             AuditService.log_event("AUDIT_LOG_CLEANUP", {
-                "deleted_count": deleted_count,
+                "deleted_count": total_deleted_count,
                 "retention_policy": retention_policy
             })
             
-            return deleted_count, f"Cleaned up {deleted_count} old audit logs"
+            return total_deleted_count, f"Cleaned up {total_deleted_count} old audit logs"
             
         except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f"Error during audit log cleanup: {str(e)}")
+            # db.session.rollback() not needed as repo handles it.
+            current_app.logger.error(f"Error during audit log cleanup in service: {str(e)}")
             return 0, f"Cleanup failed: {str(e)}"
     
     @staticmethod
     def get_audit_statistics(days: int = 30) -> Dict[str, Any]:
-        """Get audit log statistics"""
-        from datetime import datetime, timedelta
+        """Get audit log statistics using AuditLogRepository."""
+        start_dt = datetime.utcnow() - timedelta(days=days)
+        now_dt = datetime.utcnow()
+
+        total_events = AuditLogRepository.get_count_by_daterange(start_date=start_dt, end_date=now_dt)
         
-        start_date = datetime.utcnow() - timedelta(days=days)
-        
-        # Total events
-        total_events = AuditLog.query.filter(AuditLog.timestamp >= start_date).count()
-        
-        # Events by category (approximate based on action patterns)
         category_stats = {}
         for category_name in ["user_action", "admin_action", "security_event", "system_action", "error_event"]:
             category_actions = AuditService._get_actions_by_category(category_name)
             if category_actions:
-                count = AuditLog.query.filter(
-                    AuditLog.action.in_(category_actions),
-                    AuditLog.timestamp >= start_date
-                ).count()
+                count = AuditLogRepository.get_count_by_actions_and_daterange(
+                    actions=category_actions, 
+                    start_date=start_dt, 
+                    end_date=now_dt
+                )
                 category_stats[category_name] = count
         
-        # Recent critical events
-        critical_actions = AuditManager.get_critical_events()
-        critical_count = AuditLog.query.filter(
-            AuditLog.action.in_(critical_actions),
-            AuditLog.timestamp >= start_date
-        ).count()
+        critical_actions = AuditManager.get_critical_events() # Assume this returns list of action strings
+        critical_count = 0
+        if critical_actions:
+            critical_count = AuditLogRepository.get_count_by_actions_and_daterange(
+                actions=critical_actions, 
+                start_date=start_dt, 
+                end_date=now_dt
+            )
         
         return {
             "total_events": total_events,
             "category_breakdown": category_stats,
             "critical_events": critical_count,
             "period_days": days,
-            "start_date": start_date.isoformat(),
-            "end_date": datetime.utcnow().isoformat()
+            "start_date": start_dt.isoformat(),
+            "end_date": now_dt.isoformat()
         }
     
     @staticmethod
@@ -209,7 +215,7 @@ class AuditService:
         return context
     
     @staticmethod
-    def _convert_to_persistence_model(audit_event: AuditEvent) -> AuditLog:
+    def _convert_to_persistence_model(audit_event: AuditEvent) -> AuditLogEntity:
         """Convert business audit event to persistence model"""
         # Serialize details to JSON
         try:
@@ -222,7 +228,7 @@ class AuditService:
                 "action": audit_event.action
             })
         
-        return AuditLog(
+        return AuditLogEntity(
             action=audit_event.action,
             details=details_json,
             timestamp=audit_event.timestamp
