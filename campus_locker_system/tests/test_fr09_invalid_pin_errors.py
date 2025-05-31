@@ -14,6 +14,14 @@ FR-09 is fully implemented across the existing test suite:
 """
 
 import pytest
+import sys
+from pathlib import Path
+
+# Add the campus_locker_system directory to the Python path
+current_dir = Path(__file__).parent
+project_root = current_dir.parent
+sys.path.insert(0, str(project_root))
+
 from app.business.pin import PinManager
 
 class TestFR09InvalidPinErrors:
