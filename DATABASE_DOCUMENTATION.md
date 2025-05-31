@@ -99,6 +99,8 @@ CREATE TABLE locker_sensor_data (
 );
 ```
 
+**Note on Data Access**: With the adoption of Hexagonal Architecture, direct interaction with these tables from application services or business logic is minimized. Instead, data access is primarily handled through a **Repository Pattern**. Repositories (located in `app/persistence/repositories/`) encapsulate the logic for querying and modifying data, using the SQLAlchemy models defined in `app/persistence/models.py`. This decouples the core application from the specifics of data storage.
+
 ### **Relationships**
 
 1. **Locker ↔ Parcel** (1:Many)
@@ -161,8 +163,9 @@ CREATE TABLE audit_log (
 
 ### **Configuration-Driven Setup**
 - **Locker creation**: From `databases/lockers-hwr.json`
-- **Schema creation**: Automatic via Flask-SQLAlchemy
-- **Data validation**: Business logic enforcement
+- **Schema creation**: Automatic via Flask-SQLAlchemy, with models defined in `app/persistence/models.py`.
+- **Data access**: Primarily through repositories in `app/persistence/repositories/`.
+- **Data validation**: Business logic enforcement within services and business entities.
 - **Safety**: Automatic backups before changes
 
 ### **Current Configuration (HWR)**
@@ -187,6 +190,8 @@ CREATE TABLE audit_log (
 - **Audit Trail**: All administrative actions logged
 
 ## 🔍 **Database Queries**
+
+This section provides examples of raw SQL queries for understanding data relationships and for direct database inspection. Within the application, similar data retrieval and manipulation logic is encapsulated within methods in the repository classes (`app/persistence/repositories/`).
 
 ### **Common Operations**
 
