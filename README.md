@@ -14,38 +14,39 @@ Start with the [Quick Start Guide](docs/guides/QUICK_START.md) or explore the [S
 ## 🏗️ **Project Structure**
 
 ```
-campus_locker_system/               # 🏠 Root Project Directory
-├── app/                            # 🎯 Core Application (Hexagonal Architecture)
-│   ├── __init__.py                # 🚀 Flask Application Factory
-│   ├── config.py                  # ⚙️ Configuration Management
-│   ├── presentation/              # 🌐 Web Interface Layer (Flask routes & templates)
-│   ├── services/                  # ⚙️ Application Services (Business orchestration)
-│   ├── business/                  # 💼 Domain Business Logic (Core rules & validation)
-│   ├── persistence/               # 🗄️ Data Access Layer (Repository pattern & models)
-│   └── adapters/                  # 🔌 External System Adapters (Email, notifications)
-├── docs/                           # 📚 Comprehensive Documentation
+test/                               # 🏠 Root Project Directory
+├── campus_locker_system/           # 🎯 Main Application Directory
+│   ├── app/                        # Core Application (Hexagonal Architecture)
+│   │   ├── __init__.py            # 🚀 Flask Application Factory
+│   │   ├── config.py              # ⚙️ Configuration Management
+│   │   ├── presentation/          # 🌐 Web Interface Layer (Flask routes & templates)
+│   │   ├── services/              # ⚙️ Application Services (Business orchestration)
+│   │   ├── business/              # 💼 Domain Business Logic (Core rules & validation)
+│   │   ├── persistence/           # 🗄️ Data Access Layer (Repository pattern & models)
+│   │   └── adapters/              # 🔌 External System Adapters (Email, notifications)
+│   ├── tests/                     # 🧪 Comprehensive Test Suite (268 tests)
+│   │   ├── test_fr*/              # ⚡ Functional Requirements Tests (FR-01 to FR-09)
+│   │   ├── test_nfr*/             # 🎯 Non-Functional Requirements Tests (NFR-01 to NFR-06)
+│   │   └── test_*.py              # 🔍 Unit, Integration & Performance Tests
+│   ├── databases/                 # 🗄️ Dual Database Design
+│   │   ├── campus_locker.db       # 📊 Main Operational Database
+│   │   └── campus_locker_audit.db # 📋 Audit & Compliance Database
+│   ├── scripts/                   # 🛠️ Automation & Deployment Scripts
+│   ├── nginx/                     # 🌐 Web Server Configuration
+│   │   └── nginx.conf             # ⚙️ Nginx Reverse Proxy Setup
+│   ├── docker-compose.yml         # 🐳 Production Docker Configuration
+│   ├── Dockerfile                 # 🐳 Container Build Instructions
+│   ├── Makefile                   # 🛠️ Build & Deployment Automation
+│   ├── requirements.txt           # 📦 Python Dependencies
+│   └── .gitignore                 # 🚫 Git Exclusion Rules
+├── docs/                          # 📚 Comprehensive Documentation
 │   ├── diagrams/                  # 📊 Architecture Diagrams (Structurizr DSL + DBML)
 │   ├── guides/                    # 📖 User & Developer Guides
 │   ├── introduction/              # 🎓 Project Overview & Architecture Analysis
 │   ├── specifications/            # 📋 Requirements & Technical Specifications
 │   └── test_verifications/        # ✅ Test Documentation & Verification Reports
-├── tests/                          # 🧪 Comprehensive Test Suite (268 tests)
-│   ├── test_fr*/                  # ⚡ Functional Requirements Tests (FR-01 to FR-09)
-│   ├── test_nfr*/                 # 🎯 Non-Functional Requirements Tests (NFR-01 to NFR-06)
-│   └── test_*.py                  # 🔍 Unit, Integration & Performance Tests
-├── databases/                      # 🗄️ Dual Database Design
-│   ├── campus_locker.db           # 📊 Main Operational Database
-│   └── campus_locker_audit.db     # 📋 Audit & Compliance Database
-├── scripts/                        # 🛠️ Automation & Deployment Scripts
-├── nginx/                          # 🌐 Web Server Configuration
-│   └── nginx.conf                 # ⚙️ Nginx Reverse Proxy Setup
-├── README.md                       # 📖 Main Project Documentation
-├── CHANGELOG.md                    # 📈 Version History & Release Notes
-├── docker-compose.yml              # 🐳 Production Docker Configuration
-├── Dockerfile                      # 🐳 Container Build Instructions
-├── Makefile                        # 🛠️ Build & Deployment Automation
-├── requirements.txt                # 📦 Python Dependencies
-└── .gitignore                      # 🚫 Git Exclusion Rules
+├── README.md                      # 📖 Main Project Documentation
+└── CHANGELOG.md                   # 📈 Version History & Release Notes
 ```
 
 ---

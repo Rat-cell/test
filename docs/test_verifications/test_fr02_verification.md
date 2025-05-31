@@ -21,7 +21,7 @@ The FR-02 requirement is **fully implemented** with **industry-standard cryptogr
 
 ## 🧪 **COMPREHENSIVE TEST SUITE**
 
-### **Test File**: `campus_locker_system/tests/test_fr02_generate_pin.py`
+### **Test File**: `test/campus_locker_system/tests/test_fr02_generate_pin.py`
 
 The comprehensive test suite covers 8 categories of cryptographic security:
 
@@ -159,16 +159,16 @@ def generate_pin_and_hash():
 ### **Cryptographic Test Execution**
 ```bash
 # Run complete FR-02 test suite
-pytest campus_locker_system/tests/test_fr02_generate_pin.py -v
+pytest test/campus_locker_system/tests/test_fr02_generate_pin.py -v
 
 # Run specific security tests
-pytest campus_locker_system/tests/test_fr02_generate_pin.py::TestFR02GeneratePin::test_fr02_uses_salted_sha256_hashing -v
+pytest test/campus_locker_system/tests/test_fr02_generate_pin.py::TestFR02GeneratePin::test_fr02_uses_salted_sha256_hashing -v
 
 # Run performance tests
-pytest campus_locker_system/tests/test_fr02_generate_pin.py::TestFR02GeneratePin::test_fr02_pin_generation_performance -v
+pytest test/campus_locker_system/tests/test_fr02_generate_pin.py::TestFR02GeneratePin::test_fr02_pin_generation_performance -v
 
 # Run cryptographic validation
-pytest campus_locker_system/tests/test_fr02_generate_pin.py::test_fr02_cryptographic_strength_validation -v
+pytest test/campus_locker_system/tests/test_fr02_generate_pin.py::test_fr02_cryptographic_strength_validation -v
 ```
 
 ### **Production Security Validation**

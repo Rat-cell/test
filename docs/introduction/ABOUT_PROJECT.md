@@ -125,38 +125,69 @@ Think of this architecture like organizing a restaurant:
 ### Directory Structure Alignment
 
 ```
-campus_locker_system/
-├── app/
-│   ├── business/              # Domain Layer (Core)
-│   │   ├── locker.py         # Locker domain logic
-│   │   ├── parcel.py         # Parcel business rules
-│   │   ├── pin.py            # PIN security logic
-│   │   ├── notification.py   # Email domain logic
-│   │   ├── admin_auth.py     # Authentication domain
-│   │   └── audit.py          # Audit domain logic
-│   ├── services/              # Application Services
-│   │   ├── parcel_service.py         # Orchestrates parcel workflows
-│   │   ├── locker_service.py         # Manages locker operations
-│   │   ├── admin_auth_service.py     # Handles authentication flows
-│   │   ├── notification_service.py   # Manages email notifications
-│   │   ├── audit_service.py          # Audit trail management
-│   │   └── database_service.py       # Database operations
-│   ├── persistence/           # Data Access Layer
-│   │   ├── models.py         # SQLAlchemy models
-│   │   └── repositories/     # Repository pattern implementations
-│   │       ├── locker_repository.py
-│   │       ├── parcel_repository.py
-│   │       └── audit_log_repository.py
-│   ├── adapters/             # Infrastructure Adapters
-│   │   ├── email_adapter.py  # Email service integration
-│   │   └── audit_adapter.py  # Audit system adapter
-│   └── presentation/         # User Interface Layer
-│       ├── routes.py         # Web route handlers
-│       ├── api_routes.py     # REST API endpoints
-│       └── templates/        # HTML templates
-├── tests/                    # Comprehensive test suite (268 tests)
-├── databases/               # SQLite databases with WAL mode
-└── docs/                   # Architecture documentation
+test/
+├── campus_locker_system/
+│   ├── __pycache__/              # Python bytecode cache
+│   ├── .github/                  # GitHub workflows and templates
+│   ├── .pytest_cache/            # Pytest cache directory
+│   ├── app/                      # Core Application (Hexagonal Architecture)
+│   │   ├── adapters/             # Infrastructure Adapters
+│   │   │   ├── email_adapter.py  # Email service integration
+│   │   │   └── audit_adapter.py  # Audit system adapter
+│   │   ├── business/             # Domain Layer (Core)
+│   │   │   ├── admin_auth.py     # Authentication domain
+│   │   │   ├── audit.py          # Audit domain logic
+│   │   │   ├── locker.py         # Locker domain logic
+│   │   │   ├── notification.py   # Email domain logic
+│   │   │   ├── parcel.py         # Parcel business rules
+│   │   │   └── pin.py            # PIN security logic
+│   │   ├── persistence/          # Data Access Layer
+│   │   │   ├── repositories/     # Repository pattern implementations
+│   │   │   │   ├── audit_log_repository.py     # Audit data access operations
+│   │   │   │   ├── locker_repository.py        # Locker data access operations
+│   │   │   │   └── parcel_repository.py        # Parcel data access operations
+│   │   │   └── models.py         # SQLAlchemy models
+│   │   ├── presentation/         # User Interface Layer
+│   │   │   ├── templates/        # HTML templates
+│   │   │   ├── api_routes.py     # REST API endpoints
+│   │   │   └── routes.py         # Web route handlers
+│   │   └── services/             # Application Services
+│   │       ├── admin_auth_service.py     # Handles authentication flows
+│   │       ├── audit_service.py          # Audit trail management
+│   │       ├── database_service.py       # Database operations
+│   │       ├── locker_service.py         # Manages locker operations
+│   │       ├── notification_service.py   # Manages email notifications
+│   │       └── parcel_service.py         # Orchestrates parcel workflows
+│   ├── databases/                # SQLite databases with WAL mode
+│   ├── logs/                     # Application log files
+│   ├── nginx/                    # Web server configuration
+│   ├── scripts/                  # Automation & deployment scripts
+│   ├── tests/                    # Comprehensive test suite (268 tests)
+│   ├── .gitignore                # Git exclusion rules
+│   ├── create_admin.py           # Admin user creation script
+│   ├── Dockerfile                # Container build instructions
+│   ├── Makefile                  # Build & deployment automation
+│   ├── docker-compose.yml        # Production Docker configuration
+│   ├── pytest.ini               # Pytest configuration
+│   ├── requirements.txt          # Python dependencies
+│   ├── run.py                    # Application entry point
+│   └── seed_lockers.py           # Locker initialization script
+├── docs/                         # Project Documentation
+│   ├── diagrams/                 # Architecture Diagrams (Structurizr DSL + DBML)
+│   ├── guides/                   # User & Developer Guides
+│   ├── introduction/             # Project Overview & Architecture Analysis
+│   ├── specifications/           # Requirements & Technical Specifications
+│   └── test_verifications/       # Test Documentation & Verification Reports
+├── scripts/                      # Root-level utility scripts
+├── ssl/                          # SSL certificates and security configuration
+├── venv/                         # Python virtual environment
+├── .gitignore                    # Git exclusion rules
+├── CHANGELOG.md                  # Version History & Release Notes
+├── cookies.txt                   # HTTP cookies for testing/development
+├── docker-compose.yml            # Production Docker configuration
+├── Makefile                      # Build & deployment automation
+├── nginx.conf                    # Nginx web server configuration
+└── README.md                     # Main Project Documentation
 ```
 
 ---

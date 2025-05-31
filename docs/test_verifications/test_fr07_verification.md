@@ -22,7 +22,7 @@ The FR-07 requirement is **fully implemented** with **comprehensive audit trail 
 
 ## 🧪 **COMPREHENSIVE TEST SUITE**
 
-### **Test File**: `campus_locker_system/tests/test_fr07_audit_trail.py`
+### **Test File**: `test/campus_locker_system/tests/test_fr07_audit_trail.py`
 
 The comprehensive test suite covers 7 categories of audit trail functionality:
 
@@ -190,16 +190,16 @@ AuditService.log_event("USER_PICKUP_FAIL_INVALID_PIN", {
 ### **Compliance Test Execution**
 ```bash
 # Run complete FR-07 test suite
-pytest campus_locker_system/tests/test_fr07_audit_trail.py -v
+pytest test/campus_locker_system/tests/test_fr07_audit_trail.py -v
 
 # Run specific audit coverage tests
-pytest campus_locker_system/tests/test_fr07_audit_trail.py::TestFR07AuditTrail::test_fr07_deposit_audit_events -v
+pytest test/campus_locker_system/tests/test_fr07_audit_trail.py::TestFR07AuditTrail::test_fr07_deposit_audit_events -v
 
 # Run admin override tests
-pytest campus_locker_system/tests/test_fr07_audit_trail.py::TestFR07AuditTrail::test_fr07_admin_action_audit_events -v
+pytest test/campus_locker_system/tests/test_fr07_audit_trail.py::TestFR07AuditTrail::test_fr07_admin_action_audit_events -v
 
 # Run comprehensive coverage summary
-pytest campus_locker_system/tests/test_fr07_audit_trail.py::TestFR07AuditTrail::test_fr07_comprehensive_coverage_summary -v
+pytest test/campus_locker_system/tests/test_fr07_audit_trail.py::TestFR07AuditTrail::test_fr07_comprehensive_coverage_summary -v
 ```
 
 ### **Production Compliance Validation**

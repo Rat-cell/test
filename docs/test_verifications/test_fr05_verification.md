@@ -173,19 +173,19 @@ The FR-05 requirement is **fully implemented** with **comprehensive PIN re-issue
 ### **Run Complete FR-05 Test Suite**
 ```bash
 # Complete test suite
-docker exec campus_locker_app pytest campus_locker_system/tests/test_fr05_reissue_pin.py -v -s
+docker exec campus_locker_app pytest test/campus_locker_system/tests/test_fr05_reissue_pin.py -v -s
 
 # Admin re-issue tests
-docker exec campus_locker_app pytest campus_locker_system/tests/test_fr05_reissue_pin.py::TestFR05ReissuePin::test_fr05_admin_reissue_pin_success -v -s
+docker exec campus_locker_app pytest test/campus_locker_system/tests/test_fr05_reissue_pin.py::TestFR05ReissuePin::test_fr05_admin_reissue_pin_success -v -s
 
 # User regeneration tests
-docker exec campus_locker_app pytest campus_locker_system/tests/test_fr05_reissue_pin.py::TestFR05ReissuePin::test_fr05_user_regeneration_success -v -s
+docker exec campus_locker_app pytest test/campus_locker_system/tests/test_fr05_reissue_pin.py::TestFR05ReissuePin::test_fr05_user_regeneration_success -v -s
 
 # Security validation tests
-docker exec campus_locker_app pytest campus_locker_system/tests/test_fr05_reissue_pin.py::TestFR05ReissuePin::test_fr05_email_validation_security -v -s
+docker exec campus_locker_app pytest test/campus_locker_system/tests/test_fr05_reissue_pin.py::TestFR05ReissuePin::test_fr05_email_validation_security -v -s
 
 # Integration tests
-docker exec campus_locker_app pytest campus_locker_system/tests/test_fr05_reissue_pin.py::TestFR05ReissuePin::test_fr05_audit_logging_integration -v -s
+docker exec campus_locker_app pytest test/campus_locker_system/tests/test_fr05_reissue_pin.py::TestFR05ReissuePin::test_fr05_audit_logging_integration -v -s
 ```
 
 ### **Standalone Validation**

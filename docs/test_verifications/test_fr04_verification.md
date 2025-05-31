@@ -20,7 +20,7 @@ The FR-04 requirement is now **completely automated** with background scheduling
 
 ## 🧪 **COMPREHENSIVE TEST SUITE**
 
-### **Test File**: `campus_locker_system/tests/test_fr04_automated_reminders.py`
+### **Test File**: `test/campus_locker_system/tests/test_fr04_automated_reminders.py`
 
 The comprehensive test suite covers 9 categories of automated functionality:
 
@@ -143,13 +143,13 @@ REMINDER_PROCESSING_INTERVAL_HOURS=2
 ### **Automated Test Execution**
 ```bash
 # Run complete FR-04 test suite
-pytest campus_locker_system/tests/test_fr04_automated_reminders.py -v
+pytest test/campus_locker_system/tests/test_fr04_automated_reminders.py -v
 
 # Run specific test categories
-pytest campus_locker_system/tests/test_fr04_automated_reminders.py::TestFR04AutomatedReminders::test_fr04_end_to_end_automation -v
+pytest test/campus_locker_system/tests/test_fr04_automated_reminders.py::TestFR04AutomatedReminders::test_fr04_end_to_end_automation -v
 
 # Run performance tests
-pytest campus_locker_system/tests/test_fr04_automated_reminders.py::TestFR04AutomatedReminders::test_fr04_bulk_processing_performance -v
+pytest test/campus_locker_system/tests/test_fr04_automated_reminders.py::TestFR04AutomatedReminders::test_fr04_bulk_processing_performance -v
 ```
 
 ### **Production Verification Commands**
