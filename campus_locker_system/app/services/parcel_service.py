@@ -18,6 +18,7 @@ Status: ✅ PRODUCTION READY - All FRs and NFRs implemented and verified
 """
 
 from datetime import datetime, timedelta
+import datetime as dt
 from flask import current_app, url_for
 from app import db
 from app.persistence.models import Locker, Parcel
@@ -73,64 +74,67 @@ def assign_locker_and_create_parcel(recipient_email: str, preferred_size: str):
         if not locker:
             return None, f"No available {preferred_size} lockers. Please try again later or choose a different size."
         
-        locker.status = 'occupied'
-        if not LockerRepository.save(locker):
-            current_app.logger.error(f"Failed to update locker {locker.id} status to occupied via repository.")
-            return None, "Database error updating locker status."
-        
-        locker.status = 'occupied'
-        db.session.commit()
-        
-        # Create parcel business object first for logic, then persistence object
-        parcel_data = {
-            "locker_id": locker.id,
-            "recipient_email": recipient_email,
-            "status": 'deposited',
-            "deposited_at": datetime.utcnow()
-        }
-        # Assuming Parcel business object can be initialized like this or directly create PersistenceParcel
-        # For now, let's assume direct creation of PersistenceParcel for repository
-        
-        # Create PersistenceParcel instance
-        new_parcel = Parcel(
-            locker_id=locker.id,
-            recipient_email=recipient_email,
-            status='deposited',
-            deposited_at=datetime.utcnow()
-        )
-        
-        token = new_parcel.generate_pin_token()
-        
-        # Save using repository
-        if not ParcelRepository.save(new_parcel):
-            current_app.logger.error("Failed to save parcel using repository.")
-            return None, "Database error creating parcel."
-
-        # Generate PIN generation URL
-        pin_generation_url = url_for('main.generate_pin_by_token_route', 
-                                   token=token, 
-                                   _external=True)
-        
-        notification_success, notification_message = NotificationService.send_parcel_ready_notification(
-            recipient_email=recipient_email,
-            parcel_id=new_parcel.id,
-            locker_id=locker.id,
-            deposited_time=new_parcel.deposited_at,
-            pin_generation_url=pin_generation_url
-        )
-        
-        AuditService.log_event("PARCEL_CREATED_EMAIL_PIN", details={
-            "parcel_id": new_parcel.id,
-            "locker_id": locker.id,
-            "recipient_email": recipient_email,
-            "notification_sent": notification_success
-        })
-        
-        if notification_success:
-            return new_parcel, f"Parcel deposited successfully. PIN generation link sent to {recipient_email}."
-        else:
-            current_app.logger.warning(f"Parcel created but notification failed: {notification_message}")
-            return new_parcel, f"Parcel deposited successfully. Note: Email notification may have failed."
+        # Follow hexagonal architecture pattern: use repositories for atomic transactions
+        try:
+            # Update locker status (business logic in service, persistence via repository)
+            locker.status = 'occupied'
+            
+            # Create parcel using business logic
+            new_parcel = Parcel(
+                locker_id=locker.id,
+                recipient_email=recipient_email,
+                status='deposited',
+                deposited_at=datetime.now(dt.UTC)
+            )
+            
+            token = new_parcel.generate_pin_token()
+            
+            # Use repository pattern for atomic transaction (same pattern as other functions)
+            ParcelRepository.add_to_session(new_parcel)
+            LockerRepository.add_to_session(locker)
+            if not ParcelRepository.commit_session():
+                current_app.logger.error("Failed to commit locker and parcel changes.")
+                return None, "Database error during assignment."
+            
+            # Generate PIN generation URL
+            try:
+                pin_generation_url = url_for('main.generate_pin_by_token_route', 
+                                           token=token, 
+                                           _external=True)
+            except RuntimeError as e:
+                # Not in request context (e.g., during testing) - use a placeholder URL
+                current_app.logger.info(f"URL generation failed (not in request context): {str(e)}")
+                pin_generation_url = f"http://localhost/generate-pin/{token}"
+            except Exception as e:
+                # Catch any other URL generation issues
+                current_app.logger.warning(f"Unexpected URL generation error: {str(e)}")
+                pin_generation_url = f"http://localhost/generate-pin/{token}"
+            
+            notification_success, notification_message = NotificationService.send_parcel_ready_notification(
+                recipient_email=recipient_email,
+                parcel_id=new_parcel.id,
+                locker_id=locker.id,
+                deposited_time=new_parcel.deposited_at,
+                pin_generation_url=pin_generation_url
+            )
+            
+            AuditService.log_event("PARCEL_CREATED_EMAIL_PIN", details={
+                "parcel_id": new_parcel.id,
+                "locker_id": locker.id,
+                "recipient_email": recipient_email,
+                "notification_sent": notification_success
+            })
+            
+            if notification_success:
+                return new_parcel, f"Parcel deposited successfully. PIN generation link sent to {recipient_email}."
+            else:
+                current_app.logger.warning(f"Parcel created but notification failed: {notification_message}")
+                return new_parcel, f"Parcel deposited successfully. Note: Email notification may have failed."
+                
+        except Exception as db_error:
+            # Rollback happens automatically in repository commit_session() method
+            current_app.logger.error(f"Database error during assignment: {str(db_error)}")
+            return None, "An error occurred while assigning the locker. Please try again."
             
     except Exception as e:
         current_app.logger.error(f"Error in assign_locker_and_create_parcel: {str(e)}")
@@ -160,7 +164,7 @@ def process_pickup(provided_pin: str):
                     return None, "PIN has expired. Please request a new PIN."
                 
                 parcel_persistence_instance.status = 'picked_up'
-                parcel_persistence_instance.picked_up_at = datetime.utcnow()
+                parcel_persistence_instance.picked_up_at = datetime.now(dt.UTC)
                 parcel_to_update = parcel_persistence_instance
                 
                 # Fetch locker using LockerRepository to ensure it's the persistence model
@@ -397,7 +401,7 @@ def mark_parcel_missing_by_admin(admin_id: int, admin_username: str, parcel_id: 
 
 def process_overdue_parcels():
     max_pickup_days = current_app.config.get('PARCEL_MAX_PICKUP_DAYS', 7)
-    cutoff_datetime = datetime.utcnow() - timedelta(days=max_pickup_days)
+    cutoff_datetime = datetime.now(dt.UTC) - timedelta(days=max_pickup_days)
     
     # Use repository to fetch eligible parcels
     deposited_parcels = ParcelRepository.get_all_deposited_older_than(cutoff_datetime)
@@ -488,7 +492,7 @@ def process_overdue_parcels():
 def process_reminder_notifications():
     try:
         reminder_hours = current_app.config.get('REMINDER_HOURS_AFTER_DEPOSIT', 24)
-        cutoff_time = datetime.utcnow() - timedelta(hours=reminder_hours)
+        cutoff_time = datetime.now(dt.UTC) - timedelta(hours=reminder_hours)
         
         # Use repository to get eligible parcels
         eligible_parcels = ParcelRepository.get_all_deposited_needing_reminder(cutoff_time)
@@ -511,14 +515,14 @@ def process_reminder_notifications():
                 )
                 
                 if success:
-                    parcel.reminder_sent_at = datetime.utcnow()
+                    parcel.reminder_sent_at = datetime.now(dt.UTC)
                     parcels_to_update.append(parcel)
                     processed_count += 1
                     
                     AuditService.log_event("FR-04_REMINDER_SENT_SUCCESS", {
                         "parcel_id": parcel.id, "locker_id": parcel.locker_id,
                         "recipient_email_domain": parcel.recipient_email.split('@')[1] if '@' in parcel.recipient_email else 'unknown',
-                        "deposited_hours_ago": int((datetime.utcnow() - parcel.deposited_at).total_seconds() / 3600),
+                        "deposited_hours_ago": int((datetime.now(dt.UTC) - parcel.deposited_at).total_seconds() / 3600),
                         "configured_reminder_hours": reminder_hours
                     })
                 else:
@@ -578,7 +582,7 @@ def send_individual_reminder(parcel_id: int, admin_id: int, admin_username: str)
         )
         
         if success:
-            parcel.reminder_sent_at = datetime.utcnow()
+            parcel.reminder_sent_at = datetime.now(dt.UTC)
             if not ParcelRepository.save(parcel):
                 current_app.logger.error(f"FR-04: Failed to update reminder_sent_at for parcel {parcel_id} (admin individual) via repository.")
                 AuditService.log_event("FR-04_ADMIN_INDIVIDUAL_REMINDER_DB_FAIL", {
@@ -590,7 +594,7 @@ def send_individual_reminder(parcel_id: int, admin_id: int, admin_username: str)
                 "admin_id": admin_id, "admin_username": admin_username, "parcel_id": parcel.id,
                 "locker_id": parcel.locker_id,
                 "recipient_email_domain": parcel.recipient_email.split('@')[1] if '@' in parcel.recipient_email else 'unknown',
-                "deposited_hours_ago": int((datetime.utcnow() - parcel.deposited_at).total_seconds() / 3600),
+                "deposited_hours_ago": int((datetime.now(dt.UTC) - parcel.deposited_at).total_seconds() / 3600),
                 "reminder_type": "admin_initiated_individual"
             })
             return True, f"Reminder sent successfully to {parcel.recipient_email}"

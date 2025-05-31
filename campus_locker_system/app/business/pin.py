@@ -27,6 +27,11 @@ import hashlib
 import os
 from datetime import datetime, timedelta
 from flask import current_app
+import datetime as dt
+import secrets
+import string
+import bcrypt
+from typing import Tuple, Optional
 
 class PinManager:
     """
@@ -76,7 +81,7 @@ class PinManager:
         """
         if otp_expiry is None:
             return True  # Treat None expiry as expired
-        return datetime.utcnow() > otp_expiry
+        return datetime.now(dt.UTC) > otp_expiry
     
     @staticmethod
     def generate_expiry_time(hours=None):
@@ -84,7 +89,7 @@ class PinManager:
         if hours is None:
             # Get from Flask app config, default to 24 hours if not configured
             hours = current_app.config.get('PIN_EXPIRY_HOURS', 24)
-        return datetime.utcnow() + timedelta(hours=hours)
+        return datetime.now(dt.UTC) + timedelta(hours=hours)
     
     @staticmethod
     def get_pin_expiry_hours():

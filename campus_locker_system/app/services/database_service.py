@@ -7,6 +7,7 @@ database management utilities.
 import os
 import sqlite3
 from datetime import datetime
+import datetime as dt
 from typing import Tuple, Dict, List, Any
 from flask import current_app
 from app import db
@@ -319,7 +320,7 @@ class DatabaseService:
             os.makedirs(backup_dir, exist_ok=True)
             
             db_dir = current_app.config.get('DATABASE_DIR', '/app/databases')
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now(dt.UTC).strftime('%Y%m%d_%H%M%S')
             
             backed_up_files = []
             
@@ -372,7 +373,7 @@ class DatabaseService:
             os.makedirs(backup_dir, exist_ok=True)
             
             # Generate timestamp
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now(dt.UTC).strftime('%Y%m%d_%H%M%S')
             
             # NFR-04: Get configurable backup interval for backup naming
             backup_interval_days = current_app.config.get('BACKUP_INTERVAL_DAYS', 7)
@@ -441,13 +442,13 @@ class DatabaseService:
             
             # NFR-04: Check if configured interval has passed
             interval_seconds = backup_interval_days * 24 * 60 * 60
-            cutoff_time = datetime.now().timestamp() - interval_seconds
+            cutoff_time = datetime.now(dt.UTC).timestamp() - interval_seconds
             
             if most_recent_time < cutoff_time:
-                days_since = (datetime.now().timestamp() - most_recent_time) / (24 * 60 * 60)
+                days_since = (datetime.now(dt.UTC).timestamp() - most_recent_time) / (24 * 60 * 60)
                 return True, f"Last scheduled backup was {days_since:.1f} days ago (interval: {backup_interval_days} days) - creating new backup"
             else:
-                days_since = (datetime.now().timestamp() - most_recent_time) / (24 * 60 * 60)
+                days_since = (datetime.now(dt.UTC).timestamp() - most_recent_time) / (24 * 60 * 60)
                 return False, f"Recent scheduled backup exists from {days_since:.1f} days ago (interval: {backup_interval_days} days)"
                 
         except Exception as e:

@@ -235,9 +235,9 @@ from datetime import datetime, timedelta
 
 # Test all email types
 emails = {
-    'deposit': NotificationManager.create_parcel_deposit_email(1, 5, '123456', datetime.utcnow() + timedelta(hours=24)),
-    'ready': NotificationManager.create_parcel_ready_email(1, 5, datetime.utcnow(), 'http://localhost/generate-pin/token123'),
-    'pin': NotificationManager.create_pin_generation_email(1, 5, '654321', datetime.utcnow() + timedelta(hours=24), 'http://localhost/generate-pin/token123')
+    'deposit': NotificationManager.create_parcel_deposit_email(1, 5, '123456', datetime.now(datetime.UTC) + timedelta(hours=24)),
+    'ready': NotificationManager.create_parcel_ready_email(1, 5, datetime.now(datetime.UTC), 'http://localhost/generate-pin/token123'),
+    'pin': NotificationManager.create_pin_generation_email(1, 5, '654321', datetime.now(datetime.UTC) + timedelta(hours=24), 'http://localhost/generate-pin/token123')
 }
 
 for email_type, email in emails.items():

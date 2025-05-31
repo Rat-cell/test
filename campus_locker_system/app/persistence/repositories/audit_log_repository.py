@@ -4,6 +4,7 @@ from app.persistence.models import AuditLog as PersistenceAuditLog
 from flask import current_app
 from datetime import datetime
 import json # Import json
+import datetime as dt
 
 class AuditLogRepository:
     @staticmethod
@@ -35,7 +36,7 @@ class AuditLogRepository:
                     details_json = str(details) # Fallback to string representation
 
             log_entry = PersistenceAuditLog(
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(dt.UTC),
                 action=action,
                 details=details_json, # Pass the JSON string
                 admin_id=admin_id,

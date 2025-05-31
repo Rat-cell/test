@@ -1,7 +1,8 @@
 # Admin & Authentication domain business rules and logic
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Dict, List
 from datetime import datetime, timedelta
+import datetime as dt
 from enum import Enum
 import bcrypt
 import re
@@ -24,12 +25,12 @@ class AdminSession:
     def is_expired(self, max_session_duration_hours: int = 8) -> bool:
         """Check if session has expired based on business rules"""
         expiry_time = self.login_time + timedelta(hours=max_session_duration_hours)
-        return datetime.utcnow() > expiry_time
+        return datetime.now(dt.UTC) > expiry_time
     
     def is_inactive(self, max_inactive_minutes: int = 30) -> bool:
         """Check if session is inactive based on business rules"""
         inactive_threshold = self.last_activity + timedelta(minutes=max_inactive_minutes)
-        return datetime.utcnow() > inactive_threshold
+        return datetime.now(dt.UTC) > inactive_threshold
 
 class AdminUser:
     """Business entity for admin users with authentication logic"""
@@ -39,8 +40,9 @@ class AdminUser:
         self.username = username
         self.password_hash = password_hash
         self.role = role
-        self.created_at = datetime.utcnow() if id is None else None
+        self.created_at = datetime.now(dt.UTC) if id is None else None
         self.last_login = None
+        self.is_active = True
         
     def set_password(self, password: str) -> None:
         """Set password with business validation and hashing"""
@@ -80,7 +82,7 @@ class AdminUser:
     
     def update_last_login(self) -> None:
         """Update last login timestamp"""
-        self.last_login = datetime.utcnow()
+        self.last_login = datetime.now(dt.UTC)
 
 class AdminAuthManager:
     """Business logic for admin authentication and authorization"""
@@ -130,8 +132,8 @@ class AdminAuthManager:
             admin_id=admin_user.id,
             username=admin_user.username,
             role=admin_user.role,
-            login_time=datetime.utcnow(),
-            last_activity=datetime.utcnow()
+            login_time=datetime.now(dt.UTC),
+            last_activity=datetime.now(dt.UTC)
         )
     
     @staticmethod

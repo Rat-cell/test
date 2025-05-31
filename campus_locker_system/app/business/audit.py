@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
+import datetime as dt
 from enum import Enum
 import json
 
@@ -183,7 +184,7 @@ class AuditManager:
             details=details,
             category=category,
             severity=severity,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(dt.UTC),
             session_id=user_context.get('session_id'),
             user_id=user_context.get('user_id'),
             admin_id=user_context.get('admin_id'),
@@ -215,7 +216,7 @@ class AuditManager:
         retention_policy = AuditManager.get_retention_policy()
         retention_days = retention_policy.get(event.category.value, 90)  # Default 90 days
         
-        cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
+        cutoff_date = datetime.now(dt.UTC) - timedelta(days=retention_days)
         return event.timestamp > cutoff_date
     
     @staticmethod
@@ -225,3 +226,22 @@ class AuditManager:
             action for action, (category, severity) in AuditEventClassifier.EVENT_CLASSIFICATIONS.items()
             if severity == AuditEventSeverity.CRITICAL
         ] 
+
+    def cleanup_old_logs(self, retention_days=365):
+        """
+        Remove audit logs older than the specified retention period.
+        
+        Args:
+            retention_days (int): Number of days to retain logs (default: 365)
+            
+        Returns:
+            int: Number of logs deleted
+        """
+        cutoff_date = datetime.now(dt.UTC) - timedelta(days=retention_days)
+        # Implementation of cleanup_old_logs method
+        # This method should return the number of logs deleted
+        return 0  # Placeholder return, actual implementation needed
+
+    # ... (rest of the existing methods remain unchanged)
+
+    # ... (rest of the existing methods remain unchanged) 

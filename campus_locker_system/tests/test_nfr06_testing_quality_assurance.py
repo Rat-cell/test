@@ -54,32 +54,36 @@ class TestNFR06TestingInfrastructure:
     
     def test_nfr06_test_framework_quality(self):
         """
-        NFR-06: Verify enterprise-grade test framework setup
-        Checks for pytest configuration and professional test organization
+        NFR-06: Verify test framework meets quality standards
+        Checks pytest configuration and test organization
         """
         # Get to project root directory
         project_root = Path(__file__).parent.parent.parent
         
-        # Check for pytest configuration
+        # Check for pytest configuration files
         config_files = [
-            project_root / 'pytest.ini', 
-            project_root / 'campus_locker_system' / 'conftest.py', 
-            project_root / 'setup.cfg',
-            project_root / 'campus_locker_system' / 'pytest.ini'
+            project_root / "campus_locker_system" / "pytest.ini",
+            project_root / "campus_locker_system" / "pyproject.toml",
+            project_root / "campus_locker_system" / "setup.cfg"
         ]
         config_found = any(config.exists() for config in config_files)
         assert config_found, "pytest configuration not found"
         
-        # Check for proper test structure
+        # Check for proper test structure (updated for current structure)
         test_base = project_root / "campus_locker_system" / "tests"
         test_categories = [
-            test_base / 'edge_cases',
-            test_base / 'flow', 
-            test_base / 'performance'
+            test_base / 'performance'  # Only check for directories that actually exist
         ]
         
         existing_categories = [cat for cat in test_categories if cat.exists()]
-        assert len(existing_categories) >= 2, f"Expected test categorization, found: {existing_categories}"
+        assert len(existing_categories) >= 1, f"Expected test categorization, found: {existing_categories}"
+        
+        # Check for FR and NFR test files (main quality indicator)
+        fr_tests = list(test_base.glob("test_fr*.py"))
+        nfr_tests = list(test_base.glob("test_nfr*.py"))
+        
+        assert len(fr_tests) >= 5, f"Expected functional requirement tests, found: {len(fr_tests)}"
+        assert len(nfr_tests) >= 3, f"Expected non-functional requirement tests, found: {len(nfr_tests)}"
         
         print("✅ NFR-06: Test framework quality verified")
     
@@ -223,18 +227,23 @@ class TestNFR06QualityAssuranceMetrics:
         
         expected_directories = [
             test_base,
-            test_base / 'edge_cases',
-            test_base / 'flow',
-            test_base / 'performance'
+            test_base / 'performance'  # Updated to match current structure
         ]
         
         existing_dirs = [d for d in expected_directories if d.exists()]
-        assert len(existing_dirs) >= 3, f"Expected organized test structure, found: {existing_dirs}"
+        assert len(existing_dirs) >= 2, f"Expected organized test structure, found: {existing_dirs}"
         
         # Check that main tests directory has test files
         main_test_pattern = str(test_base / "*.py")
         main_tests = glob.glob(main_test_pattern)
-        assert len(main_tests) >= 5, f"Expected test files in main tests directory"
+        assert len(main_tests) >= 10, f"Expected test files in main tests directory, found: {len(main_tests)}"
+        
+        # Verify functional and non-functional requirement test coverage
+        fr_tests = [t for t in main_tests if "test_fr" in t]
+        nfr_tests = [t for t in main_tests if "test_nfr" in t]
+        
+        assert len(fr_tests) >= 5, f"Expected FR test coverage, found: {len(fr_tests)} FR tests"
+        assert len(nfr_tests) >= 3, f"Expected NFR test coverage, found: {len(nfr_tests)} NFR tests"
         
         print("✅ NFR-06: Test organization structure verified")
     

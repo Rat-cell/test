@@ -1,7 +1,8 @@
 # Notification domain business rules and logic
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
+import datetime as dt
 from enum import Enum
 
 class NotificationType(Enum):
@@ -376,8 +377,7 @@ Campus Locker System""",
         reminder_hours = current_app.config.get('REMINDER_HOURS_AFTER_DEPOSIT', 24)  # FR-04: Configurable reminder timing
         
         # FR-04: Calculate days remaining for reminder context
-        from datetime import datetime
-        days_deposited = (datetime.utcnow() - deposited_time).days + 1  # +1 for current day
+        days_deposited = (datetime.now(dt.UTC) - deposited_time).days + 1  # +1 for current day
         days_remaining = max(0, parcel_max_pickup_days - days_deposited)
         
         # FR-04: Create dynamic template for configurable-hour reminder
@@ -462,7 +462,7 @@ Campus Locker System""",
         from flask import current_app
         
         # Generate reference number matching user display format
-        report_date = datetime.utcnow().strftime('%Y%m%d')
+        report_date = datetime.now(dt.UTC).strftime('%Y%m%d')
         reference_number = f"MISSING-{parcel_id}-{report_date}"
         
         # FR-06: Create dynamic template for admin notification with comprehensive incident details
@@ -510,9 +510,30 @@ Campus Locker System - Security Alert""",
             'parcel_id': parcel_id,
             'locker_id': locker_id,
             'recipient_email': recipient_email,
-            'report_time': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S') + ' UTC',
+            'report_time': datetime.now(dt.UTC).strftime('%Y-%m-%d %H:%M:%S') + ' UTC',
             'reference_number': reference_number,
             'admin_panel_url': admin_panel_url
         }
         
-        return admin_notification_template.format_with_data(data) 
+        return admin_notification_template.format_with_data(data)
+
+    @staticmethod
+    def generate_report_filename():
+        report_date = datetime.now(dt.UTC).strftime('%Y%m%d')
+        return f"admin_locker_status_report_{report_date}.txt"
+
+    @staticmethod
+    def generate_report_data(sections, summary):
+        report_header = f"""
+{'='*60}
+CAMPUS LOCKER SYSTEM STATUS REPORT
+{'='*60}
+Report Generated: {datetime.now(dt.UTC).strftime('%Y-%m-%d %H:%M:%S')} UTC
+
+"""
+        return {
+            'report_header': report_header,
+            'sections': sections,
+            'summary': summary,
+            'report_time': datetime.now(dt.UTC).strftime('%Y-%m-%d %H:%M:%S') + ' UTC',
+        } 

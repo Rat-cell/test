@@ -344,7 +344,7 @@ def test_pickup_fail_expired_pin_audit(init_database, app):
         # 2. Manually expire the parcel's OTP
         parcel_to_expire = ParcelRepository.get_by_id(parcel.id)
         assert parcel_to_expire is not None
-        parcel_to_expire.otp_expiry = datetime.utcnow() - timedelta(days=1) # Set expiry to yesterday
+        parcel_to_expire.otp_expiry = datetime.now(dt.UTC) - timedelta(days=1) # Set expiry to yesterday
         ParcelRepository.save(parcel_to_expire)
 
         # Create a known PIN for testing
@@ -854,7 +854,7 @@ def test_report_missing_by_recipient_fail_wrong_state(init_database, app):
         result2 = assign_locker_and_create_parcel('missing_wrong_state2@example.com', 'small')
         parcel_return_to_sender, _ = result2
         assert parcel_return_to_sender is not None
-        parcel_return_to_sender.deposited_at = datetime.utcnow() - timedelta(days=8) # Simulate overdue
+        parcel_return_to_sender.deposited_at = datetime.now(dt.UTC) - timedelta(days=8) # Simulate overdue
         db.session.commit()
         process_overdue_parcels() # Mark as expired
         assert db.session.get(Parcel, parcel_return_to_sender.id).status == 'return_to_sender'
@@ -945,7 +945,7 @@ def test_mark_missing_by_admin_success_other_parcel_states(init_database, app, t
         parcel_return_to_sender, _ = result2
         assert parcel_return_to_sender is not None
         original_locker_id_return_to_sender = parcel_return_to_sender.locker_id
-        parcel_return_to_sender.deposited_at = datetime.utcnow() - timedelta(days=8) # Simulate overdue
+        parcel_return_to_sender.deposited_at = datetime.now(dt.UTC) - timedelta(days=8) # Simulate overdue
         db.session.commit()
         process_overdue_parcels() # Mark as expired
         assert db.session.get(Parcel, parcel_return_to_sender.id).status == 'return_to_sender'
@@ -1073,14 +1073,14 @@ def test_request_pin_regeneration_success(init_database, app):
             db.session.commit()
 
         original_email = "recipient_regen_success@example.com"
-        original_deposited_at = datetime.utcnow() - timedelta(days=1) # Deposited 1 day ago
+        original_deposited_at = datetime.now(dt.UTC) - timedelta(days=1) # Deposited 1 day ago
 
         parcel = Parcel(
             locker_id=locker.id,
             recipient_email=original_email,
             status='deposited',
             pin_hash=PinManager.generate_pin_and_hash()[1], # Store a valid hash
-            otp_expiry=datetime.utcnow() + timedelta(days=current_app.config.get('PARCEL_DEFAULT_PIN_VALIDITY_DAYS', 7) -1), # About to expire or recently expired but within reissue window
+            otp_expiry=datetime.now(dt.UTC) + timedelta(days=current_app.config.get('PARCEL_DEFAULT_PIN_VALIDITY_DAYS', 7) -1), # About to expire or recently expired but within reissue window
             deposited_at=original_deposited_at
         )
         db.session.add(parcel)

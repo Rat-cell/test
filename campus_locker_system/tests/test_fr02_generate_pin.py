@@ -74,27 +74,42 @@ class TestFR02GeneratePin:
         with app.app_context():
             # Create test locker
             locker = Locker(id=901, location="Test PIN Locker", size="medium", status="occupied")
-            LockerRepository.save(locker) # Use repository
             
-            # Create test parcel
+            # Use merge to handle explicit ID
+            db.session.merge(locker)
+            db.session.commit()
+            
+            # Create test parcel - let database assign ID automatically
             parcel = Parcel(
                 locker_id=901,
                 recipient_email="test-fr02@example.com",
                 status="deposited",
                 pin_hash=None  # Will be set by PIN generation
             )
-            ParcelRepository.save(parcel) # Use repository
+            
+            # Add and commit to get auto-assigned ID
+            db.session.add(parcel)
+            db.session.commit()
+            
+            # Refresh to ensure we have the assigned ID
+            db.session.refresh(parcel)
             
             yield locker, parcel
             
-            # Cleanup
-            # Assuming repositories don't have direct delete methods, or it's complex for cascading.
-            # For test cleanup, direct db session might be acceptable if repo methods are too restrictive.
-            # However, ideally, services or specific cleanup repo methods would be used.
-            # For now, keeping db.session.delete for cleanup simplicity until repo capabilities are expanded.
-            db.session.delete(parcel)
-            db.session.delete(locker)
-            db.session.commit()
+            # Cleanup - only delete if objects were actually persisted
+            try:
+                if parcel.id is not None:
+                    db.session.delete(parcel)
+                if locker.id is not None:
+                    # Find locker by ID to avoid session issues
+                    locker_to_delete = db.session.get(Locker, 901)
+                    if locker_to_delete:
+                        db.session.delete(locker_to_delete)
+                db.session.commit()
+            except Exception as e:
+                # If cleanup fails, just rollback and continue
+                db.session.rollback()
+                print(f"Cleanup warning: {e}")
 
     # ===== 1. PIN GENERATION TESTS =====
 
