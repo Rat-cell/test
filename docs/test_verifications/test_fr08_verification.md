@@ -21,7 +21,7 @@ The FR-08 requirement is **fully implemented** with **comprehensive out of servi
 
 ## 🧪 **COMPREHENSIVE TEST SUITE**
 
-### **Test File**: `campus_locker_system/tests/test_fr08_out_of_service.py`
+### **Test File**: `test/campus_locker_system/tests/test_fr08_out_of_service.py`
 
 The comprehensive test suite covers 7 categories of out of service functionality:
 
@@ -199,16 +199,16 @@ def process_pickup(provided_pin):
 ### **Maintenance Test Execution**
 ```bash
 # Run complete FR-08 test suite
-pytest campus_locker_system/tests/test_fr08_out_of_service.py -v
+pytest test/campus_locker_system/tests/test_fr08_out_of_service.py -v
 
 # Run specific admin management tests
-pytest campus_locker_system/tests/test_fr08_out_of_service.py::TestFR08OutOfService::test_fr08_admin_set_locker_out_of_service -v
+pytest test/campus_locker_system/tests/test_fr08_out_of_service.py::TestFR08OutOfService::test_fr08_admin_set_locker_out_of_service -v
 
 # Run assignment filtering tests
-pytest campus_locker_system/tests/test_fr08_out_of_service.py::TestFR08OutOfService::test_fr08_assignment_skips_out_of_service_lockers -v
+pytest test/campus_locker_system/tests/test_fr08_out_of_service.py::TestFR08OutOfService::test_fr08_assignment_skips_out_of_service_lockers -v
 
 # Run comprehensive coverage summary
-pytest campus_locker_system/tests/test_fr08_out_of_service.py::TestFR08OutOfService::test_fr08_comprehensive_coverage_summary -v
+pytest test/campus_locker_system/tests/test_fr08_out_of_service.py::TestFR08OutOfService::test_fr08_comprehensive_coverage_summary -v
 ```
 
 ### **Production Maintenance Validation**

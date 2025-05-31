@@ -20,7 +20,7 @@ The FR-01 requirement is **fully implemented** with **exceptional performance**.
 
 ## 🧪 **COMPREHENSIVE TEST SUITE**
 
-### **Test File**: `campus_locker_system/tests/test_fr01_assign_locker.py`
+### **Test File**: `test/test/campus_locker_system/tests/test_fr01_assign_locker.py`
 
 The comprehensive test suite covers 8 categories of assignment functionality:
 
@@ -170,16 +170,16 @@ COMMIT;
 ### **Performance Test Execution**
 ```bash
 # Run complete FR-01 test suite
-pytest campus_locker_system/tests/test_fr01_assign_locker.py -v
+pytest test/test/campus_locker_system/tests/test_fr01_assign_locker.py -v
 
 # Run specific performance tests
-pytest campus_locker_system/tests/test_fr01_assign_locker.py::TestFR01AssignLocker::test_fr01_performance_under_200ms -v
+pytest test/test/campus_locker_system/tests/test_fr01_assign_locker.py::TestFR01AssignLocker::test_fr01_performance_under_200ms -v
 
 # Run concurrent safety tests
-pytest campus_locker_system/tests/test_fr01_assign_locker.py::TestFR01AssignLocker::test_fr01_concurrent_assignment_safety -v
+pytest test/test/campus_locker_system/tests/test_fr01_assign_locker.py::TestFR01AssignLocker::test_fr01_concurrent_assignment_safety -v
 
 # Run benchmark test
-pytest campus_locker_system/tests/test_fr01_assign_locker.py::test_fr01_performance_benchmark -v
+pytest test/test/campus_locker_system/tests/test_fr01_assign_locker.py::test_fr01_performance_benchmark -v
 ```
 
 ### **Production Validation Commands**

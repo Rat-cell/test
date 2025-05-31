@@ -46,8 +46,8 @@
 3. **JavaScript Cleanup**: Removed problematic client-side date manipulation
 
 ### Files Modified
-- `campus_locker_system/app/presentation/templates/missing_report_confirmation.html`
-- `campus_locker_system/app/presentation/routes.py`
+- `test/campus_locker_system/app/presentation/templates/missing_report_confirmation.html`
+- `test/campus_locker_system/app/presentation/routes.py`
 
 ## 📋 Verification Checklist
 

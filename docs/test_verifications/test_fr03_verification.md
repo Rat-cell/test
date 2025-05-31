@@ -21,7 +21,7 @@ The FR-03 requirement is **fully implemented** with **professional email communi
 
 ## 🧪 **COMPREHENSIVE TEST SUITE**
 
-### **Test File**: `campus_locker_system/tests/test_fr03_email_notification_system.py`
+### **Test File**: `test/campus_locker_system/tests/test_fr03_email_notification_system.py`
 
 The comprehensive test suite covers 8 categories of email communication:
 
@@ -214,16 +214,16 @@ def send_email_notification(type, data):
 ### **Email System Test Execution**
 ```bash
 # Run complete FR-03 test suite
-pytest campus_locker_system/tests/test_fr03_email_notification_system.py -v
+pytest test/campus_locker_system/tests/test_fr03_email_notification_system.py -v
 
 # Run specific email template tests
-pytest campus_locker_system/tests/test_fr03_email_notification_system.py::TestFR03EmailNotificationSystem::test_fr03_parcel_deposit_email_template -v
+pytest test/campus_locker_system/tests/test_fr03_email_notification_system.py::TestFR03EmailNotificationSystem::test_fr03_parcel_deposit_email_template -v
 
 # Run email delivery tests
-pytest campus_locker_system/tests/test_fr03_email_notification_system.py::TestFR03EmailNotificationSystem::test_fr03_email_delivery_success -v
+pytest test/campus_locker_system/tests/test_fr03_email_notification_system.py::TestFR03EmailNotificationSystem::test_fr03_email_delivery_success -v
 
 # Run security validation tests
-pytest campus_locker_system/tests/test_fr03_email_notification_system.py::TestFR03EmailNotificationSystem::test_fr03_email_injection_prevention -v
+pytest test/campus_locker_system/tests/test_fr03_email_notification_system.py::TestFR03EmailNotificationSystem::test_fr03_email_injection_prevention -v
 ```
 
 ### **Production Email Testing**

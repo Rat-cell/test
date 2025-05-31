@@ -169,9 +169,9 @@ FR-09 functionality is already thoroughly tested across multiple test files:
 ### **Test Execution Example**
 ```bash
 # Run FR-09 related tests
-pytest campus_locker_system/tests/test_fr09_invalid_pin_errors.py -v
-pytest campus_locker_system/tests/flow/test_pin_flow.py::TestPinFlowEdgeCases -v
-pytest campus_locker_system/tests/test_fr07_audit_trail.py -k "invalid_pin" -v
+pytest test/campus_locker_system/tests/test_fr09_invalid_pin_errors.py -v
+pytest test/campus_locker_system/tests/flow/test_pin_flow.py::TestPinFlowEdgeCases -v
+pytest test/campus_locker_system/tests/test_fr07_audit_trail.py -k "invalid_pin" -v
 ```
 
 ---

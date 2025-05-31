@@ -70,9 +70,8 @@ make help           # Show all commands
 
 ## 📚 Documentation Quick Access
 
-- **📖 [LOCKER_OPERATIONS_GUIDE.md](LOCKER_OPERATIONS_GUIDE.md)** - Complete operational procedures
-- **📋 [README.md](README.md)** - Comprehensive system documentation
-- **🗄️ [DATABASE_DOCUMENTATION.md](DATABASE_DOCUMENTATION.md)** - Database architecture details
+- **📋 [Main System Overview](../../docs/introduction/ABOUT_PROJECT.md)** - Comprehensive system documentation, architecture, and project structure.
+- **🗄️ [Database Documentation](../specifications/DATABASE_DOCUMENTATION.md)** - Database architecture details
 
 ---
 
@@ -128,8 +127,7 @@ curl http://localhost/health
 
 1. **🔍 Check Logs**: `make logs` - View container logs
 2. **🧪 Run Tests**: `make test` - Verify deployment health  
-3. **📖 Operations Guide**: [LOCKER_OPERATIONS_GUIDE.md](LOCKER_OPERATIONS_GUIDE.md) - Complete troubleshooting
-4. **📋 Full Documentation**: [README.md](README.md) - Comprehensive guide
+3. **📋 [Main System Overview](../../docs/introduction/ABOUT_PROJECT.md)** - Comprehensive guide, architecture, and project structure.
 
 ---
 
@@ -137,7 +135,7 @@ curl http://localhost/health
 
 After quick start deployment:
 
-1. **📖 Read Operations Guide** - Learn safe operational procedures
+1. **📖 Review [Main System Overview](../../docs/introduction/ABOUT_PROJECT.md)** - Understand system capabilities and structure.
 2. **🔧 Configure Environment** - Customize settings via environment variables
 3. **🧪 Run Full Tests** - Validate all 91 tests pass
 4. **📊 Check Admin Dashboard** - Explore management interface
