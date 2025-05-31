@@ -1,78 +1,8 @@
 # 🚀 Campus Locker System - Development Guide
 
-Welcome to the **Campus Locker System v2.1.1**! This comprehensive guide covers everything you need to know for development, deployment, and collaboration.
+**For initial setup and to get the system running quickly, please see the [🚀 Quick Start Guide](QUICK_START.md).**
 
-## 🎯 Quick Start
-
-### What You Get When You Clone
-- **100+ comprehensive tests** (100% passing)
-- **Hexagonal architecture** with clean separation of concerns
-- **Production-ready Docker deployment**
-- **Email-based PIN generation workflow**
-- **Admin dashboard** for system management
-- **Comprehensive audit logging**
-
-### Prerequisites
-- **Docker** (version 20.10+)
-- **Docker Compose** (version 2.0+)
-- **Make** (optional, for convenience commands)
-- **Git** for version control
-
----
-
-## 🏗️ Project Structure
-
-```
-campus_locker_system/
-├── app/                    # Main application code
-│   ├── business/          # Business logic & domain models
-│   ├── services/          # Application services
-│   ├── adapters/          # External system interfaces
-│   ├── persistence/       # Database models
-│   └── presentation/      # Web routes & templates
-├── tests/                 # Comprehensive test suite
-├── databases/             # SQLite database files
-├── logs/                  # Application logs
-├── docker-compose.yml     # Production deployment
-├── Dockerfile            # Application container
-└── nginx.conf            # Reverse proxy configuration
-```
-
----
-
-## 🚀 Getting Started
-
-### 1. Clone and Setup
-```bash
-git clone <repository-url>
-cd campus_locker_system
-```
-
-### 2. Start the System
-```bash
-# Using Make (recommended)
-make up
-
-# Or using Docker Compose directly
-docker-compose up -d
-```
-
-### 3. Verify Everything Works
-```bash
-# Check all services are healthy
-docker-compose ps
-
-# Run the test suite
-make test
-
-# View logs
-make logs
-```
-
-### 4. Access the Application
-- **Main App**: http://localhost
-- **MailHog (Email Testing)**: http://localhost:8025
-- **Health Check**: http://localhost/health
+This comprehensive guide covers everything else you need to know for development, deployment, and collaboration for the **Campus Locker System v2.1.1**.
 
 ---
 
@@ -343,9 +273,8 @@ make up
 ## 📚 Additional Resources
 
 ### Architecture Documentation
-- `DATABASE_DOCUMENTATION.md` - Complete database architecture & operations guide
-- `README_HEXAGONAL.md` - Hexagonal architecture details
-- `ABOUT_PROJECT_STRUCTURE.md` - Detailed project structure
+- `[Database Documentation](../specifications/DATABASE_DOCUMENTATION.md)` - Complete database architecture & operations guide
+- `[Project Structure Guide](../introduction/ABOUT_PROJECT_STRUCTURE.md)` - Detailed project structure
 
 ### API Documentation
 - Health endpoint: `GET /health`
@@ -361,4 +290,4 @@ make up
 
 ---
 
-*This guide covers the essential aspects of developing and deploying the Campus Locker System. For specific technical details, refer to the individual documentation files in the project.* 
+*This guide covers the essential aspects of developing and deploying the Campus Locker System. For specific technical details, refer to the individual documentation files in the project.*

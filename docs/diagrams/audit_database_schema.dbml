@@ -1,0 +1,162 @@
+// Campus Locker System - Audit Database Schema
+// Use this at: https://dbdiagram.io/
+// Technology: Separate SQLite database for tamper-proof audit trail
+
+Project campus_locker_audit_system {
+  database_type: 'SQLite'
+  Note: 'Campus Locker System - Separate audit database for compliance and security monitoring'
+}
+
+// Immutable audit trail
+Table audit_log {
+  id integer [primary key, increment, note: 'Auto-incrementing audit record ID']
+  timestamp datetime [not null, note: 'Exact time of action (timezone-aware UTC, auto-generated)']
+  action varchar(255) [not null, note: 'Action type (e.g., PARCEL_DEPOSITED, PIN_VALIDATED, ADMIN_LOGIN)']
+  details text [null, note: 'JSON-formatted details of the action and context (optional)']
+  admin_id integer [null, note: 'Admin user ID if action performed by admin (nullable for user actions)']
+  admin_username varchar(80) [null, note: 'Admin username for quick reference (denormalized for audit integrity)']
+  
+  // Additional security and traceability fields
+  user_ip varchar(45) [null, note: 'IP address of user/admin performing action (IPv4/IPv6)']
+  user_agent text [null, note: 'Browser/client information for web actions']
+  session_id varchar(255) [null, note: 'Session identifier for tracking user sessions']
+  parcel_id integer [null, note: 'Related parcel ID for parcel-specific actions']
+  locker_id integer [null, note: 'Related locker ID for locker-specific actions']
+  severity varchar(20) [not null, default: 'INFO', note: 'INFO/WARNING/ERROR/CRITICAL for security monitoring']
+  
+  Note: 'Immutable audit trail for compliance, security monitoring, and forensic analysis'
+  
+  indexes {
+    timestamp [name: 'idx_audit_timestamp', note: 'Time-based queries for reporting']
+    action [name: 'idx_audit_action', note: 'Filter by action type']
+    admin_id [name: 'idx_audit_admin', note: 'Track admin activities']
+    parcel_id [name: 'idx_audit_parcel', note: 'Parcel-specific audit trail']
+    locker_id [name: 'idx_audit_locker', note: 'Locker-specific audit trail']
+    severity [name: 'idx_audit_severity', note: 'Security incident filtering']
+    (action, timestamp) [name: 'idx_audit_action_time', note: 'Composite for action-based reports']
+    (admin_id, timestamp) [name: 'idx_audit_admin_time', note: 'Admin activity timeline']
+  }
+}
+
+// Audit action types and their typical details
+Note audit_action_types {
+  '''
+  AUDIT ACTION TYPES & DETAILS:
+  
+  1. PARCEL OPERATIONS:
+     - PARCEL_DEPOSITED: {"email": "user@example.com", "locker_id": 123, "size": "medium"}
+     - PARCEL_PICKED_UP: {"email": "user@example.com", "locker_id": 123, "pin_attempts": 1}
+     - PIN_GENERATED: {"email": "user@example.com", "generation_count": 2, "expiry": "2024-01-15T10:00:00Z"}
+     - PIN_VALIDATED: {"email": "user@example.com", "success": true, "attempts": 1}
+     - PIN_VALIDATION_FAILED: {"email": "user@example.com", "reason": "expired", "attempts": 3}
+     - PARCEL_RETRACTED: {"email": "user@example.com", "parcel_id": 456, "reason": "sender_request"}
+     - PARCEL_MISSING_REPORTED: {"email": "user@example.com", "parcel_id": 456, "admin_id": 1}
+  
+  2. ADMIN OPERATIONS:
+     - ADMIN_LOGIN: {"username": "admin1", "success": true}
+     - ADMIN_LOGOUT: {"username": "admin1", "session_duration": "01:23:45"}
+     - ADMIN_VIEW_AUDIT: {"username": "admin1", "date_range": "2024-01-01 to 2024-01-31"}
+     - ADMIN_LOCKER_STATUS_CHANGED: {"locker_id": 123, "old_status": "free", "new_status": "out_of_service", "admin_id": 1}
+     - ADMIN_MARKED_PARCEL_MISSING: {"parcel_id": 456, "admin_id": 1, "original_parcel_status": "deposited"}
+     - MISSING_PARCEL_DETACHED_FROM_LOCKER: {"parcel_id": 456, "locker_id": 123, "reference_number": "MISSING-456-20240115"}
+  
+  3. SYSTEM OPERATIONS:
+     - SYSTEM_STARTUP: {"version": "2.2.0", "database_version": "1.5"}
+     - SYSTEM_SHUTDOWN: {"uptime": "7 days, 14:32:18", "active_parcels": 45}
+     - DATABASE_BACKUP: {"backup_file": "backup_20240115_143022.db", "size_mb": 12.5}
+     - MAINTENANCE_CLEANUP: {"expired_pins": 23, "old_sensor_data": 1500}
+     - OVERDUE_PARCEL_PROCESSED: {"parcel_id": 789, "days_overdue": 8, "new_status": "return_to_sender"}
+  
+  4. SECURITY EVENTS:
+     - RATE_LIMIT_EXCEEDED: {"email": "user@example.com", "action": "pin_generation", "limit": 3}
+     - SUSPICIOUS_ACTIVITY: {"reason": "multiple_failed_pins", "count": 5}
+     - TOKEN_EXPIRED: {"email": "user@example.com", "token_type": "pin_generation"}
+     - INVALID_PIN_ATTEMPT: {"email": "user@example.com", "parcel_id": 456, "attempt_count": 2}
+  
+  5. NOTIFICATION EVENTS:
+     - REMINDER_EMAIL_SENT: {"email": "user@example.com", "parcel_id": 456, "hours_since_deposit": 24}
+     - PIN_GENERATION_EMAIL_SENT: {"email": "user@example.com", "token_id": "uuid-string", "expiry": "2024-01-15T11:00:00Z"}
+     - PICKUP_CONFIRMATION_SENT: {"email": "user@example.com", "parcel_id": 456, "pickup_time": "2024-01-15T10:30:00Z"}
+  '''
+}
+
+// Security and compliance features
+Note security_compliance {
+  '''
+  SECURITY & COMPLIANCE FEATURES:
+  
+  1. IMMUTABILITY:
+     - No UPDATE or DELETE operations allowed on audit records
+     - Write-only database with append-only operations
+     - Database file permissions set to read-only for application user
+     - Separate from main operational database for tamper resistance
+     - Uses SQLAlchemy __bind_key__ = 'audit' for database separation
+  
+  2. DATA MINIMIZATION:
+     - Only essential fields for audit purposes
+     - JSON details allow flexible audit data without schema changes
+     - Email domains tracked instead of full emails where possible
+     - Reference numbers for missing parcels instead of sensitive data
+  
+  3. RETENTION POLICIES:
+     - Minimum 7 years retention for compliance
+     - Automated archival of records older than 2 years
+     - Compressed archives with integrity checksums
+     - Geographic backup replication for disaster recovery
+  
+  4. MONITORING & ALERTING:
+     - Real-time logging of all system actions
+     - Critical security events immediately recorded
+     - Admin activity tracking for compliance audits
+     - Operational metrics for system health monitoring
+  
+  5. PERFORMANCE CHARACTERISTICS:
+     - Optimized for write-heavy workload (99% writes, 1% reads)
+     - Efficient indexing for time-based and action-based queries
+     - Minimal impact on main application performance
+     - Separate database connection pool for audit operations
+  
+  6. INTEGRATION:
+     - Seamless integration with main application via AuditService
+     - Automatic audit trail for all business operations
+     - Cross-reference capability with main database via IDs
+     - Support for both admin and system-generated events
+  '''
+}
+
+// Typical audit queries and reporting
+Note audit_reporting {
+  '''
+  COMMON AUDIT QUERIES & REPORTS:
+  
+  1. SECURITY REPORTS:
+     - Failed PIN validation attempts in last 24 hours
+     - Rate limiting violations by email
+     - Suspicious activity patterns
+     - Admin login/logout audit trail
+  
+  2. OPERATIONAL REPORTS:
+     - Daily parcel volume and trends
+     - Locker utilization and status changes
+     - Average pickup times and user behavior
+     - System performance and error rates
+  
+  3. COMPLIANCE REPORTS:
+     - Admin access logs for external auditors
+     - Data retention compliance status
+     - Privacy impact assessments
+     - Incident response timelines and actions
+  
+  4. BUSINESS INTELLIGENCE:
+     - Peak usage patterns by time/location
+     - User behavior analytics and trends
+     - System capacity planning data
+     - ROI metrics for locker expansion decisions
+  
+  5. FORENSIC ANALYSIS:
+     - Complete timeline for specific parcels
+     - Admin action correlation with system events
+     - Missing parcel investigation trails
+     - Security incident root cause analysis
+  '''
+} 
