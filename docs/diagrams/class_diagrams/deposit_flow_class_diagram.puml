@@ -1,0 +1,339 @@
+@startuml Deposit-Flow-Class-Diagram
+title Campus Locker System - Deposit Flow Class Diagram
+left to right direction
+
+' Clean styling for readability
+skinparam backgroundColor White
+skinparam class {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    FontColor Black
+}
+skinparam package {
+    BorderColor Navy
+    FontColor DarkBlue
+}
+
+package "Web Layer" {
+    class DepositController {
+        +depositParcel(request: ParcelDepositRequest): ResponseEntity<ParcelDepositResponse>
+        +validateDepositForm(request: ParcelDepositRequest): ValidationResult
+        +handleDepositSuccess(response: ParcelDepositResponse): ModelAndView
+        +handleDepositError(error: DepositException): ModelAndView
+        -sessionService: SessionService
+        -depositService: DepositService
+        --
+        +@PostMapping("/deposit")
+        +@Valid @RequestBody
+    }
+    
+    class DepositFormValidator {
+        +validateRecipientInfo(request: ParcelDepositRequest): List<ValidationError>
+        +validateParcelDimensions(dimensions: ParcelDimensions): ValidationResult
+        +validateContactInformation(email: String, phone: String): ValidationResult
+        +validateSpecialInstructions(instructions: String): ValidationResult
+        --
+        -emailPattern: Pattern
+        -phonePattern: Pattern
+        -maxInstructionLength: int
+    }
+}
+
+package "Service Layer" {
+    class DepositService {
+        +processParcelDeposit(request: ParcelDepositRequest): ParcelDepositResponse
+        +validateDepositRequest(request: ParcelDepositRequest): ValidationResult
+        +findAvailableLocker(dimensions: ParcelDimensions): Optional<Locker>
+        +createParcelRecord(request: ParcelDepositRequest, locker: Locker): Parcel
+        +sendDepositConfirmation(parcel: Parcel): boolean
+        --
+        -parcelService: ParcelService
+        -lockerService: LockerService
+        -emailService: EmailService
+        -auditService: AuditService
+        -validationService: ValidationService
+    }
+    
+    class ParcelService {
+        +createParcel(depositRequest: ParcelDepositRequest): Parcel
+        +generateTrackingId(): String
+        +generateSecurePin(): String
+        +calculateExpiryDate(depositDate: LocalDateTime): LocalDateTime
+        +saveParcel(parcel: Parcel): Parcel
+        +updateParcelStatus(parcelId: Long, status: ParcelStatus): void
+        --
+        -parcelRepository: ParcelRepository
+        -trackingIdGenerator: TrackingIdGenerator
+        -pinGenerator: SecurePinGenerator
+    }
+    
+    class LockerService {
+        +findAvailableLockerForSize(dimensions: ParcelDimensions): Optional<Locker>
+        +reserveLocker(lockerId: Long): boolean
+        +checkLockerCapacity(locker: Locker, dimensions: ParcelDimensions): boolean
+        +updateLockerStatus(lockerId: Long, status: LockerStatus): void
+        +getLockerLocation(lockerId: Long): String
+        --
+        -lockerRepository: LockerRepository
+        -lockerHardwareService: LockerHardwareService
+    }
+    
+    class EmailService {
+        +sendDepositConfirmation(parcel: Parcel): boolean
+        +buildDepositEmailContent(parcel: Parcel): EmailContent
+        +validateEmailAddress(email: String): boolean
+        +sendEmail(to: String, subject: String, content: EmailContent): boolean
+        --
+        -emailTemplateEngine: TemplateEngine
+        -smtpConfiguration: SmtpConfig
+        -emailValidator: EmailValidator
+    }
+    
+    class ValidationService {
+        +validateParcelDimensions(dimensions: ParcelDimensions): ValidationResult
+        +validateRecipientData(name: String, email: String, phone: String): ValidationResult
+        +validateFormCompleteness(request: ParcelDepositRequest): ValidationResult
+        +checkBusinessRules(request: ParcelDepositRequest): ValidationResult
+        --
+        -dimensionLimits: DimensionLimits
+        -businessRuleEngine: BusinessRuleEngine
+    }
+    
+    class AuditService {
+        +logDepositAttempt(request: ParcelDepositRequest, userSession: UserSession): void
+        +logDepositSuccess(parcel: Parcel, processingTime: Duration): void
+        +logDepositFailure(request: ParcelDepositRequest, error: Exception): void
+        +logLockerReservation(lockerId: Long, parcelId: Long): void
+        +logEmailNotification(parcel: Parcel, emailStatus: EmailStatus): void
+        --
+        -auditRepository: AuditRepository
+        -auditEventBuilder: AuditEventBuilder
+    }
+}
+
+package "Domain Entities" {
+    class Parcel {
+        +parcelId: Long
+        +trackingId: String
+        +recipientName: String
+        +recipientEmail: String
+        +recipientPhone: String
+        +dimensions: ParcelDimensions
+        +specialInstructions: String
+        +securePin: String
+        +status: ParcelStatus
+        +depositDate: LocalDateTime
+        +expiryDate: LocalDateTime
+        +lockerId: Long
+        +depositorSessionId: String
+        --
+        +isValidForDeposit(): boolean
+        +calculateVolume(): double
+        +isExpired(): boolean
+        +getFormattedTrackingId(): String
+        +toString(): String
+    }
+    
+    class Locker {
+        +lockerId: Long
+        +location: String
+        +building: String
+        +row: String
+        +unit: String
+        +size: LockerSize
+        +maxDimensions: ParcelDimensions
+        +status: LockerStatus
+        +isOccupied: boolean
+        +lastUsed: LocalDateTime
+        --
+        +isAvailable(): boolean
+        +canAccommodate(dimensions: ParcelDimensions): boolean
+        +getFullLocation(): String
+        +reserve(): void
+        +release(): void
+    }
+    
+    class User {
+        +userId: Long
+        +sessionId: String
+        +ipAddress: String
+        +userAgent: String
+        +accessTimestamp: LocalDateTime
+        --
+        +isValidSession(): boolean
+        +getSessionInfo(): SessionInfo
+    }
+}
+
+package "Value Objects" {
+    class ParcelDimensions {
+        +width: Double
+        +height: Double
+        +depth: Double
+        +unit: DimensionUnit
+        --
+        +calculateVolume(): Double
+        +fitsIn(containerDimensions: ParcelDimensions): Boolean
+        +exceedsLimits(maxDimensions: ParcelDimensions): Boolean
+        +toString(): String
+        +equals(other: ParcelDimensions): Boolean
+    }
+    
+    enum ParcelStatus {
+        PENDING_DEPOSIT
+        READY_FOR_PICKUP
+        PICKED_UP
+        EXPIRED
+        CANCELLED
+        --
+        +isActiveStatus(): Boolean
+        +canTransitionTo(newStatus: ParcelStatus): Boolean
+    }
+    
+    enum LockerStatus {
+        AVAILABLE
+        RESERVED
+        OCCUPIED
+        MAINTENANCE
+        OUT_OF_SERVICE
+        --
+        +isUsable(): Boolean
+        +canAcceptDeposit(): Boolean
+    }
+    
+    enum LockerSize {
+        SMALL
+        MEDIUM
+        LARGE
+        EXTRA_LARGE
+        --
+        +getMaxDimensions(): ParcelDimensions
+        +getSizeDescription(): String
+    }
+    
+    class ValidationResult {
+        +isValid: Boolean
+        +errors: List<ValidationError>
+        +warnings: List<ValidationWarning>
+        --
+        +hasErrors(): Boolean
+        +hasWarnings(): Boolean
+        +getErrorMessages(): List<String>
+        +addError(error: ValidationError): void
+        +addWarning(warning: ValidationWarning): void
+    }
+}
+
+package "Data Transfer Objects" {
+    class ParcelDepositRequest {
+        +recipientName: String
+        +recipientEmail: String
+        +recipientPhone: String
+        +dimensions: ParcelDimensions
+        +specialInstructions: String
+        +preferredLockerSize: LockerSize
+        +depositorInfo: DepositorInfo
+        +sessionData: SessionData
+        --
+        +validate(): ValidationResult
+        +sanitizeInputs(): ParcelDepositRequest
+        +toParcelEntity(): Parcel
+    }
+    
+    class ParcelDepositResponse {
+        +success: Boolean
+        +trackingId: String
+        +securePin: String
+        +lockerLocation: String
+        +lockerNumber: String
+        +expiryDate: LocalDateTime
+        +confirmationMessage: String
+        +errorMessage: String
+        +processingTimeMs: Long
+        --
+        +isSuccessful(): Boolean
+        +getFormattedResponse(): String
+        +toJsonResponse(): JsonNode
+    }
+    
+    class DepositorInfo {
+        +sessionId: String
+        +ipAddress: String
+        +userAgent: String
+        +timestamp: LocalDateTime
+        --
+        +isValidSession(): Boolean
+        +getSecurityContext(): SecurityContext
+    }
+}
+
+package "Hardware Integration" {
+    class LockerHardwareService {
+        +activateLocker(lockerId: Long): boolean
+        +updateLockerDisplay(lockerId: Long, message: String): boolean
+        +enableDepositMode(lockerId: Long): boolean
+        +checkLockerConnectivity(lockerId: Long): boolean
+        +getLockerSensorData(lockerId: Long): SensorData
+        --
+        -hardwareController: HardwareController
+        -connectionPool: HardwareConnectionPool
+    }
+}
+
+' Relationships - Dependency arrows
+DepositController --> DepositService : "uses"
+DepositController --> DepositFormValidator : "uses"
+DepositController ..> ParcelDepositRequest : "accepts"
+DepositController ..> ParcelDepositResponse : "returns"
+
+DepositService --> ParcelService : "uses"
+DepositService --> LockerService : "uses"
+DepositService --> EmailService : "uses"
+DepositService --> ValidationService : "uses"
+DepositService --> AuditService : "uses"
+
+ParcelService ..> Parcel : "creates"
+LockerService ..> Locker : "manages"
+LockerService --> LockerHardwareService : "uses"
+
+' Entity relationships
+Parcel *-- ParcelDimensions : "contains"
+Parcel *-- ParcelStatus : "has"
+Locker *-- LockerSize : "has"
+Locker *-- LockerStatus : "has"
+Locker *-- ParcelDimensions : "max capacity"
+
+' DTO relationships
+ParcelDepositRequest *-- ParcelDimensions : "specifies"
+ParcelDepositRequest *-- DepositorInfo : "includes"
+ParcelDepositResponse ..> Parcel : "represents result"
+
+' Validation relationships
+ValidationService ..> ValidationResult : "returns"
+DepositFormValidator ..> ValidationResult : "returns"
+
+' Flow-specific associations
+Parcel ||--|| Locker : "stored in"
+ParcelDepositRequest --> Parcel : "creates"
+User ||--o{ Parcel : "deposits"
+
+note top of DepositService
+    Core orchestration service for
+    the deposit flow, coordinating
+    all validation, locker assignment,
+    and notification processes
+end note
+
+note top of ParcelService
+    Handles parcel entity creation
+    with tracking ID and PIN
+    generation for secure pickup
+end note
+
+note top of LockerService
+    Manages locker availability
+    and hardware integration
+    for deposit operations
+end note
+
+@enduml 

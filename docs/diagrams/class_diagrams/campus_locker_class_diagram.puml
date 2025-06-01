@@ -1,0 +1,339 @@
+@startuml Campus-Locker-System-Class-Diagram
+title Campus Locker System - Class Diagram
+left to right direction
+
+' Better color scheme for readability
+skinparam backgroundColor White
+skinparam class {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    FontColor Black
+}
+skinparam package {
+    BorderColor Navy
+    FontColor DarkBlue
+}
+
+package "Domain Entities" {
+    class User {
+        +userId: Long
+        +name: String
+        +email: String
+        +phone: String
+        +createdAt: DateTime
+        +lastActivity: DateTime
+        --
+        +validateContactInfo(): Boolean
+        +isValidEmail(): Boolean
+        +toString(): String
+    }
+
+    class Parcel {
+        +parcelId: Long
+        +trackingId: String
+        +recipientName: String
+        +recipientEmail: String
+        +recipientPhone: String
+        +dimensions: ParcelDimensions
+        +status: ParcelStatus
+        +depositDate: DateTime
+        +expiryDate: DateTime
+        +pickupDate: DateTime
+        +specialInstructions: String
+        +securePin: String
+        +lockerId: Long
+        --
+        +generateTrackingId(): String
+        +generateSecurePin(): String
+        +isExpired(): Boolean
+        +canBePickedUp(): Boolean
+        +updateStatus(status: ParcelStatus): void
+        +extendExpiry(days: int): void
+    }
+
+    class Locker {
+        +lockerId: Long
+        +location: String
+        +size: LockerSize
+        +status: LockerStatus
+        +maxDimensions: ParcelDimensions
+        +isOccupied: Boolean
+        +lastUsed: DateTime
+        +maintenanceStatus: String
+        --
+        +isAvailable(): Boolean
+        +canFit(dimensions: ParcelDimensions): Boolean
+        +reserve(): void
+        +release(): void
+        +setMaintenance(status: String): void
+    }
+
+    class AuditLog {
+        +logId: Long
+        +timestamp: DateTime
+        +eventType: EventType
+        +userId: Long
+        +parcelId: Long
+        +lockerId: Long
+        +details: String
+        +ipAddress: String
+        +sessionId: String
+        --
+        +createLogEntry(): void
+        +toString(): String
+    }
+}
+
+package "Value Objects" {
+    enum ParcelStatus {
+        PENDING
+        READY_FOR_PICKUP
+        PICKED_UP
+        EXPIRED
+        CANCELLED
+    }
+
+    enum LockerStatus {
+        AVAILABLE
+        OCCUPIED
+        MAINTENANCE
+        OUT_OF_SERVICE
+    }
+
+    enum LockerSize {
+        SMALL
+        MEDIUM
+        LARGE
+    }
+
+    enum EventType {
+        PARCEL_DEPOSITED
+        PARCEL_PICKED_UP
+        PARCEL_EXPIRED
+        LOGIN_ATTEMPT
+        SECURITY_EVENT
+        SYSTEM_ERROR
+    }
+
+    class ParcelDimensions {
+        +width: Double
+        +height: Double
+        +depth: Double
+        --
+        +calculateVolume(): Double
+        +fitsIn(maxDimensions: ParcelDimensions): Boolean
+        +toString(): String
+    }
+}
+
+package "Services" {
+    class ParcelService {
+        -parcelRepository: ParcelRepository
+        -lockerService: LockerService
+        -emailService: EmailService
+        -auditService: AuditService
+        --
+        +depositParcel(parcelRequest: ParcelDepositRequest): ParcelResponse
+        +pickupParcel(pin: String): ParcelResponse
+        +validatePin(pin: String): Boolean
+        +checkParcelStatus(trackingId: String): ParcelStatusResponse
+        +extendParcelExpiry(trackingId: String, days: int): Boolean
+        +cancelParcel(trackingId: String): Boolean
+        +getParcelByPin(pin: String): Parcel
+        +getParcelByTrackingId(trackingId: String): Parcel
+    }
+
+    class LockerService {
+        -lockerRepository: LockerRepository
+        -auditService: AuditService
+        --
+        +findAvailableLocker(dimensions: ParcelDimensions): Locker
+        +reserveLocker(lockerId: Long): Boolean
+        +releaseLocker(lockerId: Long): Boolean
+        +checkLockerAvailability(): List<Locker>
+        +getLockerUtilization(): UtilizationReport
+        +setLockerMaintenance(lockerId: Long, status: String): void
+    }
+
+    class EmailService {
+        -smtpConfig: SmtpConfiguration
+        -templateEngine: TemplateEngine
+        --
+        +sendDepositConfirmation(parcel: Parcel): Boolean
+        +sendPickupConfirmation(parcel: Parcel): Boolean
+        +sendExpiryNotification(parcel: Parcel): Boolean
+        +sendCancellationNotification(parcel: Parcel): Boolean
+        +sendSecurityAlert(details: String, email: String): Boolean
+        +validateEmailConfiguration(): Boolean
+    }
+
+    class ValidationService {
+        --
+        +validateParcelDimensions(dimensions: ParcelDimensions): ValidationResult
+        +validateContactInfo(email: String, phone: String): ValidationResult
+        +validateDepositForm(request: ParcelDepositRequest): ValidationResult
+        +isValidTrackingId(trackingId: String): Boolean
+        +isValidPin(pin: String): Boolean
+    }
+
+    class SecurityService {
+        -maxFailedAttempts: int
+        -lockoutDuration: Duration
+        --
+        +validatePin(pin: String, attempts: int): SecurityResult
+        +incrementFailedAttempts(pin: String): int
+        +isTemporarilyBlocked(pin: String): Boolean
+        +logSecurityEvent(event: SecurityEvent): void
+        +checkBruteForceProtection(pin: String): Boolean
+    }
+
+    class AuditService {
+        -auditRepository: AuditRepository
+        --
+        +logEvent(eventType: EventType, details: String): void
+        +logParcelOperation(parcel: Parcel, operation: String): void
+        +logSecurityEvent(details: String, severity: String): void
+        +getAuditTrail(startDate: DateTime, endDate: DateTime): List<AuditLog>
+        +exportAuditLogs(criteria: AuditCriteria): File
+    }
+
+    class BackgroundMonitoringService {
+        -parcelService: ParcelService
+        -emailService: EmailService
+        -auditService: AuditService
+        --
+        +monitorParcelExpiry(): void
+        +processExpiredParcels(): void
+        +performHealthCheck(): SystemHealthReport
+        +generateUtilizationReport(): UtilizationReport
+        +cleanupExpiredSessions(): void
+    }
+}
+
+package "Data Transfer Objects" {
+    class ParcelDepositRequest {
+        +recipientName: String
+        +recipientEmail: String
+        +recipientPhone: String
+        +dimensions: ParcelDimensions
+        +specialInstructions: String
+        --
+        +validate(): ValidationResult
+    }
+
+    class ParcelResponse {
+        +success: Boolean
+        +message: String
+        +trackingId: String
+        +pin: String
+        +expiryDate: DateTime
+        +lockerLocation: String
+        --
+        +isSuccess(): Boolean
+    }
+
+    class ParcelStatusResponse {
+        +trackingId: String
+        +status: ParcelStatus
+        +depositDate: DateTime
+        +expiryDate: DateTime
+        +pickupDate: DateTime
+        +lockerLocation: String
+        +canPickup: Boolean
+        --
+        +formatStatusMessage(): String
+    }
+
+    class ValidationResult {
+        +isValid: Boolean
+        +errors: List<String>
+        +warnings: List<String>
+        --
+        +hasErrors(): Boolean
+        +getErrorMessage(): String
+    }
+}
+
+package "Repositories" {
+    interface ParcelRepository {
+        +save(parcel: Parcel): Parcel
+        +findByTrackingId(trackingId: String): Parcel
+        +findByPin(pin: String): Parcel
+        +findExpiredParcels(): List<Parcel>
+        +findByStatus(status: ParcelStatus): List<Parcel>
+        +delete(parcelId: Long): void
+    }
+
+    interface LockerRepository {
+        +save(locker: Locker): Locker
+        +findById(lockerId: Long): Locker
+        +findAvailableLockers(): List<Locker>
+        +findBySize(size: LockerSize): List<Locker>
+        +updateStatus(lockerId: Long, status: LockerStatus): void
+    }
+
+    interface AuditRepository {
+        +save(auditLog: AuditLog): AuditLog
+        +findByDateRange(start: DateTime, end: DateTime): List<AuditLog>
+        +findByEventType(eventType: EventType): List<AuditLog>
+        +findByParcelId(parcelId: Long): List<AuditLog>
+    }
+}
+
+' Relationships between entities
+User ||--o{ Parcel : "deposits"
+Parcel ||--|| Locker : "stored in"
+Parcel ||--o{ AuditLog : "generates"
+
+' Service dependencies
+ParcelService --> ParcelRepository : "uses"
+ParcelService --> LockerService : "uses"
+ParcelService --> EmailService : "uses"
+ParcelService --> AuditService : "uses"
+ParcelService --> ValidationService : "uses"
+ParcelService --> SecurityService : "uses"
+
+LockerService --> LockerRepository : "uses"
+LockerService --> AuditService : "uses"
+
+AuditService --> AuditRepository : "uses"
+
+BackgroundMonitoringService --> ParcelService : "uses"
+BackgroundMonitoringService --> EmailService : "uses"
+BackgroundMonitoringService --> AuditService : "uses"
+
+' DTO relationships
+ParcelService ..> ParcelDepositRequest : "accepts"
+ParcelService ..> ParcelResponse : "returns"
+ParcelService ..> ParcelStatusResponse : "returns"
+
+ValidationService ..> ValidationResult : "returns"
+ValidationService ..> ParcelDepositRequest : "validates"
+
+' Value object relationships
+Parcel *-- ParcelDimensions : "contains"
+Parcel *-- ParcelStatus : "has"
+Locker *-- LockerSize : "has"
+Locker *-- LockerStatus : "has"
+Locker *-- ParcelDimensions : "max dimensions"
+AuditLog *-- EventType : "has"
+
+note top of ParcelService
+    Core service handling parcel
+    deposit and pickup operations
+    following the activity flows
+end note
+
+note top of SecurityService
+    Implements PIN validation,
+    brute force protection,
+    and security monitoring
+end note
+
+note top of BackgroundMonitoringService
+    Automated background processes
+    for expiry monitoring and
+    system health checks
+end note
+
+@enduml 

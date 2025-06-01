@@ -1,0 +1,182 @@
+@startuml Activity-Parcel-Deposit-Pickup-Flows
+title Campus Locker System - Parcel Deposit & Pickup Flows
+
+' Better color scheme for readability
+skinparam backgroundColor White
+skinparam activity {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    FontColor Black
+}
+skinparam partition {
+    BorderColor Navy
+    FontColor DarkBlue
+}
+
+start
+
+partition "User Flow Selection" {
+    :User accesses Campus Locker System;
+    if (Operation type?) then (Deposit)
+        -> Deposit Flow;
+        partition "Parcel Deposit Process" {
+            :Fill deposit form with recipient details;
+            note right
+                Required Information:
+                • Recipient name
+                • Recipient email  
+                • Recipient phone
+                • Parcel dimensions
+                • Special instructions
+            end note
+            
+            :Submit deposit form;
+            
+            if (Form validation?) then (Valid)
+                :Validate parcel dimensions;
+                if (Size acceptable?) then (Yes)
+                    :Check available lockers;
+                    if (Locker available?) then (Yes)
+                        :Generate secure PIN;
+                        :Create parcel record;
+                        :Reserve locker;
+                        :Store parcel in database;
+                        :Generate tracking ID;
+                        :Send confirmation email to recipient;
+                        note right
+                            Email contains:
+                            • Secure PIN
+                            • Tracking ID
+                            • Locker location
+                            • Pickup instructions
+                            • Expiry date
+                        end note
+                        :Display success message with tracking ID;
+                        #LightGreen:Deposit completed successfully;
+                        stop
+                    else (No)
+                        #LightCoral:Display "No available lockers" error;
+                        :Suggest alternative times;
+                        stop
+                    endif
+                else (No)
+                    #LightCoral:Display "Parcel too large" error;
+                    :Show size requirements;
+                    stop
+                endif
+            else (Invalid)
+                #LightCoral:Display validation errors;
+                :Return to form with corrections;
+                stop
+            endif
+        }
+    else (Pickup)
+        -> Pickup Flow;
+        partition "Parcel Pickup Process" {
+            :Enter PIN for pickup;
+            note right
+                User enters the PIN
+                received via email
+            end note
+            
+            :Submit PIN;
+            
+            if (PIN validation?) then (Valid)
+                :Retrieve parcel information;
+                if (Parcel found?) then (Yes)
+                    if (Parcel status?) then (Ready for pickup)
+                        :Verify parcel not expired;
+                        if (Expiry check?) then (Not expired)
+                            :Update parcel status to "picked up";
+                            :Release locker;
+                            :Log pickup event in audit trail;
+                            :Send pickup confirmation email;
+                            note right
+                                Confirmation includes:
+                                • Pickup timestamp
+                                • Locker location
+                                • Thank you message
+                            end note
+                            #LightGreen:Display pickup success message;
+                            #LightGreen:Pickup completed successfully;
+                            stop
+                        else (Expired)
+                            #LightCoral:Display "Parcel expired" error;
+                            :Log expiry attempt;
+                            stop
+                        endif
+                    else (Already picked up)
+                        #LightCoral:Display "Already picked up" error;
+                        :Show pickup timestamp;
+                        stop
+                    endif
+                else (No)
+                    #LightCoral:Display "Parcel not found" error;
+                    :Log invalid PIN attempt;
+                    stop
+                endif
+            else (Invalid)
+                #LightCoral:Display "Invalid PIN" error;
+                :Increment failed attempts;
+                if (Too many attempts?) then (Yes)
+                    #Tomato:Temporarily block PIN;
+                    :Log security event;
+                    stop
+                else (No)
+                    :Allow retry;
+                    stop
+                endif
+            endif
+        }
+    endif
+}
+
+partition "Status Check (Optional)" {
+    :Enter tracking ID;
+    note right
+        Available from any flow
+        via "Check Status" link
+    end note
+    
+    if (Tracking ID valid?) then (Yes)
+        :Retrieve parcel status;
+        :Display current status;
+        :Show pickup instructions if ready;
+        note right
+            Status Information:
+            • Current status
+            • Deposit date
+            • Expected pickup date
+            • Locker location
+            • Contact information
+        end note
+        #LightBlue:Status information displayed;
+        stop
+    else (No)
+        #LightCoral:Display "Invalid tracking ID" error;
+        stop
+    endif
+}
+
+partition "Background System Processes" {
+    :System monitors parcel expiry;
+    note right
+        Automated system processes
+        running in background
+    end note
+    
+    repeat
+        :Check for expired parcels;
+        if (Expired parcels found?) then (Yes)
+            :Update status to "expired";
+            :Release occupied lockers;
+            :Send expiry notification;
+            :Log expiry events;
+        else (No)
+            :Continue monitoring;
+        endif
+        :Wait for next check cycle;
+    repeat while (System running?) is (Yes)
+}
+
+@enduml 

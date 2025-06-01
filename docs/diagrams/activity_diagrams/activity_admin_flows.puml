@@ -1,0 +1,252 @@
+@startuml Activity-Admin-Management-Flows
+title Campus Locker System - Admin Management Flows
+
+' Better color scheme for readability
+skinparam backgroundColor White
+skinparam activity {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    FontColor Black
+}
+skinparam partition {
+    BorderColor Navy
+    FontColor DarkBlue
+}
+
+start
+
+partition "Admin Authentication" {
+    :Admin accesses admin dashboard;
+    :Enter login credentials;
+    note right
+        Required Credentials:
+        • Username
+        • Password
+        • Optional: 2FA token
+    end note
+    
+    :Submit login form;
+    
+    if (Credentials validation?) then (Valid)
+        :Check brute force protection;
+        if (Account locked?) then (No)
+            :Validate password hash;
+            if (Password correct?) then (Yes)
+                :Check user account status;
+                if (Account active?) then (Yes)
+                    :Create secure session;
+                    :Generate session token;
+                    :Update last login timestamp;
+                    :Log successful login event;
+                    note right
+                        Session Information:
+                        • Session ID
+                        • User permissions
+                        • Expiry time
+                        • IP address
+                    end note
+                    #LightGreen:Login successful;
+                else (No)
+                    #LightCoral:Display "Account disabled" error;
+                    :Log disabled account attempt;
+                    stop
+                endif
+            else (No)
+                #LightCoral:Display "Invalid credentials" error;
+                :Increment failed login attempts;
+                :Log failed login event;
+                if (Max attempts reached?) then (Yes)
+                    #Tomato:Lock account temporarily;
+                    :Send security alert email;
+                    :Log security event;
+                    stop
+                else (No)
+                    :Allow retry;
+                    stop
+                endif
+            endif
+        else (Yes)
+            #Tomato:Display "Account locked" message;
+            :Show unlock instructions;
+            :Log blocked login attempt;
+            stop
+        endif
+    else (Invalid)
+        #LightCoral:Display "Please check your input" error;
+        stop
+    endif
+}
+
+partition "Admin Dashboard Operations" {
+    :Display admin dashboard;
+    note right
+        Dashboard shows:
+        • System overview
+        • Active parcels count
+        • Available lockers
+        • Recent activities
+        • Alerts/Warnings
+    end note
+    
+    repeat
+        :Wait for admin action;
+        if (Action type?) then (View System Status)
+            partition "System Status Check" {
+                :Retrieve system metrics;
+                :Calculate locker utilization;
+                :Check system health;
+                :Display real-time statistics;
+                note right
+                    Status Information:
+                    • Total parcels: Active/Picked up
+                    • Locker usage: Available/Occupied
+                    • System uptime
+                    • Error rates
+                    • Performance metrics
+                end note
+                #LightBlue:Status displayed;
+            }
+        elseif (Action type?) then (Manage Parcels)
+            partition "Parcel Management" {
+                :Display parcel list;
+                if (Filter/Search applied?) then (Yes)
+                    :Apply search criteria;
+                    :Filter parcel results;
+                else (No)
+                    :Show all parcels;
+                endif
+                
+                :Select parcel action;
+                if (Parcel action?) then (View Details)
+                    :Display parcel information;
+                    :Show pickup history;
+                    :Display recipient details;
+                elseif (Parcel action?) then (Cancel Parcel)
+                    :Confirm cancellation;
+                    if (Confirm?) then (Yes)
+                        :Update parcel status to cancelled;
+                        :Release locker;
+                        :Send cancellation notification;
+                        :Log cancellation event;
+                        #Orange:Parcel cancelled;
+                    else (No)
+                        :Return to parcel list;
+                    endif
+                elseif (Parcel action?) then (Extend Expiry)
+                    :Set new expiry date;
+                    :Update parcel record;
+                    :Send extension notification;
+                    :Log extension event;
+                    #LightGreen:Expiry extended;
+                endif
+            }
+        elseif (Action type?) then (View Audit Logs)
+            partition "Audit Log Review" {
+                :Retrieve audit logs;
+                :Apply date/time filters;
+                if (Event filter?) then (Applied)
+                    :Filter by event type;
+                    note right
+                        Event Types:
+                        • Login attempts
+                        • Parcel operations
+                        • System errors
+                        • Security events
+                        • Configuration changes
+                    end note
+                else (All events)
+                    :Show all audit entries;
+                endif
+                
+                :Display audit log entries;
+                :Allow log export;
+                if (Export requested?) then (Yes)
+                    :Generate audit report;
+                    :Download audit file;
+                    :Log export event;
+                    #LightBlue:Audit exported;
+                else (No)
+                    :Continue viewing;
+                endif
+            }
+        elseif (Action type?) then (Manage Users)
+            partition "User Management" {
+                :Display admin user list;
+                if (User action?) then (Add User)
+                    :Fill new user form;
+                    :Set user permissions;
+                    :Create user account;
+                    :Send welcome email;
+                    :Log user creation;
+                    #LightGreen:User created;
+                elseif (User action?) then (Edit User)
+                    :Select user to edit;
+                    :Update user information;
+                    :Modify permissions;
+                    :Save changes;
+                    :Log user modification;
+                    #Orange:User updated;
+                elseif (User action?) then (Deactivate User)
+                    :Confirm deactivation;
+                    :Disable user account;
+                    :Invalidate sessions;
+                    :Log deactivation;
+                    #LightCoral:User deactivated;
+                endif
+            }
+        elseif (Action type?) then (System Configuration)
+            partition "System Settings" {
+                :Access configuration panel;
+                if (Config type?) then (Email Settings)
+                    :Update SMTP configuration;
+                    :Test email connectivity;
+                    :Save email settings;
+                elseif (Config type?) then (Locker Settings)
+                    :Configure locker parameters;
+                    :Set expiry policies;
+                    :Update size constraints;
+                elseif (Config type?) then (Security Settings)
+                    :Configure password policies;
+                    :Set session timeouts;
+                    :Update security rules;
+                endif
+                :Log configuration change;
+                #LightBlue:Configuration updated;
+            }
+        elseif (Action type?) then (Logout)
+            partition "Logout Process" {
+                :Confirm logout;
+                if (Confirm logout?) then (Yes)
+                    :Invalidate session;
+                    :Clear session token;
+                    :Log logout event;
+                    :Redirect to login page;
+                    #LightGreen:Logout successful;
+                    stop
+                else (No)
+                    :Return to dashboard;
+                endif
+            }
+        endif
+        
+        :Check session validity;
+        if (Session expired?) then (Yes)
+            #Orange:Session timeout;
+            :Force logout;
+            :Redirect to login;
+            stop
+        else (No)
+            :Continue operations;
+        endif
+        
+    repeat while (Admin continues?) is (Yes)
+}
+
+note right
+    Background Security Monitoring:
+    Continuous security monitoring
+    for admin sessions runs
+    in parallel to detect threats
+end note
+
+@enduml 

@@ -1,162 +1,246 @@
-# Campus Locker System - Architecture Diagrams
+# Campus Locker System - Diagrams Documentation
 
-This directory contains comprehensive architectural documentation for the Campus Locker System using modern, industry-standard diagramming approaches.
+This directory contains all architectural and design diagrams for the Campus Locker System, organized by diagram type for better maintainability and navigation.
 
-## 📁 **File Overview**
-
-### 🏗️ **Architecture Diagrams**
-- **`campus_locker_architecture.dsl`** - Complete system architecture using [Structurizr DSL](https://structurizr.com/dsl)
-
-### 🗄️ **Database Schemas**
-- **`main_database_schema.dbml`** - Operational database schema for [dbdiagram.io](https://dbdiagram.io/)
-- **`audit_database_schema.dbml`** - Audit trail database schema for [dbdiagram.io](https://dbdiagram.io/)
-
-## 🏗️ **System Architecture (Structurizr DSL)**
-
-The main architecture model creates multiple views of our hexagonal architecture:
-
-### **Available Views**
-1. **System Landscape** - Complete system in context
-2. **System Context** - External interactions  
-3. **Hexagonal Architecture** - All containers by layer
-4. **Hexagonal Core** - Core business flow
-5. **Hexagonal With Adapters** - External interfaces and adapters
-6. **Presentation Layer** - UI and API components
-7. **Service & Business Layers** - Core application logic
-8. **Data Architecture** - Repository pattern and databases
-9. **Parcel Deposit Workflow** - Dynamic sequence view
-10. **Parcel Pickup Workflow** - Security and audit flow
-
-### **Hexagonal Architecture Implementation**
+## 📁 Directory Structure
 
 ```
-┌─────────────────┬─────────────────┬─────────────────┐
-│  Presentation   │    Service      │    Business     │
-│  Layer          │    Layer        │    Layer        │
-├─────────────────┼─────────────────┼─────────────────┤
-│ • Web Interface │ • Parcel Svc    │ • Parcel Mgr    │
-│ • API Interface │ • Locker Svc    │ • Locker Mgr    │
-│ • Admin Dash    │ • Auth Svc      │ • Security Mgr  │
-└─────────────────┴─────────────────┴─────────────────┘
-┌─────────────────┬─────────────────┬─────────────────┐
-│  Repository     │    Database     │    Adapter      │
-│  Layer          │    Layer        │    Layer        │
-├─────────────────┼─────────────────┼─────────────────┤
-│ • Parcel Repo   │ • Main DB       │ • Email Adapter │
-│ • Locker Repo   │ • Audit DB      │ • Audit Adapter │
-│ • Admin Repo    │ • Backup Sys    │ • DB Adapter    │
-└─────────────────┴─────────────────┴─────────────────┘
+docs/diagrams/
+├── README.md                    # This documentation file
+├── c4_model/                   # C4 Model Architecture Diagrams
+├── activity_diagrams/          # Process Flow Diagrams
+│   └── swimlane_flows/         # Activity Diagrams with Swimlanes
+├── class_diagrams/             # Object-Oriented Design Diagrams
+└── database_schemas/           # Database Schema Definitions
 ```
 
-## 🗄️ **Database Architecture (DBML)**
+## 🏗️ C4 Model (`c4_model/`)
 
-### **Dual Database Design**
+Contains architectural diagrams following the official C4 model methodology:
 
-The system uses **two separate databases** for operational and audit data:
+### Files:
+- **`campus_locker_architecture.dsl`** - Main C4 model definition file
+  - C0: System Landscape
+  - C1: System Context 
+  - C2: Container Diagrams (multiple views)
+  - C3: Component Diagrams
+- **`campus_locker_code_level.puml`** - C4 Level 4 code diagrams
+- **`C4_LEVEL4_README.md`** - Usage instructions for Level 4 diagrams
 
-#### **Main Database** (`main_database_schema.dbml`)
-- 🏗️ **4 Tables**: locker, parcel, admin_user, locker_sensor_data
-- 🔗 **Relationships**: Foreign keys and business constraints
-- 📈 **Performance**: Strategic indexing for 4-25ms response times
-- 🔒 **Security**: Advanced PIN management with email-based generation
+### Viewing C4 Diagrams:
+1. **Online**: Use [Structurizr Express](https://structurizr.com/express) to load the `.dsl` file
+2. **VS Code**: Install the "C4 DSL Extension" 
+3. **CLI**: Use Structurizr CLI with Docker
 
-#### **Audit Database** (`audit_database_schema.dbml`)  
-- 📋 **1 Table**: audit_log (immutable trail)
-- 🛡️ **Security**: Tamper-proof compliance logging
-- 📊 **Rich Context**: JSON details for forensic analysis
-- 🎯 **Monitoring**: Security and operational event tracking
+### Diagram Levels:
+- **C0 - System Landscape**: High-level system context
+- **C1 - System Context**: System boundaries and external dependencies
+- **C2 - Containers**: Application architecture and technology choices
+- **C3 - Components**: Internal component structure and relationships
+- **C4 - Code**: Detailed class diagrams and implementation structure
 
-## 🚀 **How to Use**
+## 🔄 Activity Diagrams (`activity_diagrams/`)
 
-### **Structurizr DSL Architecture**
+Process flow diagrams showing user journeys and system workflows:
 
-#### **Option 1: Online Editor (Quick)**
-1. Visit https://structurizr.com/dsl
-2. Copy contents of `campus_locker_architecture.dsl`
-3. Paste and render - select different views from dropdown
+### Core Activity Flows:
+- **`activity_parcel_flows.puml`** - User parcel deposit and pickup workflows
+  - Parcel deposit process
+  - Parcel pickup process with PIN validation
+  - Status checking functionality
+  - Background system monitoring
+- **`activity_admin_flows.puml`** - Administrative management workflows
+  - Admin authentication and authorization
+  - Dashboard operations and system management
+  - User management and audit log review
+  - System configuration and maintenance
 
-#### **Option 2: Structurizr Lite (Recommended)**
-```bash
-# Download and run locally
-wget https://github.com/structurizr/lite/releases/latest/download/structurizr-lite.war
-java -jar structurizr-lite.war
+### Swimlane Flows (`swimlane_flows/`)
 
-# Or use Docker
-docker run -it --rm -p 8080:8080 -v $(pwd):/usr/local/structurizr structurizr/lite
+Detailed process flows with swimlanes showing cross-functional interactions:
+
+#### User Flow Diagrams:
+- **`activity_deposit_flow_with_lanes.puml`** - Parcel deposit with detailed swimlanes
+  - User/Customer interactions
+  - Web Application processing
+  - Database Service operations
+  - Email Service notifications
+  - Locker Hardware integration
+  - Audit & Monitoring logging
+
+- **`activity_pickup_flow_with_lanes.puml`** - Parcel pickup with security focus
+  - User/Customer pickup process
+  - Security Service PIN validation
+  - Brute force protection mechanisms
+  - Hardware integration and unlocking
+  - Comprehensive error handling
+
+#### Administrative Flow Diagrams:
+- **`admin_login_flow_with_lanes.puml`** - Admin authentication with 2FA
+  - Admin User authentication steps
+  - Authentication Service validation
+  - Session Service management
+  - 2FA and security mechanisms
+  - Comprehensive audit logging
+
+- **`admin_system_status_flow_with_lanes.puml`** - Real-time system monitoring
+  - Admin User dashboard interactions
+  - Metrics Service data collection
+  - Service availability checking
+  - Real-time status updates
+  - System alert management
+
+- **`admin_manage_parcels_flow_with_lanes.puml`** - Comprehensive parcel management
+  - Search and filter capabilities
+  - Multiple parcel action handling
+  - Email notification processes
+  - Hardware integration for parcel operations
+  - Complete audit trail logging
+
+- **`admin_audit_logs_flow_with_lanes.puml`** - Advanced audit log management
+  - Audit log filtering and search
+  - Real-time monitoring capabilities
+  - Compliance reporting features
+  - Export and analysis tools
+  - Advanced search functionality
+
+### Swimlane Features:
+- ✅ Cross-functional process visualization
+- ✅ Clear responsibility boundaries between services
+- ✅ Detailed error handling and exception flows
+- ✅ Security and validation checkpoints
+- ✅ Real-time monitoring and audit logging
+- ✅ Hardware integration touchpoints
+
+## 🏛️ Class Diagrams (`class_diagrams/`)
+
+Object-oriented design diagrams showing system structure:
+
+### Files:
+- **`campus_locker_class_diagram.puml`** - Complete system class diagram
+  - Domain entities (User, Parcel, Locker, AuditLog)
+  - Value objects and enums
+  - Service layer architecture
+  - Data transfer objects (DTOs)
+  - Repository interfaces
+  - Comprehensive relationships and dependencies
+
+### Design Patterns:
+- **Repository Pattern**: Data access abstraction
+- **Service Layer Pattern**: Business logic separation
+- **DTO Pattern**: Data transfer objects for API boundaries
+- **Value Object Pattern**: Immutable data containers
+
+## 🗄️ Database Schemas (`database_schemas/`)
+
+Database design and schema definitions:
+
+### Files:
+- **`main_database_schema.dbml`** - Core application database schema
+  - User tables and authentication
+  - Parcel management tables
+  - Locker inventory and status
+  - System configuration tables
+- **`audit_database_schema.dbml`** - Audit and logging database schema
+  - Audit trail tables
+  - Security event logging
+  - System monitoring data
+  - Performance metrics storage
+
+### Viewing Database Schemas:
+- **Online**: [dbdiagram.io](https://dbdiagram.io/) - Load `.dbml` files directly
+- **VS Code**: Database Markup Language (DBML) extension
+- **CLI**: DBML CLI tools for export to SQL
+
+## 🛠️ Tools and Rendering
+
+### PlantUML Files (`.puml`)
+- **Online**: [PlantUML Online Server](http://www.plantuml.com/plantuml/)
+- **VS Code**: PlantUML extension
+- **IntelliJ**: PlantUML integration plugin
+- **CLI**: PlantUML JAR file
+
+### C4 DSL Files (`.dsl`)
+- **Online**: [Structurizr Express](https://structurizr.com/express)
+- **VS Code**: C4 DSL Extension
+- **CLI**: Structurizr CLI
+
+### Database Markup Language (`.dbml`)
+- **Online**: [dbdiagram.io](https://dbdiagram.io/)
+- **VS Code**: DBML extension
+- **CLI**: DBML CLI tools
+
+## 📋 Diagram Standards
+
+### Style Guidelines:
+- ✅ Clean white background for readability
+- ✅ Consistent color coding across diagrams
+- ✅ Proper UML relationship notation
+- ✅ Comprehensive notes and documentation
+- ✅ Professional layout and organization
+
+### Relationship Notation:
+- `||--o{` : One-to-many association
+- `||--||` : One-to-one association  
+- `*--` : Composition (strong ownership)
+- `o--` : Aggregation (weak ownership)
+- `-->` : Dependency
+- `..>` : Implementation/Interface usage
+- `<|--` : Inheritance/Extension
+
+## 🔄 Maintenance
+
+### Adding New Diagrams:
+1. Place in appropriate subfolder based on diagram type
+2. Follow naming convention: `descriptive_name_diagram_type.puml`
+3. Update this README with new diagram descriptions
+4. Ensure consistent styling with existing diagrams
+
+### File Naming Convention:
+- Use lowercase with underscores: `my_new_diagram.puml`
+- Include diagram type in name: `user_journey_activity.puml`
+- Be descriptive: `authentication_sequence.puml`
+
+### Subfolder Guidelines:
+- **`c4_model/`**: C4 methodology files (.dsl, Level 4 .puml, documentation)
+- **`activity_diagrams/`**: Process flow and workflow diagrams (.puml)
+- **`class_diagrams/`**: Object-oriented design diagrams (.puml)
+- **`database_schemas/`**: Database schema definitions (.dbml)
+
+## 📊 Current File Inventory
+
+```
+docs/diagrams/
+├── README.md
+├── activity_diagrams/
+│   ├── swimlane_flows/
+│   │   ├── activity_deposit_flow_with_lanes.puml
+│   │   ├── activity_pickup_flow_with_lanes.puml
+│   │   ├── admin_audit_logs_flow_with_lanes.puml
+│   │   ├── admin_login_flow_with_lanes.puml
+│   │   ├── admin_manage_parcels_flow_with_lanes.puml
+│   │   └── admin_system_status_flow_with_lanes.puml
+│   ├── activity_admin_flows.puml
+│   └── activity_parcel_flows.puml
+├── c4_model/
+│   ├── C4_LEVEL4_README.md
+│   ├── campus_locker_architecture.dsl
+│   └── campus_locker_code_level.puml
+├── class_diagrams/
+│   └── deposit_flow_class_diagram.puml
+└── database_schemas/
+    ├── audit_database_schema.dbml
+    └── main_database_schema.dbml
 ```
 
-#### **Option 3: Export to Other Formats**
-```bash
-# Download CLI
-wget https://github.com/structurizr/cli/releases/latest/download/structurizr-cli.zip
+## 📚 Related Documentation
 
-# Export options
-./structurizr-cli export -workspace campus_locker_architecture.dsl -format plantuml
-./structurizr-cli export -workspace campus_locker_architecture.dsl -format mermaid
-./structurizr-cli export -workspace campus_locker_architecture.dsl -format plantuml/c4plantuml
-```
-
-### **DBML Database Schemas**
-
-#### **Interactive Database Diagrams**
-1. Visit https://dbdiagram.io/
-2. Create new diagram
-3. Copy contents of either:
-   - `main_database_schema.dbml` - Operational database
-   - `audit_database_schema.dbml` - Audit database
-4. Paste and view interactive schema with relationships
-
-## 🎨 **Visual Features**
-
-### **Architecture Diagrams**
-- 🎨 **Color-coded layers** for hexagonal architecture
-- 📊 **Multiple view types** (static structure + dynamic workflows)
-- 🔄 **Export capabilities** to PNG, SVG, PlantUML, Mermaid
-- 🎯 **Professional styling** with AWS themes
-
-### **Database Diagrams**  
-- 🔗 **Interactive relationships** and foreign keys
-- 📝 **Comprehensive documentation** in field notes
-- 🔍 **Business rules** and constraints visualized
-- 📈 **Performance indexes** and optimization notes
-
-## 🎓 **Educational Value**
-
-These diagrams demonstrate **graduate-level software architecture**:
-
-### **Architectural Patterns**
-- 🏗️ **Hexagonal Architecture** - Clean separation of concerns
-- 🔄 **Repository Pattern** - Data access abstraction  
-- 🎯 **Service Orchestration** - Business operation coordination
-- 🔌 **Adapter Pattern** - External system integration
-- 📊 **Domain-Driven Design** - Rich business models
-
-### **Database Design**
-- 🗄️ **Dual-database architecture** - Operational vs audit separation
-- 🔒 **Advanced security** - Multi-layered PIN security, audit trails
-- 📈 **Performance optimization** - Strategic indexing, nullable fields
-- 🎯 **Real-world complexity** - Comprehensive business rules
-
-### **System Design**
-- 🔐 **Security by design** - Authentication, authorization, audit
-- 📊 **Performance engineering** - Sub-25ms response times
-- 🎯 **Scalability patterns** - Clean architecture for growth
-- 📋 **Compliance features** - Audit trails, data retention
-
-## 📚 **Further Reading**
-
-### **Architecture Resources**
-- [Structurizr DSL Documentation](https://structurizr.com/dsl)
-- [C4 Model](https://c4model.com/)
-- [Hexagonal Architecture](https://alistair.cockburn.us/hexagonal-architecture/)
-- [Domain-Driven Design](https://martinfowler.com/bliki/DomainDrivenDesign.html)
-- [Repository Pattern](https://martinfowler.com/eaaCatalog/repository.html)
-
-### **Database Resources**
-- [dbdiagram.io Documentation](https://docs.dbdiagram.io/)
-- [Database Design Patterns](https://en.wikipedia.org/wiki/Database_design)
-- [SQLite Performance](https://www.sqlite.org/performance.html)
+- **Main README**: `../../README.md`
+- **Architecture Overview**: `../README.md`
+- **C4 Model Details**: `c4_model/C4_LEVEL4_README.md`
 
 ---
 
-**💡 Pro Tip**: Use the architecture and database diagrams together to understand both the logical structure (hexagonal architecture) and physical data design (dual databases) of a production-ready system! 
+**Last Updated**: December 2024  
+**Maintained By**: Architecture Team  
+**Contact**: For questions about diagrams, refer to the project documentation or team lead. 

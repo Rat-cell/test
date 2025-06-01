@@ -1,0 +1,187 @@
+@startuml Parcel-Deposit-Flow-With-Swimlanes
+title Campus Locker System - Parcel Deposit Flow (with Swimlanes)
+
+' Clean styling for readability
+skinparam backgroundColor White
+skinparam activity {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    FontColor Black
+}
+skinparam partition {
+    BorderColor Navy
+    FontColor DarkBlue
+    BackgroundColor WhiteSmoke
+}
+
+' Define all swimlanes at the start
+|#LightBlue|User/Customer|
+|#LightGreen|Web Application|
+|#LightCyan|Database Service|
+|#LightYellow|Email Service|
+|#LightPink|Locker Hardware|
+|#Gray|Audit & Monitoring|
+
+start
+
+|User/Customer|
+:Access Campus Locker System;
+:Navigate to "Deposit Parcel" section;
+:Fill out deposit form;
+note right
+    Required Information:
+    • Recipient name
+    • Recipient email
+    • Recipient phone number
+    • Parcel dimensions (W×H×D)
+    • Special handling instructions
+    • Preferred locker size
+end note
+
+:Submit deposit form;
+
+|Web Application|
+:Receive deposit request;
+:Validate form data;
+
+if (Form validation passed?) then (yes)
+    :Extract parcel dimensions;
+    :Calculate parcel volume;
+    
+    if (Dimensions within limits?) then (yes)
+        
+        |Database Service|
+        :Query available lockers;
+        :Check locker capacity vs parcel size;
+        
+        if (Compatible locker available?) then (yes)
+            
+            |Web Application|
+            :Generate secure 6-digit PIN;
+            :Generate unique tracking ID;
+            :Calculate expiry date (5 days);
+            
+            |Database Service|
+            :Create new parcel record;
+            :Reserve selected locker;
+            :Update locker status to "OCCUPIED";
+            :Save parcel details to database;
+            
+            |Email Service|
+            :Prepare deposit confirmation email;
+            :Include secure PIN and tracking ID;
+            :Include locker location details;
+            :Include pickup instructions;
+            :Include expiry date warning;
+            
+            if (Email sent successfully?) then (yes)
+                
+                |Locker Hardware|
+                :Activate locker LED indicator;
+                :Update locker display screen;
+                :Enable locker for deposit access;
+                
+                |Web Application|
+                :Log successful deposit event;
+                
+                |User/Customer|
+                #LightGreen:Display success message;
+                :Show tracking ID on screen;
+                :Receive confirmation email;
+                note right
+                    Success Response includes:
+                    • Tracking ID: ABC123XYZ
+                    • Secure PIN: 123456
+                    • Locker location: Building A, Row 2, #15
+                    • Pickup deadline: 5 days
+                    • Support contact information
+                end note
+                
+                :Physically deposit parcel in locker;
+                
+                |Locker Hardware|
+                :Detect parcel placement;
+                :Lock locker automatically;
+                :Update status to "READY_FOR_PICKUP";
+                
+                |Database Service|
+                :Update parcel status;
+                :Record actual deposit timestamp;
+                
+                |Audit & Monitoring|
+                :Log successful deposit completion;
+                
+                #LightGreen:Deposit process completed successfully;
+                
+            else (no)
+                |Web Application|
+                :Log email failure event;
+                #Orange:Display warning - email not sent;
+                :Show manual pickup instructions;
+                note right
+                    Fallback Response:
+                    • PIN and tracking displayed on screen
+                    • User advised to screenshot/note details
+                    • Manual notification to recipient suggested
+                end note
+                
+                |Audit & Monitoring|
+                :Log email service failure;
+            endif
+            
+        else (no)
+            |Web Application|
+            #LightCoral:Display "No available lockers" error;
+            
+            |User/Customer|
+            :View suggested alternative times;
+            :Option to join waitlist;
+            
+            |Audit & Monitoring|
+            :Log locker unavailability event;
+            
+        endif
+        
+    else (no)
+        |Web Application|
+        #LightCoral:Display "Parcel too large" error;
+        
+        |User/Customer|
+        :Review size requirements;
+        :Consider parcel splitting options;
+        
+        |Audit & Monitoring|
+        :Log oversized parcel attempt;
+        
+    endif
+    
+else (no)
+    |Web Application|
+    #LightCoral:Display validation errors;
+    
+    |User/Customer|
+    :Review error messages;
+    :Correct form fields;
+    :Resubmit form;
+    
+    |Audit & Monitoring|
+    :Log form validation failure;
+    
+endif
+
+|Audit & Monitoring|
+:Record transaction details;
+:Update system metrics;
+:Monitor locker utilization;
+
+note right
+    Background Processes:
+    • Security event logging
+    • Performance metrics collection
+    • Locker usage analytics
+    • System health monitoring
+end note
+
+stop
+
+@enduml 
