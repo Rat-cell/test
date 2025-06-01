@@ -16,37 +16,56 @@ Start with the [Quick Start Guide](docs/guides/QUICK_START.md) or explore the [S
 ```
 test/                               # 🏠 Root Project Directory
 ├── campus_locker_system/           # 🎯 Main Application Directory
-│   ├── app/                        # Core Application (Hexagonal Architecture)
+│   ├── __pycache__/                # 🐍 Python bytecode cache
+│   ├── .github/                    # 📋 GitHub workflows and templates
+│   ├── .pytest_cache/              # 🧪 Pytest cache directory
+│   ├── app/                        # 🏗️ Core Application (Hexagonal Architecture)
 │   │   ├── __init__.py            # 🚀 Flask Application Factory
 │   │   ├── config.py              # ⚙️ Configuration Management
-│   │   ├── presentation/          # 🌐 Web Interface Layer (Flask routes & templates)
-│   │   ├── services/              # ⚙️ Application Services (Business orchestration)
-│   │   ├── business/              # 💼 Domain Business Logic (Core rules & validation)
+│   │   ├── adapters/              # 🔌 Infrastructure Adapters (Email, audit system)
+│   │   ├── business/              # 💼 Domain Layer (Core business logic & rules)
 │   │   ├── persistence/           # 🗄️ Data Access Layer (Repository pattern & models)
-│   │   └── adapters/              # 🔌 External System Adapters (Email, notifications)
+│   │   │   ├── repositories/      # 🏛️ Repository pattern implementations
+│   │   │   └── models.py         # 🏗️ SQLAlchemy models
+│   │   ├── presentation/          # 🌐 User Interface Layer (Routes, templates, APIs)
+│   │   └── services/              # ⚙️ Application Services (Business orchestration)
+│   ├── databases/                 # 🗄️ Dual Database Design
+│   │   ├── campus_locker.db       # 📊 Main Operational Database
+│   │   ├── campus_locker_audit.db # 📋 Audit & Compliance Database
+│   │   └── backups/               # 💾 Automated backup storage
+│   ├── logs/                      # 📝 Application log files
+│   ├── scripts/                   # 🛠️ Automation & deployment scripts
 │   ├── tests/                     # 🧪 Comprehensive Test Suite (268 tests)
 │   │   ├── test_fr*/              # ⚡ Functional Requirements Tests (FR-01 to FR-09)
 │   │   ├── test_nfr*/             # 🎯 Non-Functional Requirements Tests (NFR-01 to NFR-06)
-│   │   └── test_*.py              # 🔍 Unit, Integration & Performance Tests
-│   ├── databases/                 # 🗄️ Dual Database Design
-│   │   ├── campus_locker.db       # 📊 Main Operational Database
-│   │   └── campus_locker_audit.db # 📋 Audit & Compliance Database
-│   ├── scripts/                   # 🛠️ Automation & Deployment Scripts
-│   ├── nginx/                     # 🌐 Web Server Configuration
-│   │   └── nginx.conf             # ⚙️ Nginx Reverse Proxy Setup
-│   ├── docker-compose.yml         # 🐳 Production Docker Configuration
-│   ├── Dockerfile                 # 🐳 Container Build Instructions
-│   ├── Makefile                   # 🛠️ Build & Deployment Automation
-│   ├── requirements.txt           # 📦 Python Dependencies
-│   └── .gitignore                 # 🚫 Git Exclusion Rules
+│   │   ├── test_application.py    # 🏗️ Core application testing
+│   │   ├── test_presentation.py   # 🌐 UI and route testing
+│   │   ├── performance/           # ⚡ Performance benchmarks
+│   │   └── conftest.py           # ⚙️ Pytest configuration and fixtures
+│   ├── .gitignore                # 🚫 Git exclusion rules
+│   ├── create_admin.py           # 👨‍💼 Admin user creation script
+│   ├── Dockerfile                # 🐳 Container build instructions
+│   ├── docker-compose.yml        # 🐳 Production Docker configuration
+│   ├── pytest.ini               # 🧪 Pytest configuration
+│   ├── requirements.txt          # 📦 Python dependencies
+│   ├── run.py                    # 🚀 Application entry point
+│   └── seed_lockers.py           # 🗄️ Locker initialization script
 ├── docs/                          # 📚 Comprehensive Documentation
-│   ├── diagrams/                  # 📊 Architecture Diagrams (Structurizr DSL + DBML)
+│   ├── diagrams/                  # 📊 Architecture Diagrams & Database Schemas
 │   ├── guides/                    # 📖 User & Developer Guides
 │   ├── introduction/              # 🎓 Project Overview & Architecture Analysis
 │   ├── specifications/            # 📋 Requirements & Technical Specifications
-│   └── test_verifications/        # ✅ Test Documentation & Verification Reports
-├── README.md                      # 📖 Main Project Documentation
-└── CHANGELOG.md                   # 📈 Version History & Release Notes
+│   └── test_verifications/        # ✅ Test Documentation & Reports
+├── scripts/                       # 🛠️ Root-level utility scripts
+├── ssl/                           # 🔒 SSL certificates and security configuration
+├── venv/                          # 🐍 Python virtual environment
+├── .gitignore                     # 🚫 Git exclusion rules
+├── CHANGELOG.md                   # 📈 Version History & Release Notes
+├── cookies.txt                    # 🍪 HTTP cookies for testing/development
+├── docker-compose.yml             # 🐳 Production Docker configuration
+├── Makefile                       # 🚀 Production deployment & Docker operations
+├── nginx.conf                     # 🌐 Nginx web server configuration
+└── README.md                      # 📖 Main Project Documentation
 ```
 
 ---

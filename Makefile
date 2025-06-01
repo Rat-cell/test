@@ -1,6 +1,6 @@
 # Campus Locker System - Docker Deployment Makefile
 
-.PHONY: help build up down logs test clean dev-up dev-down dev-logs
+.PHONY: help build up down logs test clean safe-test quick-test
 
 # Default target
 help:
@@ -14,11 +14,6 @@ help:
 	@echo "  make logs       - View production logs"
 	@echo "  make test       - Test deployment"
 	@echo "  make clean      - Clean up Docker resources"
-	@echo ""
-	@echo "Development commands:"
-	@echo "  make dev-up     - Start development deployment"
-	@echo "  make dev-down   - Stop development deployment"
-	@echo "  make dev-logs   - View development logs"
 	@echo ""
 	@echo "Service URLs (when running):"
 	@echo "  📱 Main App: http://localhost"
@@ -49,9 +44,7 @@ logs:
 	@echo "📋 Viewing production logs..."
 	docker-compose logs -f
 
-	@echo "📋 Viewing development logs..."
-
-# Testing
+# Testing deployment
 test:
 	@echo "🧪 Testing deployment..."
 	@if [ -f scripts/test-deployment.sh ]; then \
@@ -75,7 +68,7 @@ safe-test:
 	@echo "✅ Running email service check..."
 	@curl -s -f http://localhost:8025 > /dev/null && echo "✅ MailHog is accessible" || echo "❌ MailHog failed"
 
-# Cleanup
+# Cleanup Docker resources
 clean:
 	@echo "🧹 Cleaning up Docker resources..."
 	@echo "🔐 Logging out any active admin sessions..."
