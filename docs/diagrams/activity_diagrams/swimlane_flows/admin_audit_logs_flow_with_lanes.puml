@@ -1,0 +1,262 @@
+@startuml Admin-Audit-Logs-Flow
+title Campus Locker System - Admin View Audit Logs Flow
+
+' Clean styling for readability
+skinparam backgroundColor White
+skinparam activity {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    FontColor Black
+}
+skinparam partition {
+    BorderColor Navy
+    FontColor DarkBlue
+    BackgroundColor WhiteSmoke
+}
+
+' Define all swimlanes at the start
+|#LightBlue|Admin User|
+|#LightGreen|Web Application|
+|#LightCyan|Database Service|
+|#Orange|Report Service|
+|#Gray|Audit & Monitoring|
+
+start
+
+|Admin User|
+:Access admin dashboard;
+:Navigate to "Audit Logs" section;
+:Request audit log interface;
+
+|Web Application|
+:Validate admin session;
+:Check audit log access permissions;
+
+if (Admin authorized for audit access?) then (yes)
+    
+    |Web Application|
+    :Display audit log filters interface;
+    :Show date range selectors;
+    :Present event type options;
+    
+    |Admin User|
+    :Set audit log filters;
+    note right
+        Available Filters:
+        • Date range: Start and end dates
+        • Event types: Login, Parcel ops, Security, System
+        • Severity level: Info, Warning, Error, Critical
+        • User/Admin: Specific user actions
+        • IP address: Source location filtering
+        • Component: Web, Database, Hardware, Email
+    end note
+    
+    if (Filters applied?) then (yes)
+        |Database Service|
+        :Apply filter criteria to audit query;
+        :Execute filtered audit log search;
+        :Return matching audit entries;
+        
+    else (no)
+        |Database Service|
+        :Query recent audit logs (default 24h);
+        :Apply default pagination;
+        :Return standard audit view;
+    endif
+    
+    |Web Application|
+    :Format audit log display;
+    :Paginate results for performance;
+    :Apply security redaction if needed;
+    
+    |Admin User|
+    #LightGreen:View audit log entries;
+    :Review system events and activities;
+    note right
+        Audit Log Display:
+        • Timestamp: 2024-12-01 14:30:15 UTC
+        • Event Type: PARCEL_DEPOSITED
+        • User: john.doe@university.edu
+        • IP Address: 192.168.1.100
+        • Details: Parcel ABC123 deposited in locker A2-15
+        • Status: SUCCESS
+        • Duration: 1.2s
+        • Session ID: sess_abc123xyz
+    end note
+    
+    :Analyze audit information;
+    
+    switch (Admin action?)
+    case (View Event Details)
+        |Database Service|
+        :Retrieve detailed event information;
+        :Get related events and context;
+        
+        |Web Application|
+        :Display comprehensive event view;
+        
+        |Admin User|
+        #LightBlue:Review detailed event information;
+        :Analyze event context and impact;
+        
+        |Audit & Monitoring|
+        :Log audit detail access;
+        
+    case (Export Audit Report)
+        |Web Application|
+        :Display export options dialog;
+        
+        |Admin User|
+        :Select export format (CSV, PDF, Excel);
+        :Choose date range for export;
+        :Confirm export request;
+        
+        |Report Service|
+        :Generate comprehensive audit report;
+        :Apply data formatting and headers;
+        :Include compliance metadata;
+        
+        |Database Service|
+        :Extract audit data for specified range;
+        :Apply security filters for export;
+        
+        |Web Application|
+        :Create downloadable report file;
+        
+        |Admin User|
+        #LightGreen:Download audit report;
+        
+        |Audit & Monitoring|
+        :Log audit report generation;
+        :Record export details and requester;
+        
+    case (Search Specific Events)
+        |Web Application|
+        :Display advanced search interface;
+        
+        |Admin User|
+        :Enter search criteria;
+        :Specify event patterns or keywords;
+        :Submit search request;
+        
+        |Database Service|
+        :Execute complex audit search query;
+        :Apply text search and pattern matching;
+        :Return matching events;
+        
+        |Web Application|
+        :Display search results;
+        
+        |Admin User|
+        :Review search results;
+        :Refine search if needed;
+        
+        |Audit & Monitoring|
+        :Log audit search activity;
+        
+    case (Monitor Real-time Events)
+        |Web Application|
+        :Enable real-time audit monitoring;
+        :Establish event stream connection;
+        
+        |Audit & Monitoring|
+        :Stream live audit events;
+        :Filter events by admin preferences;
+        
+        |Admin User|
+        #LightYellow:Monitor live system events;
+        :Observe real-time system activity;
+        
+        |Web Application|
+        :Display live event feed;
+        :Update display with new events;
+        
+        if (Critical event detected?) then (yes)
+            |Web Application|
+            #Tomato:Highlight critical security event;
+            
+            |Admin User|
+            :Investigate critical event immediately;
+            :Take appropriate security actions;
+            
+            |Audit & Monitoring|
+            :Escalate critical event alert;
+            
+        else (no)
+            |Admin User|
+            :Continue monitoring normal events;
+        endif
+        
+    case (Generate Compliance Report)
+        |Web Application|
+        :Display compliance report options;
+        
+        |Admin User|
+        :Select compliance framework;
+        :Choose reporting period;
+        :Confirm compliance report request;
+        
+        |Report Service|
+        :Generate compliance-formatted report;
+        :Include required compliance sections;
+        :Apply regulatory formatting standards;
+        
+        |Database Service|
+        :Extract compliance-relevant events;
+        :Verify data integrity and completeness;
+        
+        |Web Application|
+        :Create compliance report document;
+        
+        |Admin User|
+        #LightGreen:Download compliance report;
+        
+        |Audit & Monitoring|
+        :Log compliance report generation;
+        :Record regulatory reporting activity;
+        
+    endswitch
+    
+    |Admin User|
+    :Continue audit log review;
+    
+    if (More analysis needed?) then (yes)
+        |Admin User|
+        :Perform additional audit operations;
+        -> Set audit log filters;
+    else (no)
+        #LightGreen:Audit log review session completed;
+    endif
+    
+else (no)
+    |Web Application|
+    #LightCoral:Display "Insufficient permissions" error;
+    :Show required permission level;
+    
+    |Admin User|
+    :Request audit access permissions;
+    :Contact system administrator;
+    
+    |Audit & Monitoring|
+    :Log unauthorized audit access attempt;
+    :Alert security team of access violation;
+    
+endif
+
+|Audit & Monitoring|
+:Record audit log access session;
+:Update admin activity tracking;
+:Maintain audit access audit trail;
+
+note right
+    Audit Capabilities:
+    • Comprehensive event logging
+    • Real-time monitoring
+    • Compliance reporting
+    • Security event analysis
+    • Data integrity verification
+end note
+
+stop
+
+@enduml 

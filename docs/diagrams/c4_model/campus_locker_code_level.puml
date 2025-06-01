@@ -1,0 +1,426 @@
+@startuml C4-Level4-Campus-Locker-Code-Diagrams
+!define TITLE C4 Level 4: Code Diagrams - Campus Locker System
+title TITLE
+
+' ==============================================================================
+' C4 Level 4: Code Diagrams - UML Class Diagrams
+' ==============================================================================
+' Shows implementation details of components defined in Level 3
+' Represents actual Python classes with methods, attributes, and relationships
+' ==============================================================================
+
+package "Presentation Layer" {
+    ' Web Interface Components (from C3-Components-WebInterface)
+    
+    class HomeController {
+        -app: Flask
+        -template_engine: TemplateEngine
+        +__init__(app: Flask)
+        +index() : str
+        +about() : str
+        +contact() : str
+        +render_navigation() : str
+    }
+    
+    class ParcelWebController {
+        -parcel_service: ParcelService
+        -form_validator: FormValidator
+        -template_engine: TemplateEngine
+        +__init__(parcel_service: ParcelService)
+        +deposit_form() : str
+        +process_deposit(form_data: dict) : str
+        +pickup_form() : str
+        +process_pickup(pin: str) : str
+        +status_lookup(tracking_id: str) : str
+        -validate_deposit_data(data: dict) : bool
+    }
+    
+    class StatusController {
+        -parcel_service: ParcelService
+        -template_engine: TemplateEngine
+        +__init__(parcel_service: ParcelService)
+        +check_status(tracking_id: str) : str
+        +get_parcel_history(tracking_id: str) : str
+        +render_status_page(parcel: Parcel) : str
+    }
+    
+    class TemplateEngine {
+        -jinja_env: Environment
+        -templates_path: str
+        +__init__(templates_path: str)
+        +render_template(template_name: str, **kwargs) : str
+        +render_form(form: FlaskForm) : str
+        +render_error(error: Exception) : str
+        +add_global_context(context: dict) : void
+    }
+    
+    class FormValidator {
+        -csrf: CSRFProtect
+        +__init__(app: Flask)
+        +validate_deposit_form(data: dict) : ValidationResult
+        +validate_pickup_form(data: dict) : ValidationResult
+        +validate_email(email: str) : bool
+        +validate_phone(phone: str) : bool
+        +sanitize_input(input_data: str) : str
+    }
+    
+    class ErrorHandler {
+        -logger: Logger
+        -template_engine: TemplateEngine
+        +__init__(app: Flask, template_engine: TemplateEngine)
+        +handle_404(error: NotFound) : str
+        +handle_500(error: InternalServerError) : str
+        +handle_validation_error(error: ValidationError) : str
+        +log_error(error: Exception, context: dict) : void
+    }
+}
+
+package "Service Layer" {
+    ' Parcel Service Components (from C3-Components-ParcelService)
+    
+    class ParcelController {
+        -orchestrator: ParcelOrchestrator
+        -validator: ParcelValidator
+        -logger: Logger
+        +__init__(orchestrator: ParcelOrchestrator)
+        +deposit_parcel(request: DepositRequest) : DepositResponse
+        +pickup_parcel(pin: str) : PickupResponse
+        +get_parcel_status(tracking_id: str) : ParcelStatus
+        +cancel_parcel(tracking_id: str, reason: str) : CancelResponse
+        -log_operation(operation: str, details: dict) : void
+    }
+    
+    class ParcelOrchestrator {
+        -locker_service: LockerService
+        -pin_service: PinService
+        -notification_service: NotificationService
+        -audit_service: AuditService
+        +__init__(dependencies: ServiceContainer)
+        +orchestrate_deposit(request: DepositRequest) : DepositResult
+        +orchestrate_pickup(pin: str) : PickupResult
+        +handle_timeout(tracking_id: str) : void
+        -coordinate_services() : void
+        -rollback_on_failure(operation_id: str) : void
+    }
+    
+    class ParcelValidator {
+        -business_rules: ParcelBusinessRules
+        +__init__(business_rules: ParcelBusinessRules)
+        +validate_deposit_request(request: DepositRequest) : ValidationResult
+        +validate_pickup_request(pin: str) : ValidationResult
+        +validate_parcel_size(dimensions: Dimensions) : bool
+        +validate_recipient_info(recipient: RecipientInfo) : bool
+        +check_business_hours() : bool
+    }
+    
+    class ParcelEventHandler {
+        -event_bus: EventBus
+        -audit_service: AuditService
+        +__init__(event_bus: EventBus)
+        +handle_parcel_deposited(event: ParcelDepositedEvent) : void
+        +handle_parcel_picked_up(event: ParcelPickedUpEvent) : void
+        +handle_parcel_expired(event: ParcelExpiredEvent) : void
+        +publish_event(event: DomainEvent) : void
+        -process_event_async(event: DomainEvent) : void
+    }
+    
+    class NotificationTrigger {
+        -notification_service: NotificationService
+        -template_repository: TemplateRepository
+        +__init__(notification_service: NotificationService)
+        +trigger_deposit_confirmation(parcel: Parcel) : void
+        +trigger_pickup_reminder(parcel: Parcel) : void
+        +trigger_expiry_warning(parcel: Parcel) : void
+        +trigger_pickup_confirmation(parcel: Parcel) : void
+        -build_notification_context(parcel: Parcel) : dict
+    }
+    
+    ' Authentication Service Components (from C3-Components-AuthService)
+    
+    class AuthController {
+        -session_manager: SessionManager
+        -password_validator: PasswordValidator
+        -login_tracker: LoginAttemptTracker
+        +__init__(dependencies: AuthContainer)
+        +login(credentials: LoginCredentials) : LoginResponse
+        +logout(session_id: str) : LogoutResponse
+        +refresh_token(token: str) : TokenResponse
+        +check_permissions(user_id: str, resource: str) : bool
+        -validate_credentials(credentials: LoginCredentials) : bool
+    }
+    
+    class SessionManager {
+        -session_store: SessionStore
+        -token_generator: TokenGenerator
+        -config: SecurityConfig
+        +__init__(session_store: SessionStore)
+        +create_session(user: AdminUser) : Session
+        +validate_session(session_id: str) : bool
+        +refresh_session(session_id: str) : Session
+        +invalidate_session(session_id: str) : void
+        +cleanup_expired_sessions() : int
+    }
+    
+    class PasswordValidator {
+        -hasher: PasswordHasher
+        -policy: PasswordPolicy
+        +__init__(policy: PasswordPolicy)
+        +validate_password(password: str) : ValidationResult
+        +hash_password(password: str) : str
+        +verify_password(password: str, hash: str) : bool
+        +check_password_strength(password: str) : StrengthResult
+        +generate_salt() : str
+    }
+    
+    class LoginAttemptTracker {
+        -attempt_store: AttemptStore
+        -rate_limiter: RateLimiter
+        +__init__(attempt_store: AttemptStore)
+        +record_attempt(username: str, success: bool) : void
+        +is_account_locked(username: str) : bool
+        +is_rate_limited(ip_address: str) : bool
+        +reset_attempts(username: str) : void
+        +get_lockout_duration(username: str) : timedelta
+    }
+    
+    class AuthorizationEngine {
+        -permission_repository: PermissionRepository
+        -role_cache: RoleCache
+        +__init__(permission_repo: PermissionRepository)
+        +check_permission(user: AdminUser, resource: str, action: str) : bool
+        +get_user_roles(user_id: str) : List[Role]
+        +get_role_permissions(role_id: str) : List[Permission]
+        +refresh_permissions_cache() : void
+        -evaluate_permission_rules(rules: List[Rule]) : bool
+    }
+}
+
+package "Business Layer" {
+    ' Domain Models and Business Logic
+    
+    class ParcelManager {
+        -parcel_repository: ParcelRepository
+        -business_rules: ParcelBusinessRules
+        +__init__(parcel_repo: ParcelRepository)
+        +create_parcel(deposit_request: DepositRequest) : Parcel
+        +update_parcel_status(parcel_id: str, status: ParcelStatus) : Parcel
+        +apply_business_rules(parcel: Parcel) : ValidationResult
+        +calculate_expiry_date(deposit_date: datetime) : datetime
+        +check_size_constraints(dimensions: Dimensions) : bool
+    }
+    
+    class SecurityManager {
+        -pin_generator: PinGenerator
+        -encryption_service: EncryptionService
+        +__init__(pin_gen: PinGenerator)
+        +generate_secure_pin() : str
+        +validate_pin(pin: str, hash: str) : bool
+        +encrypt_sensitive_data(data: str) : str
+        +decrypt_sensitive_data(encrypted_data: str) : str
+        +generate_tracking_id() : str
+    }
+    
+    ' Domain Entities
+    
+    class Parcel {
+        +parcel_id: str
+        +tracking_id: str
+        +recipient_name: str
+        +recipient_email: str
+        +recipient_phone: str
+        +pin_hash: str
+        +locker_id: int
+        +status: ParcelStatus
+        +deposit_date: datetime
+        +pickup_date: datetime
+        +expiry_date: datetime
+        +dimensions: Dimensions
+        +__init__(...)
+        +is_expired() : bool
+        +can_be_picked_up() : bool
+        +update_status(new_status: ParcelStatus) : void
+        +to_dict() : dict
+    }
+    
+    class AdminUser {
+        +user_id: str
+        +username: str
+        +email: str
+        +password_hash: str
+        +role: str
+        +is_active: bool
+        +created_at: datetime
+        +last_login: datetime
+        +__init__(...)
+        +authenticate(password: str) : bool
+        +has_permission(resource: str, action: str) : bool
+        +update_last_login() : void
+    }
+    
+    class Locker {
+        +locker_id: int
+        +location: str
+        +size: LockerSize
+        +is_available: bool
+        +is_operational: bool
+        +last_maintenance: datetime
+        +__init__(...)
+        +reserve() : void
+        +release() : void
+        +mark_maintenance_required() : void
+    }
+}
+
+package "Repository Layer" {
+    ' Data Access Layer
+    
+    abstract class BaseRepository {
+        #db_session: Session
+        +__init__(db_session: Session)
+        +{abstract} save(entity: object) : object
+        +{abstract} find_by_id(id: str) : object
+        +{abstract} delete(id: str) : bool
+        #execute_query(query: str, params: dict) : List
+        #handle_db_error(error: Exception) : void
+    }
+    
+    class ParcelRepository {
+        +save(parcel: Parcel) : Parcel
+        +find_by_id(parcel_id: str) : Parcel
+        +find_by_tracking_id(tracking_id: str) : Parcel
+        +find_by_pin_hash(pin_hash: str) : Parcel
+        +find_expired_parcels() : List[Parcel]
+        +update_status(parcel_id: str, status: ParcelStatus) : bool
+        +delete(parcel_id: str) : bool
+        -build_parcel_query(filters: dict) : Query
+    }
+    
+    class AdminRepository {
+        +save(user: AdminUser) : AdminUser
+        +find_by_id(user_id: str) : AdminUser
+        +find_by_username(username: str) : AdminUser
+        +find_by_email(email: str) : AdminUser
+        +update_last_login(user_id: str) : bool
+        +deactivate_user(user_id: str) : bool
+        +delete(user_id: str) : bool
+    }
+    
+    class LockerRepository {
+        +save(locker: Locker) : Locker
+        +find_by_id(locker_id: int) : Locker
+        +find_available_lockers(size: LockerSize) : List[Locker]
+        +reserve_locker(locker_id: int) : bool
+        +release_locker(locker_id: int) : bool
+        +mark_maintenance(locker_id: int) : bool
+        +get_locker_utilization() : dict
+    }
+}
+
+package "Data Types" {
+    ' Value Objects and Enums
+    
+    enum ParcelStatus {
+        DEPOSITED
+        PICKUP_READY
+        PICKED_UP
+        EXPIRED
+        CANCELLED
+    }
+    
+    enum LockerSize {
+        SMALL
+        MEDIUM
+        LARGE
+        EXTRA_LARGE
+    }
+    
+    class Dimensions {
+        +length: float
+        +width: float
+        +height: float
+        +weight: float
+        +__init__(length: float, width: float, height: float, weight: float)
+        +volume() : float
+        +fits_in_locker(locker_size: LockerSize) : bool
+        +to_string() : str
+    }
+    
+    class DepositRequest {
+        +recipient_name: str
+        +recipient_email: str
+        +recipient_phone: str
+        +dimensions: Dimensions
+        +special_instructions: str
+        +__init__(...)
+        +validate() : ValidationResult
+        +to_dict() : dict
+    }
+    
+    class ValidationResult {
+        +is_valid: bool
+        +errors: List[str]
+        +warnings: List[str]
+        +__init__(is_valid: bool)
+        +add_error(message: str) : void
+        +add_warning(message: str) : void
+        +has_errors() : bool
+    }
+}
+
+' ==============================================================================
+' Relationships - Following Hexagonal Architecture Pattern
+' ==============================================================================
+
+' Presentation → Service Dependencies (Outer → Inner)
+HomeController --> TemplateEngine
+ParcelWebController --> ParcelController
+ParcelWebController --> FormValidator
+ParcelWebController --> TemplateEngine
+StatusController --> ParcelController
+StatusController --> TemplateEngine
+ErrorHandler --> TemplateEngine
+
+' Service Layer Internal Dependencies
+ParcelController --> ParcelOrchestrator
+ParcelController --> ParcelValidator
+ParcelOrchestrator --> NotificationTrigger
+ParcelOrchestrator --> ParcelEventHandler
+ParcelEventHandler --> NotificationTrigger
+
+AuthController --> SessionManager
+AuthController --> PasswordValidator
+AuthController --> LoginAttemptTracker
+SessionManager --> AuthorizationEngine
+
+' Service → Business Dependencies (Application → Domain)
+ParcelOrchestrator --> ParcelManager
+ParcelOrchestrator --> SecurityManager
+ParcelValidator --> ParcelManager
+PasswordValidator --> SecurityManager
+
+' Business → Repository Dependencies (Domain → Infrastructure)
+ParcelManager --> ParcelRepository
+SecurityManager --> AdminRepository
+
+' Repository Inheritance
+ParcelRepository --|> BaseRepository
+AdminRepository --|> BaseRepository
+LockerRepository --|> BaseRepository
+
+' Domain Model Relationships
+Parcel --> ParcelStatus
+Parcel --> Dimensions
+Locker --> LockerSize
+DepositRequest --> Dimensions
+DepositRequest --> ValidationResult
+
+' Repository → Entity Relationships
+ParcelRepository --> Parcel
+AdminRepository --> AdminUser
+LockerRepository --> Locker
+
+note top of HomeController : "C4 Level 4: Implementation Details\nShows actual Python classes with methods\nand attributes that implement the\narchitectural components from Level 3"
+
+note bottom of ParcelRepository : "Repository Pattern Implementation\nData access abstraction following\nhexagonal architecture principles"
+
+@enduml 

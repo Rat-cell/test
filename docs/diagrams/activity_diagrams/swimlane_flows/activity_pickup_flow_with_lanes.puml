@@ -1,0 +1,279 @@
+@startuml Parcel-Pickup-Flow-With-Swimlanes
+title Campus Locker System - Parcel Pickup Flow (with Swimlanes)
+
+' Clean styling for readability
+skinparam backgroundColor White
+skinparam activity {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    FontColor Black
+}
+skinparam partition {
+    BorderColor Navy
+    FontColor DarkBlue
+    BackgroundColor WhiteSmoke
+}
+
+' Define all swimlanes at the start
+|#LightBlue|User/Customer|
+|#LightGreen|Web Application|
+|#LightCyan|Database Service|
+|#LightYellow|Email Service|
+|#LightPink|Locker Hardware|
+|#Orange|Security Service|
+|#Gray|Audit & Monitoring|
+
+start
+
+|User/Customer|
+:Access Campus Locker System;
+:Navigate to "Pickup Parcel" section;
+:Enter secure PIN;
+note right
+    User Input:
+    • 6-digit secure PIN
+    • Received via email
+    • Case-sensitive entry
+    • Limited time validity
+end note
+
+:Submit PIN for validation;
+
+|Web Application|
+:Receive pickup request;
+:Extract PIN from request;
+
+|Security Service|
+:Check PIN format validity;
+:Verify PIN not empty/null;
+
+if (PIN format valid?) then (yes)
+    
+    |Security Service|
+    :Check brute force protection;
+    :Retrieve failed attempt count for PIN;
+    
+    if (PIN temporarily blocked?) then (no)
+        
+        |Database Service|
+        :Query parcel by PIN;
+        :Retrieve parcel details;
+        
+        if (Parcel found?) then (yes)
+            
+            |Security Service|
+            :Validate PIN against stored hash;
+            
+            if (PIN matches?) then (yes)
+                
+                |Database Service|
+                :Check parcel status;
+                :Verify parcel state;
+                
+                if (Parcel status?) then (Ready for pickup)
+                    
+                    |Database Service|
+                    :Check expiry date;
+                    :Compare with current timestamp;
+                    
+                    if (Parcel expired?) then (no)
+                        
+                        |Web Application|
+                        :Authorize pickup process;
+                        :Prepare locker access;
+                        
+                        |Locker Hardware|
+                        :Activate locker unlock sequence;
+                        :Flash LED indicators;
+                        :Display pickup instructions;
+                        :Open locker door;
+                        
+                        |User/Customer|
+                        #LightGreen:Receive pickup authorization;
+                        :View locker location details;
+                        :Proceed to physical locker;
+                        :Remove parcel from locker;
+                        
+                        |Locker Hardware|
+                        :Detect parcel removal;
+                        :Sensor confirms empty locker;
+                        :Automatically lock door;
+                        :Update hardware status;
+                        
+                        |Database Service|
+                        :Update parcel status to "PICKED_UP";
+                        :Record pickup timestamp;
+                        :Release locker for new deposits;
+                        :Update locker status to "AVAILABLE";
+                        
+                        |Email Service|
+                        :Send pickup confirmation email;
+                        :Include pickup timestamp;
+                        :Include thank you message;
+                        :Include support contact info;
+                        
+                        |Security Service|
+                        :Reset failed attempt counter;
+                        :Log successful pickup event;
+                        
+                        |Audit & Monitoring|
+                        :Log successful pickup completion;
+                        :Update pickup metrics;
+                        :Record user interaction;
+                        
+                        |User/Customer|
+                        #LightGreen:Display pickup success message;
+                        :Receive confirmation email;
+                        note right
+                            Success Response:
+                            • Pickup confirmed at [timestamp]
+                            • Locker successfully released
+                            • Thank you for using the service
+                            • Rate your experience (optional)
+                        end note
+                        
+                        #LightGreen:Pickup process completed successfully;
+                        
+                    else (yes)
+                        |Database Service|
+                        :Update parcel status to "EXPIRED";
+                        :Release locker automatically;
+                        
+                        |Web Application|
+                        #LightCoral:Display "Parcel expired" error;
+                        :Show alternative options;
+                        
+                        |User/Customer|
+                        :View expiry information;
+                        :Contact support if needed;
+                        
+                        |Audit & Monitoring|
+                        :Log expired pickup attempt;
+                        
+                    endif
+                    
+                elseif (Parcel status?) then (Already picked up)
+                    |Web Application|
+                    #LightCoral:Display "Already picked up" message;
+                    :Show pickup timestamp;
+                    
+                    |User/Customer|
+                    :View previous pickup details;
+                    :Verify pickup information;
+                    
+                    |Audit & Monitoring|
+                    :Log duplicate pickup attempt;
+                    
+                else (Cancelled)
+                    |Web Application|
+                    #LightCoral:Display "Parcel cancelled" message;
+                    :Show cancellation details;
+                    
+                    |User/Customer|
+                    :Contact sender if needed;
+                    
+                    |Audit & Monitoring|
+                    :Log cancelled parcel access attempt;
+                    
+                endif
+                
+            else (no)
+                |Security Service|
+                :Increment failed attempt counter;
+                :Check if max attempts reached;
+                
+                if (Max attempts reached?) then (yes)
+                    |Security Service|
+                    :Temporarily block PIN;
+                    :Set lockout duration (15 minutes);
+                    :Log security event;
+                    
+                    |Email Service|
+                    :Send security alert to recipient;
+                    :Include failed attempt details;
+                    
+                    |Web Application|
+                    #Tomato:Display "PIN blocked" message;
+                    :Show lockout duration;
+                    :Provide support contact;
+                    
+                    |Audit & Monitoring|
+                    :Log security lockout event;
+                    :Flag potential security threat;
+                    
+                else (no)
+                    |Web Application|
+                    #LightCoral:Display "Invalid PIN" error;
+                    :Show remaining attempts;
+                    
+                    |User/Customer|
+                    :Review PIN carefully;
+                    :Retry with correct PIN;
+                    
+                    |Audit & Monitoring|
+                    :Log failed PIN attempt;
+                    
+                endif
+            endif
+            
+        else (no)
+            |Web Application|
+            #LightCoral:Display "Parcel not found" error;
+            :Suggest tracking ID lookup;
+            
+            |User/Customer|
+            :Verify PIN accuracy;
+            :Try tracking ID status check;
+            
+            |Audit & Monitoring|
+            :Log invalid PIN lookup attempt;
+            
+        endif
+        
+    else (yes)
+        |Web Application|
+        #Tomato:Display "PIN temporarily blocked" message;
+        :Show remaining lockout time;
+        :Provide support contact information;
+        
+        |User/Customer|
+        :Wait for lockout to expire;
+        :Contact support if urgent;
+        
+        |Audit & Monitoring|
+        :Log blocked PIN access attempt;
+        
+    endif
+    
+else (no)
+    |Web Application|
+    #LightCoral:Display "Invalid PIN format" error;
+    :Show PIN requirements;
+    
+    |User/Customer|
+    :Enter valid 6-digit PIN;
+    :Check email for correct PIN;
+    
+    |Audit & Monitoring|
+    :Log invalid format attempt;
+    
+endif
+
+|Audit & Monitoring|
+:Record transaction details;
+:Update pickup analytics;
+:Monitor security metrics;
+:Track system performance;
+
+note right
+    Background Monitoring:
+    • Security threat detection
+    • Performance metrics collection
+    • User behavior analytics
+    • System health monitoring
+    • Fraud prevention algorithms
+end note
+
+stop
+
+@enduml 

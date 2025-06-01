@@ -1,0 +1,242 @@
+@startuml Admin-Login-Authentication-Flow
+title Campus Locker System - Admin Login & Authentication Flow
+
+' Clean styling for readability
+skinparam backgroundColor White
+skinparam activity {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    FontColor Black
+}
+skinparam partition {
+    BorderColor Navy
+    FontColor DarkBlue
+    BackgroundColor WhiteSmoke
+}
+
+' Define all swimlanes at the start
+|#LightBlue|Admin User|
+|#LightGreen|Web Application|
+|#Orange|Authentication Service|
+|#LightCyan|Database Service|
+|#LightYellow|Session Service|
+|#Gray|Audit & Monitoring|
+
+start
+
+|Admin User|
+:Access admin dashboard URL;
+:Navigate to login page;
+:Enter admin credentials;
+note right
+    Required Credentials:
+    • Username/Email
+    • Password
+    • Optional: 2FA token
+    • Remember me option
+end note
+
+:Submit login form;
+
+|Web Application|
+:Receive login request;
+:Extract credentials from form;
+:Validate input format;
+
+if (Input format valid?) then (yes)
+    
+    |Authentication Service|
+    :Check brute force protection;
+    :Retrieve failed login attempts;
+    
+    if (Account locked?) then (no)
+        
+        |Database Service|
+        :Query admin user by username;
+        :Retrieve user account details;
+        
+        if (User account found?) then (yes)
+            
+            |Authentication Service|
+            :Verify password hash;
+            :Compare with stored credentials;
+            
+            if (Password correct?) then (yes)
+                
+                |Database Service|
+                :Check account status;
+                :Verify account permissions;
+                
+                if (Account active?) then (yes)
+                    
+                    |Authentication Service|
+                    :Check 2FA requirement;
+                    
+                    if (2FA enabled?) then (yes)
+                        |Web Application|
+                        :Display 2FA input form;
+                        
+                        |Admin User|
+                        :Enter 2FA token;
+                        :Submit verification code;
+                        
+                        |Authentication Service|
+                        :Validate 2FA token;
+                        
+                        if (2FA token valid?) then (yes)
+                            |Session Service|
+                            :Create secure admin session;
+                            :Generate session token;
+                            :Set session expiration;
+                            
+                        else (no)
+                            |Web Application|
+                            #LightCoral:Display "Invalid 2FA code" error;
+                            
+                            |Audit & Monitoring|
+                            :Log 2FA failure event;
+                            
+                            stop
+                        endif
+                        
+                    else (no)
+                        |Session Service|
+                        :Create secure admin session;
+                        :Generate session token;
+                        :Set session expiration;
+                    endif
+                    
+                    |Database Service|
+                    :Update last login timestamp;
+                    :Record login IP address;
+                    :Reset failed attempt counter;
+                    
+                    |Audit & Monitoring|
+                    :Log successful admin login;
+                    :Record session creation;
+                    :Update security metrics;
+                    
+                    |Web Application|
+                    :Set authentication cookies;
+                    :Redirect to admin dashboard;
+                    
+                    |Admin User|
+                    #LightGreen:Access granted to admin dashboard;
+                    :View dashboard overview;
+                    note right
+                        Dashboard Access Includes:
+                        • System overview metrics
+                        • Quick action buttons
+                        • Recent activity feed
+                        • Navigation menu
+                        • User profile info
+                    end note
+                    
+                    #LightGreen:Login process completed successfully;
+                    
+                else (no)
+                    |Web Application|
+                    #LightCoral:Display "Account disabled" error;
+                    :Show contact support message;
+                    
+                    |Audit & Monitoring|
+                    :Log disabled account attempt;
+                    
+                endif
+                
+            else (no)
+                |Authentication Service|
+                :Increment failed attempt counter;
+                :Check lockout threshold;
+                
+                if (Max attempts reached?) then (yes)
+                    |Authentication Service|
+                    :Lock admin account temporarily;
+                    :Set lockout duration (30 minutes);
+                    
+                    |Database Service|
+                    :Update account lockout status;
+                    :Record lockout timestamp;
+                    
+                    |Web Application|
+                    #Tomato:Display "Account locked" message;
+                    :Show lockout duration;
+                    :Provide unlock instructions;
+                    
+                    |Audit & Monitoring|
+                    :Log security lockout event;
+                    :Send admin security alert;
+                    
+                else (no)
+                    |Web Application|
+                    #LightCoral:Display "Invalid credentials" error;
+                    :Show remaining attempts;
+                    
+                    |Admin User|
+                    :Review credentials carefully;
+                    :Retry with correct password;
+                    
+                    |Audit & Monitoring|
+                    :Log failed login attempt;
+                    
+                endif
+            endif
+            
+        else (no)
+            |Web Application|
+            #LightCoral:Display "Invalid credentials" error;
+            :Generic error message for security;
+            
+            |Audit & Monitoring|
+            :Log invalid username attempt;
+            :Check for suspicious activity;
+            
+        endif
+        
+    else (yes)
+        |Web Application|
+        #Tomato:Display "Account temporarily locked" message;
+        :Show remaining lockout time;
+        :Provide support contact info;
+        
+        |Admin User|
+        :Wait for lockout to expire;
+        :Contact IT support if needed;
+        
+        |Audit & Monitoring|
+        :Log blocked login attempt;
+        
+    endif
+    
+else (no)
+    |Web Application|
+    #LightCoral:Display "Please check your input" error;
+    :Highlight invalid fields;
+    
+    |Admin User|
+    :Correct form validation errors;
+    :Resubmit with valid data;
+    
+    |Audit & Monitoring|
+    :Log input validation failure;
+    
+endif
+
+|Audit & Monitoring|
+:Record authentication metrics;
+:Monitor security patterns;
+:Update login analytics;
+:Check for anomalies;
+
+note right
+    Security Features:
+    • Brute force protection
+    • Account lockout mechanism
+    • IP address tracking
+    • Session management
+    • Comprehensive audit logging
+end note
+
+stop
+
+@enduml 

@@ -1,0 +1,269 @@
+@startuml Admin-Manage-Parcels-Flow
+title Campus Locker System - Admin Manage Parcels Flow
+
+' Clean styling for readability
+skinparam backgroundColor White
+skinparam activity {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    FontColor Black
+}
+skinparam partition {
+    BorderColor Navy
+    FontColor DarkBlue
+    BackgroundColor WhiteSmoke
+}
+
+' Define all swimlanes at the start
+|#LightBlue|Admin User|
+|#LightGreen|Web Application|
+|#LightCyan|Database Service|
+|#LightYellow|Email Service|
+|#LightPink|Locker Hardware|
+|#Gray|Audit & Monitoring|
+
+start
+
+|Admin User|
+:Access admin dashboard;
+:Navigate to "Manage Parcels" section;
+:Request parcel management view;
+
+|Web Application|
+:Validate admin session;
+:Check parcel management permissions;
+
+if (Admin authorized?) then (yes)
+    
+    |Database Service|
+    :Query all parcels with pagination;
+    :Retrieve parcel status information;
+    :Get associated locker details;
+    
+    |Web Application|
+    :Display parcel management interface;
+    :Show search and filter options;
+    
+    |Admin User|
+    :View parcel list;
+    :Apply filters if needed;
+    note right
+        Filter Options:
+        • Status: Active, Expired, Picked up
+        • Date range: Deposit/Pickup dates
+        • Locker location: Building, Row, Unit
+        • Recipient: Name or email search
+        • Tracking ID: Direct lookup
+    end note
+    
+    if (Search/Filter applied?) then (yes)
+        |Database Service|
+        :Apply search criteria;
+        :Filter parcel results;
+        :Return filtered dataset;
+        
+        |Web Application|
+        :Update parcel display;
+        
+    else (no)
+        |Web Application|
+        :Show all parcels (paginated);
+    endif
+    
+    |Admin User|
+    :Select parcel for action;
+    
+    switch (Parcel action?)
+    case (View Details)
+        |Database Service|
+        :Retrieve complete parcel information;
+        :Get pickup history and logs;
+        
+        |Web Application|
+        :Display detailed parcel view;
+        
+        |Admin User|
+        #LightBlue:Review parcel details;
+        :View recipient information;
+        :Check pickup history;
+        note right
+            Parcel Details View:
+            • Tracking ID: ABC123XYZ
+            • Recipient: John Doe (john@university.edu)
+            • Status: Ready for pickup
+            • Deposit date: 2024-12-01 14:30
+            • Expiry date: 2024-12-06 14:30
+            • Locker: Building A, Row 2, #15
+            • PIN attempts: 0/3
+            • Special instructions: Handle with care
+        end note
+        
+        |Audit & Monitoring|
+        :Log parcel detail access;
+        
+    case (Cancel Parcel)
+        |Web Application|
+        :Display cancellation confirmation dialog;
+        
+        |Admin User|
+        :Confirm parcel cancellation;
+        :Provide cancellation reason;
+        
+        if (Cancellation confirmed?) then (yes)
+            |Database Service|
+            :Update parcel status to "CANCELLED";
+            :Record cancellation timestamp;
+            :Record admin user and reason;
+            
+            |Locker Hardware|
+            :Release reserved locker;
+            :Update locker status to "AVAILABLE";
+            
+            |Email Service|
+            :Send cancellation notification;
+            :Include cancellation reason;
+            :Provide support contact info;
+            
+            |Web Application|
+            #Orange:Display cancellation success;
+            
+            |Audit & Monitoring|
+            :Log admin parcel cancellation;
+            :Record reason and timestamp;
+            
+        else (no)
+            |Web Application|
+            :Return to parcel list;
+        endif
+        
+    case (Extend Expiry)
+        |Web Application|
+        :Display expiry extension form;
+        
+        |Admin User|
+        :Set new expiry date;
+        :Provide extension reason;
+        :Submit extension request;
+        
+        |Database Service|
+        :Update parcel expiry date;
+        :Record extension details;
+        :Log admin action;
+        
+        |Email Service|
+        :Send extension notification;
+        :Include new expiry date;
+        :Explain extension reason;
+        
+        |Web Application|
+        #LightGreen:Display extension success;
+        
+        |Audit & Monitoring|
+        :Log expiry extension event;
+        :Record new dates and reason;
+        
+    case (Force Expire)
+        |Web Application|
+        :Display force expiry confirmation;
+        
+        |Admin User|
+        :Confirm force expiry action;
+        :Provide expiry reason;
+        
+        if (Force expiry confirmed?) then (yes)
+            |Database Service|
+            :Update parcel status to "EXPIRED";
+            :Record force expiry timestamp;
+            
+            |Locker Hardware|
+            :Release occupied locker;
+            :Update locker availability;
+            
+            |Email Service|
+            :Send expiry notification;
+            :Explain administrative action;
+            
+            |Web Application|
+            #Orange:Display force expiry success;
+            
+            |Audit & Monitoring|
+            :Log admin force expiry action;
+            :Record reason and impact;
+            
+        else (no)
+            |Web Application|
+            :Return to parcel management;
+        endif
+        
+    case (Reset PIN)
+        |Web Application|
+        :Display PIN reset confirmation;
+        
+        |Admin User|
+        :Confirm PIN reset action;
+        
+        if (PIN reset confirmed?) then (yes)
+            |Database Service|
+            :Generate new secure PIN;
+            :Reset failed attempt counter;
+            :Update parcel record;
+            
+            |Email Service|
+            :Send new PIN to recipient;
+            :Include pickup instructions;
+            
+            |Web Application|
+            #LightGreen:Display PIN reset success;
+            
+            |Audit & Monitoring|
+            :Log admin PIN reset action;
+            :Record security event;
+            
+        else (no)
+            |Web Application|
+            :Return to parcel list;
+        endif
+        
+    endswitch
+    
+    |Admin User|
+    :Continue parcel management;
+    
+    if (More actions needed?) then (yes)
+        |Admin User|
+        :Select another parcel;
+        -> Select parcel for action;
+    else (no)
+        #LightGreen:Parcel management session completed;
+    endif
+    
+else (no)
+    |Web Application|
+    #LightCoral:Display "Access denied" error;
+    :Redirect to login page;
+    
+    |Admin User|
+    :Re-authenticate with proper permissions;
+    
+    |Audit & Monitoring|
+    :Log unauthorized access attempt;
+    
+endif
+
+|Audit & Monitoring|
+:Record parcel management session;
+:Update admin activity metrics;
+:Track operational changes;
+
+note right
+    Parcel Management Features:
+    • Comprehensive parcel search
+    • Bulk action capabilities
+    • Real-time status updates
+    • Automated notifications
+    • Complete audit trails
+end note
+
+stop
+
+@enduml 

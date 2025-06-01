@@ -2,7 +2,7 @@
 
 A **graduate-level software architecture demonstration** showcasing hexagonal architecture, comprehensive testing, and modern enterprise development practices through an automated parcel management system.
 
-**Current Status:** Version 2.2.1 - Graduate-level documentation with modern Structurizr DSL diagrams, DBML schemas, and comprehensive architecture analysis. Production-ready with 268 tests and sub-25ms performance.
+**Current Status:** Version 2.2.2 - Enhanced diagram organization with specialized swimlane flow categorization, comprehensive cross-functional process documentation, and industry-standard folder structure. Graduate-level documentation with modern Structurizr DSL diagrams, DBML schemas, and comprehensive architecture analysis. Production-ready with 268 tests and sub-25ms performance.
 
 ---
 
@@ -52,6 +52,11 @@ test/                               # 🏠 Root Project Directory
 │   └── seed_lockers.py           # 🗄️ Locker initialization script
 ├── docs/                          # 📚 Comprehensive Documentation
 │   ├── diagrams/                  # 📊 Architecture Diagrams & Database Schemas
+│   │   ├── c4_model/             # C4 Model Architecture Diagrams (Structurizr DSL)
+│   │   ├── activity_diagrams/    # Process Flow & Workflow Diagrams (PlantUML)
+│   │   │   └── swimlane_flows/   # Activity Diagrams with Detailed Swimlanes
+│   │   ├── class_diagrams/       # Object-Oriented Design Diagrams (PlantUML)
+│   │   └── database_schemas/     # Database Schema Definitions (DBML)
 │   ├── guides/                    # 📖 User & Developer Guides
 │   ├── introduction/              # 🎓 Project Overview & Architecture Analysis
 │   ├── specifications/            # 📋 Requirements & Technical Specifications
@@ -96,8 +101,29 @@ test/                               # 🏠 Root Project Directory
 
 ---
 
-## 📋 **Latest Changes - Version 2.2.1** *(2025-01-04)*
+## 📋 **Latest Changes - Version 2.2.2** *(2025-01-04)*
 
+### 📊 Diagram Organization Enhancement & Swimlane Flow Structure
+
+**🗂️ Professional Diagram Organization**
+- Created dedicated `swimlane_flows/` subfolder within `activity_diagrams/` for enhanced organization
+- Organized 6 comprehensive swimlane flow diagrams with detailed cross-functional process visualization
+- Clear separation between basic activity flows and detailed swimlane process flows
+- Industry-standard folder structure following diagram type categorization best practices
+
+**📋 Comprehensive Swimlane Flow Documentation**
+- User Flow Diagrams: deposit and pickup processes with detailed security validation
+- Administrative Flow Diagrams: login, system status, parcel management, and audit log flows
+- Enhanced documentation with clear User Flow vs Administrative Flow distinctions
+- Professional PlantUML implementation with cross-functional responsibility boundaries
+
+**📚 Documentation Structure Modernization**
+- Updated all project documentation (README.md, ABOUT_PROJECT.md) with new folder structure
+- Detailed diagram descriptions with feature highlights and categorization
+- Complete file inventory reflecting new organizational structure
+- Enhanced navigation experience for different types of process flows
+
+*Previous Version 2.2.1 (2025-01-04):*
 ### 📚 Documentation Excellence & Architecture Visualization Modernization
 
 **🏗️ Architecture Documentation Revolution**
@@ -116,10 +142,5 @@ test/                               # 🏠 Root Project Directory
 - Comprehensive DBML schemas for operational and audit databases (verified against actual code)
 - dbdiagram.io compatible visualization for professional database documentation
 - Complete business rules, constraints, and performance optimization documentation
-
-**📖 Documentation Structure Modernization**
-- Streamlined README.md with clear navigation to specialized resources
-- Eliminated documentation redundancy while maintaining comprehensive coverage
-- Professional cross-references and graduate-level learning progression
 
 *See [full changelog](CHANGELOG.md) for complete version history.*

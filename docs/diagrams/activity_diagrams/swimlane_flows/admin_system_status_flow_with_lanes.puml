@@ -1,0 +1,198 @@
+@startuml Admin-System-Status-Flow
+title Campus Locker System - Admin View System Status Flow
+
+' Clean styling for readability
+skinparam backgroundColor White
+skinparam activity {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    FontColor Black
+}
+skinparam partition {
+    BorderColor Navy
+    FontColor DarkBlue
+    BackgroundColor WhiteSmoke
+}
+
+' Define all swimlanes at the start
+|#LightBlue|Admin User|
+|#LightGreen|Web Application|
+|#LightCyan|Database Service|
+|#Orange|Metrics Service|
+|#LightPink|Locker Hardware|
+|#Gray|Audit & Monitoring|
+
+start
+
+|Admin User|
+:Access admin dashboard;
+:Navigate to "System Status" section;
+:Request system overview;
+
+|Web Application|
+:Validate admin session;
+:Check admin permissions;
+
+if (Admin authorized?) then (yes)
+    
+    |Web Application|
+    :Initiate system status collection;
+    :Display loading indicators;
+    
+    |Metrics Service|
+    :Calculate system health metrics;
+    :Retrieve performance data;
+    
+    |Database Service|
+    :Query active parcel count;
+    :Count parcels by status;
+    :Calculate storage utilization;
+    
+    |Locker Hardware|
+    :Poll locker availability status;
+    :Check hardware connectivity;
+    :Retrieve sensor data;
+    
+    |Metrics Service|
+    :Aggregate collected data;
+    :Calculate key performance indicators;
+    
+    if (All services responding?) then (yes)
+        
+        |Web Application|
+        :Format status dashboard;
+        :Prepare visualization data;
+        
+        |Admin User|
+        #LightGreen:View comprehensive system status;
+        :Review key metrics dashboard;
+        note right
+            System Status Display:
+            • Total parcels: 1,247 active
+            • Locker utilization: 78% occupied
+            • System uptime: 99.8%
+            • Response time: 120ms avg
+            • Error rate: 0.02%
+            • Hardware status: All operational
+            • Background jobs: Running normally
+        end note
+        
+        :Analyze system performance;
+        
+        if (Admin action required?) then (yes)
+            
+            switch (Action type?)
+            case (Refresh Data)
+                |Web Application|
+                :Trigger real-time data refresh;
+                
+                |Metrics Service|
+                :Recalculate all metrics;
+                
+                |Admin User|
+                :View updated status information;
+                
+            case (Export Report)
+                |Metrics Service|
+                :Generate system status report;
+                :Format data for export;
+                
+                |Web Application|
+                :Create downloadable report;
+                
+                |Admin User|
+                :Download system status report;
+                
+                |Audit & Monitoring|
+                :Log report generation event;
+                
+            case (Drill Down)
+                |Web Application|
+                :Display detailed metrics view;
+                :Show historical performance graphs;
+                
+                |Admin User|
+                :Analyze detailed system data;
+                
+            case (Set Alerts)
+                |Web Application|
+                :Display alert configuration form;
+                
+                |Admin User|
+                :Configure performance thresholds;
+                :Set notification preferences;
+                
+                |Database Service|
+                :Save alert configurations;
+                
+                |Audit & Monitoring|
+                :Log alert configuration changes;
+                
+            endswitch
+            
+        else (no)
+            |Admin User|
+            :Continue monitoring system status;
+        endif
+        
+        |Audit & Monitoring|
+        :Log system status access;
+        :Record admin monitoring activity;
+        
+        #LightGreen:System status review completed;
+        
+    else (no)
+        |Web Application|
+        #Orange:Display partial system status;
+        :Show service availability warnings;
+        
+        |Admin User|
+        :Review service status issues;
+        :Identify problematic components;
+        note right
+            Partial Status Indicators:
+            • Database: ✅ Online
+            • Locker Hardware: ⚠️ Some units offline
+            • Email Service: ✅ Online
+            • Metrics Service: ❌ Degraded
+            • Background Jobs: ✅ Running
+        end note
+        
+        :Take corrective actions if needed;
+        
+        |Audit & Monitoring|
+        :Log service availability issues;
+        :Alert system administrators;
+        
+    endif
+    
+else (no)
+    |Web Application|
+    #LightCoral:Display "Access denied" error;
+    :Redirect to login page;
+    
+    |Admin User|
+    :Re-authenticate with valid credentials;
+    
+    |Audit & Monitoring|
+    :Log unauthorized access attempt;
+    
+endif
+
+|Audit & Monitoring|
+:Record system monitoring session;
+:Update admin activity metrics;
+:Track dashboard usage patterns;
+
+note right
+    Monitoring Capabilities:
+    • Real-time system health
+    • Performance trend analysis
+    • Service availability tracking
+    • Resource utilization metrics
+    • Automated alert generation
+end note
+
+stop
+
+@enduml 

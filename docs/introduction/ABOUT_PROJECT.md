@@ -172,6 +172,11 @@ test/
 │   └── seed_lockers.py           # Locker initialization script
 ├── docs/                         # Project Documentation
 │   ├── diagrams/                 # Architecture Diagrams (Structurizr DSL + DBML)
+│   │   ├── c4_model/            # C4 Model Architecture Diagrams
+│   │   ├── activity_diagrams/   # Process Flow Diagrams
+│   │   │   └── swimlane_flows/  # Activity Diagrams with Detailed Swimlanes
+│   │   ├── class_diagrams/      # Object-Oriented Design Diagrams
+│   │   └── database_schemas/    # Database Schema Definitions (DBML)
 │   ├── guides/                   # User & Developer Guides
 │   ├── introduction/             # Project Overview & Architecture Analysis
 │   ├── specifications/           # Requirements & Technical Specifications

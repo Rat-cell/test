@@ -1,5 +1,71 @@
 # 📋 Campus Locker System - Changelog
 
+## [2.2.2] - 2025-01-04
+
+### 📊 Diagram Organization Enhancement & Swimlane Flow Structure
+
+This release focuses on **diagram organization improvement** and **enhanced swimlane flow documentation** to provide clearer navigation and better categorization of process flow diagrams with detailed cross-functional interactions.
+
+#### **🗂️ Swimlane Flow Organization Enhancement**
+- **New Swimlane Flows Subfolder**: Created dedicated `docs/diagrams/activity_diagrams/swimlane_flows/` directory for detailed process flow diagrams
+- **Activity Diagram Restructuring**: Organized 6 comprehensive swimlane flow diagrams into dedicated subfolder structure
+- **Enhanced Navigation**: Clear separation between basic activity flows and detailed swimlane process flows
+- **Professional Organization**: Industry-standard folder structure following diagram type categorization
+
+#### **📋 Comprehensive Swimlane Flow Documentation**
+- **User Flow Diagrams**:
+  - `activity_deposit_flow_with_lanes.puml` - Detailed parcel deposit process with cross-functional swimlanes
+  - `activity_pickup_flow_with_lanes.puml` - Comprehensive pickup process with security validation
+- **Administrative Flow Diagrams**:
+  - `admin_login_flow_with_lanes.puml` - Admin authentication with 2FA and comprehensive audit logging
+  - `admin_system_status_flow_with_lanes.puml` - Real-time system monitoring with metrics collection
+  - `admin_manage_parcels_flow_with_lanes.puml` - Complete parcel management with search and operations
+  - `admin_audit_logs_flow_with_lanes.puml` - Advanced audit log management with filtering and compliance
+
+#### **📚 Documentation Structure Modernization**
+- **Updated Project Documentation**: Enhanced README.md and ABOUT_PROJECT.md with new folder structure
+- **Detailed Diagram Descriptions**: Comprehensive documentation for each swimlane flow with feature highlights
+- **Clear Categorization**: Organized documentation showing User Flow vs Administrative Flow distinctions
+- **Professional File Inventory**: Updated complete file listings reflecting new organizational structure
+
+#### **🎯 Swimlane Flow Features**
+- **Cross-Functional Process Visualization**: Clear responsibility boundaries between services and actors
+- **Detailed Error Handling**: Comprehensive exception flows and security validation checkpoints
+- **Real-Time Monitoring Integration**: Hardware integration touchpoints and system monitoring
+- **Security and Audit Integration**: Complete audit trail logging and security validation throughout processes
+- **Professional PlantUML Implementation**: Industry-standard swimlane syntax with clean formatting
+
+#### **📂 Enhanced Directory Structure**
+```
+docs/diagrams/
+├── activity_diagrams/
+│   ├── swimlane_flows/         # ← NEW: Detailed Cross-Functional Process Flows
+│   │   ├── activity_deposit_flow_with_lanes.puml
+│   │   ├── activity_pickup_flow_with_lanes.puml
+│   │   ├── admin_login_flow_with_lanes.puml
+│   │   ├── admin_system_status_flow_with_lanes.puml
+│   │   ├── admin_manage_parcels_flow_with_lanes.puml
+│   │   └── admin_audit_logs_flow_with_lanes.puml
+│   ├── activity_admin_flows.puml
+│   └── activity_parcel_flows.puml
+├── c4_model/                   # C4 Architecture Diagrams
+├── class_diagrams/             # Object-Oriented Design Diagrams
+└── database_schemas/           # Database Schema Definitions
+```
+
+### 🎯 **Version 2.2.2 Achievement Summary**
+**Status**: Enhanced diagram organization achieving **PROFESSIONAL DOCUMENTATION STRUCTURE** with specialized swimlane flow categorization, comprehensive cross-functional process documentation, and industry-standard folder organization. The diagram structure now provides clear navigation paths for different types of process flows and technical documentation needs.
+
+### 📊 **Diagram Organization Excellence - V2.2.2**
+- **Swimlane Flow Organization**: Dedicated subfolder for detailed cross-functional process flows
+- **Enhanced Documentation**: Comprehensive descriptions and categorization of all diagram types
+- **Professional Structure**: Industry-standard organization following diagram type best practices
+- **Clear Navigation**: Improved user experience for finding and understanding different process flows
+- **Complete Documentation Update**: All project documentation updated to reflect new organizational structure
+- **Educational Value**: Enhanced learning experience with clear diagram categorization and detailed descriptions
+
+---
+
 ## [2.2.1] - 2025-01-04
 
 ### 📚 Documentation Excellence & Architecture Visualization Modernization
