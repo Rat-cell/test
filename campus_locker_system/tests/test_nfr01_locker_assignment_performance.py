@@ -34,11 +34,12 @@ class TestNFR01LockerAssignmentPerformance:
 
     @pytest.fixture
     def app(self):
-        """Create test app with in-memory database"""
+        """Create test app with in-memory database and complete isolation"""
         app = create_app()
         app.config['TESTING'] = True
         app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
         app.config['WTF_CSRF_ENABLED'] = False
+        app.config['SKIP_DATABASE_INITIALIZATION'] = True  # Prevent real database access
         
         with app.app_context():
             db.create_all()
