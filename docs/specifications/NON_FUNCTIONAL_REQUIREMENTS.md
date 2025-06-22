@@ -1,6 +1,6 @@
-# 📊 Non-Functional Requirements - Campus Locker System v2.1.6
+#  Non-Functional Requirements - Campus Locker System v2.1.6
 
-## 📖 Overview
+##  Overview
 
 This document defines the non-functional quality attributes for the Campus Locker System. These requirements ensure the system meets enterprise-level performance, reliability, security, and usability standards.
 
@@ -10,7 +10,7 @@ This document defines the non-functional quality attributes for the Campus Locke
 
 ---
 
-## 🎯 Non-Functional Quality Attributes
+##  Non-Functional Quality Attributes
 
 ### NFR-01: Performance
 **Attribute**: Fast assignment operations  
@@ -18,7 +18,7 @@ This document defines the non-functional quality attributes for the Campus Locke
 **Requirement**: Locker assignment completes in < 200ms  
 **Fulfilled by**: FR-01 assignment function with optimized database queries
 
-#### **✅ Implementation Status: EXCEEDED**
+#### ** Implementation Status: EXCEEDED**
 - **Target**: < 200ms locker assignment
 - **Actual Performance**: 8-25ms (87-96% better than requirement)
 - **Throughput**: 120+ assignments/second capability
@@ -36,7 +36,7 @@ This document defines the non-functional quality attributes for the Campus Locke
 - Concurrent assignment simulation testing
 - Performance benchmarks exceeding requirements by wide margin
 
-#### **Rating**: 🔥 **EXCELLENT** - Critical requirement exceeded
+#### **Rating**:  **EXCELLENT** - Critical requirement exceeded
 
 ---
 
@@ -46,7 +46,7 @@ This document defines the non-functional quality attributes for the Campus Locke
 **Requirement**: Auto-restart in <10s and loses max. one transaction  
 **Fulfilled by**: Docker Compose restart policies, SQLite WAL mode
 
-#### **✅ Implementation Status: IMPLEMENTED**
+#### ** Implementation Status: IMPLEMENTED**
 - **Auto-restart**: Docker health checks with automatic container restart
 - **Recovery Time**: < 10 seconds with Docker Compose restart policies
 - **Data Protection**: SQLite WAL (Write-Ahead Logging) mode prevents corruption
@@ -64,7 +64,7 @@ This document defines the non-functional quality attributes for the Campus Locke
 - **Transaction Isolation**: ACID compliance with SQLite WAL journaling
 - **Error Recovery**: Graceful handling of database connection failures
 
-#### **Rating**: ✅ **RELIABLE** - Meeting enterprise reliability standards
+#### **Rating**:  **RELIABLE** - Meeting enterprise reliability standards
 
 ---
 
@@ -74,7 +74,7 @@ This document defines the non-functional quality attributes for the Campus Locke
 **Requirement**: PINs and passwords remain unreadable  
 **Fulfilled by**: FR-02 cryptographic hashing of PINs and admin passwords
 
-#### **✅ Implementation Status: SECURE**
+#### ** Implementation Status: SECURE**
 - **PIN Protection**: Salted SHA-256 hashing with PBKDF2 (100,000 iterations)
 - **Admin Security**: Bcrypt password hashing for administrator accounts
 - **Cryptographic Standards**: Industry-standard security implementations
@@ -92,7 +92,7 @@ This document defines the non-functional quality attributes for the Campus Locke
 - **Secure Random**: Hardware-based entropy for PIN generation
 - **Access Control**: Role-based authentication for administrative functions
 
-#### **Rating**: 🛡️ **SECURE** - Industry-standard cryptographic implementation
+#### **Rating**:  **SECURE** - Industry-standard cryptographic implementation
 
 ---
 
@@ -102,7 +102,7 @@ This document defines the non-functional quality attributes for the Campus Locke
 **Requirement**: Backup data stored for 7 days minimum  
 **Fulfilled by**: Automated scheduled backup every 7 days + locker configuration change backups
 
-#### **✅ Implementation Status: IMPLEMENTED**
+#### ** Implementation Status: IMPLEMENTED**
 - **Scheduled Backups**: Automatic database backup created every 7 days
 - **Configuration Backups**: Additional backups during JSON-based locker configuration changes  
 - **Backup Location**: Persistent storage in `databases/backups/` directory with timestamped files
@@ -126,7 +126,7 @@ This document defines the non-functional quality attributes for the Campus Locke
 - **Admin Reset Backups**: Created before destructive admin operations
 - **Manual Backups**: Available through backup service API
 
-#### **Rating**: 💾 **PROTECTED** - Automated 7-day scheduled backups + configuration change protection
+#### **Rating**:  **PROTECTED** - Automated 7-day scheduled backups + configuration change protection
 
 ---
 
@@ -136,7 +136,7 @@ This document defines the non-functional quality attributes for the Campus Locke
 **Requirement**: User completes all workflows using only keyboard  
 **Fulfilled by**: UI focus management and accessibility features
 
-#### **✅ Implementation Status: ACCESSIBLE**
+#### ** Implementation Status: ACCESSIBLE**
 - **Keyboard Navigation**: Tab order management for all interactive elements
 - **Focus Indicators**: Clear visual feedback for keyboard navigation
 - **Form Accessibility**: Proper labels and keyboard-accessible form controls
@@ -154,7 +154,7 @@ This document defines the non-functional quality attributes for the Campus Locke
 - **Screen Reader Support**: ARIA labels and semantic HTML structure
 - **Form Accessibility**: Proper labeling and validation feedback
 
-#### **Rating**: ♿ **ACCESSIBLE** - Meeting web accessibility standards
+#### **Rating**:  **ACCESSIBLE** - Meeting web accessibility standards
 
 ---
 
@@ -164,7 +164,7 @@ This document defines the non-functional quality attributes for the Campus Locke
 **Requirement**: Unit and end-to-end tests validate all functionality  
 **Fulfilled by**: Comprehensive test suite with multiple testing levels
 
-#### **✅ Implementation Status: COMPREHENSIVE**
+#### ** Implementation Status: COMPREHENSIVE**
 - **Test Coverage**: 91+ passing tests with multiple test categories
 - **Unit Testing**: Individual component and function validation
 - **Integration Testing**: Service interaction and workflow testing
@@ -188,74 +188,74 @@ This document defines the non-functional quality attributes for the Campus Locke
 #### **Test Files Overview**:
 ```
 tests/
-├── test_application.py              # Core application testing
-├── test_presentation.py             # UI and route testing
-├── flow/
-│   ├── test_performance_flow.py     # Performance validation
-│   └── test_pin_flow.py            # PIN workflow testing
-├── edge_cases/                      # Boundary condition testing
-├── test_fr01_assign_locker.py      # FR-01 performance testing
-├── test_fr02_generate_pin.py       # FR-02 security testing
-├── test_fr03_email_notification_system.py # FR-03 communication testing
-├── test_fr07_audit_trail.py        # FR-07 audit testing
-├── test_fr08_out_of_service.py     # FR-08 operational testing
-└── test_fr09_invalid_pin_errors.py # FR-09 error handling testing
+ test_application.py              # Core application testing
+ test_presentation.py             # UI and route testing
+ flow/
+    test_performance_flow.py     # Performance validation
+    test_pin_flow.py            # PIN workflow testing
+ edge_cases/                      # Boundary condition testing
+ test_fr01_assign_locker.py      # FR-01 performance testing
+ test_fr02_generate_pin.py       # FR-02 security testing
+ test_fr03_email_notification_system.py # FR-03 communication testing
+ test_fr07_audit_trail.py        # FR-07 audit testing
+ test_fr08_out_of_service.py     # FR-08 operational testing
+ test_fr09_invalid_pin_errors.py # FR-09 error handling testing
 ```
 
-#### **Rating**: 🧪 **COMPREHENSIVE** - Enterprise-level test coverage
+#### **Rating**:  **COMPREHENSIVE** - Enterprise-level test coverage
 
 ---
 
-## 📊 Non-Functional Requirements Compliance Matrix
+##  Non-Functional Requirements Compliance Matrix
 
 | NFR ID | Quality Attribute | Target | Actual Achievement | Status | Rating |
 |--------|------------------|--------|-------------------|---------|---------|
-| NFR-01 | Performance | < 200ms | 8-25ms (87-96% better) | ✅ EXCEEDED | 🔥 EXCELLENT |
-| NFR-02 | Reliability | < 10s restart, 1 tx loss | Docker restart + WAL | ✅ IMPLEMENTED | ✅ RELIABLE |
-| NFR-03 | Security | Unreadable stolen data | PBKDF2 + Bcrypt | ✅ SECURE | 🛡️ SECURE |
-| NFR-04 | Backup | 7 days retention | Automated 7-day scheduled backups | ✅ IMPLEMENTED | 💾 PROTECTED |
-| NFR-05 | Usability | Keyboard-only workflows | Focus management + ARIA | ✅ ACCESSIBLE | ♿ ACCESSIBLE |
-| NFR-06 | Testing | Unit + E2E coverage | 91+ comprehensive tests | ✅ COMPREHENSIVE | 🧪 COMPREHENSIVE |
+| NFR-01 | Performance | < 200ms | 8-25ms (87-96% better) |  EXCEEDED |  EXCELLENT |
+| NFR-02 | Reliability | < 10s restart, 1 tx loss | Docker restart + WAL |  IMPLEMENTED |  RELIABLE |
+| NFR-03 | Security | Unreadable stolen data | PBKDF2 + Bcrypt |  SECURE |  SECURE |
+| NFR-04 | Backup | 7 days retention | Automated 7-day scheduled backups |  IMPLEMENTED |  PROTECTED |
+| NFR-05 | Usability | Keyboard-only workflows | Focus management + ARIA |  ACCESSIBLE |  ACCESSIBLE |
+| NFR-06 | Testing | Unit + E2E coverage | 91+ comprehensive tests |  COMPREHENSIVE |  COMPREHENSIVE |
 
 ---
 
-## 🏆 Non-Functional Requirements Achievement Summary
+##  Non-Functional Requirements Achievement Summary
 
-### **✅ All Requirements Met or Exceeded**
+### ** All Requirements Met or Exceeded**
 The Campus Locker System v2.1.6 successfully meets or exceeds all defined non-functional quality attributes:
 
-#### **🔥 Performance Excellence**
+#### ** Performance Excellence**
 - **Requirement**: < 200ms locker assignment
 - **Achievement**: 8-25ms (87-96% better than requirement)
 - **Impact**: System can handle campus-scale deployment with excellent response times
 
-#### **✅ Enterprise Reliability** 
+#### ** Enterprise Reliability** 
 - **Requirement**: < 10s recovery, 1 transaction loss maximum
 - **Achievement**: Docker health checks + SQLite WAL for crash safety
 - **Impact**: Production-ready reliability with automatic recovery
 
-#### **🛡️ Security Standards**
+#### ** Security Standards**
 - **Requirement**: Unreadable data if database stolen
 - **Achievement**: Industry-standard PBKDF2 + Bcrypt cryptographic protection
 - **Impact**: Data remains secure even in worst-case breach scenarios
 
-#### **💾 Data Protection**
+#### ** Data Protection**
 - **Requirement**: 7 days backup retention
 - **Achievement**: Automated timestamped backups for locker configuration changes and overwrite protection
 - **Impact**: Prevents accidental data loss during JSON-based locker management operations
 
-#### **♿ Accessibility Compliance**
+#### ** Accessibility Compliance**
 - **Requirement**: Keyboard-only user workflow completion
 - **Achievement**: Full keyboard navigation with focus management
 - **Impact**: Inclusive design meeting accessibility standards
 
-#### **🧪 Testing Excellence**
+#### ** Testing Excellence**
 - **Requirement**: Unit and end-to-end test coverage
 - **Achievement**: 91+ comprehensive tests across all system components
 - **Impact**: High confidence in system reliability and correctness
 
-### **🚀 Production Readiness Status**
-**Overall NFR Compliance**: ✅ **100% ACHIEVED**
+### ** Production Readiness Status**
+**Overall NFR Compliance**:  **100% ACHIEVED**
 
 The Campus Locker System v2.1.6 demonstrates **enterprise-grade non-functional quality** suitable for production deployment with:
 - **Exceptional Performance** exceeding requirements by 87-96%
@@ -267,7 +267,7 @@ The Campus Locker System v2.1.6 demonstrates **enterprise-grade non-functional q
 
 ---
 
-## 📝 Quality Assurance Notes
+##  Quality Assurance Notes
 
 ### **Continuous Monitoring**
 - Performance metrics tracked during operation

@@ -34,6 +34,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+ 
 
   # Main Application
   app:
@@ -107,7 +108,7 @@ services:
       retries: 3
       start_period: 40s
 
-  # Nginx Reverse Proxy
+# Nginx Reverse Proxy
   nginx:
     image: nginx:alpine
     container_name: campus_locker_nginx
@@ -139,4 +140,4 @@ volumes:
 
 networks:
   default:
-    name: campus_locker_network 
+    name: campus_locker_network

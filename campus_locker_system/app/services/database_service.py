@@ -330,6 +330,24 @@ class DatabaseService:
                 backup_path = os.path.join(backup_dir, backup_filename)
                 
                 if os.path.exists(source_path):
+                    # NFR-04: CRITICAL FIX - Force WAL checkpoint before backup
+                    # This ensures all data from WAL file is written to main database file
+                    try:
+                        import sqlite3
+                        conn = sqlite3.connect(source_path)
+                        cursor = conn.cursor()
+                        
+                        # Force WAL checkpoint to ensure all data is in main db file
+                        cursor.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                        checkpoint_result = cursor.fetchone()
+                        
+                        conn.close()
+                        logger.debug(f"💾 WAL checkpoint for {db_file}: {checkpoint_result}")
+                        
+                    except Exception as checkpoint_error:
+                        logger.warning(f"⚠️ WAL checkpoint failed for {db_file}: {str(checkpoint_error)}")
+                        # Continue with backup even if checkpoint fails
+                    
                     import shutil
                     shutil.copy2(source_path, backup_path)
                     backed_up_files.append(backup_filename)
@@ -385,6 +403,24 @@ class DatabaseService:
             for db_file in db_files:
                 source_path = os.path.join(db_dir, db_file)
                 if os.path.exists(source_path):
+                    # NFR-04: CRITICAL FIX - Force WAL checkpoint before backup
+                    # This ensures all data from WAL file is written to main database file
+                    try:
+                        import sqlite3
+                        conn = sqlite3.connect(source_path)
+                        cursor = conn.cursor()
+                        
+                        # Force WAL checkpoint to ensure all data is in main db file
+                        cursor.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                        checkpoint_result = cursor.fetchone()
+                        
+                        conn.close()
+                        logger.debug(f"💾 WAL checkpoint for {db_file}: {checkpoint_result}")
+                        
+                    except Exception as checkpoint_error:
+                        logger.warning(f"⚠️ WAL checkpoint failed for {db_file}: {str(checkpoint_error)}")
+                        # Continue with backup even if checkpoint fails
+                    
                     # NFR-04: Create backup filename with configurable interval reference
                     backup_filename = f"{db_file.replace('.db', '')}_scheduled_{backup_interval_days}day_{timestamp}.db"
                     backup_path = os.path.join(backup_dir, backup_filename)
@@ -393,6 +429,9 @@ class DatabaseService:
                     import shutil
                     shutil.copy2(source_path, backup_path)
                     backed_up_files.append(backup_filename)
+                    
+                    # NFR-04: After WAL checkpoint, main DB file is complete and self-contained
+                    # No need to backup WAL/SHM files since checkpoint moved all data to main file
             
             if backed_up_files:
                 backup_list = ', '.join(backed_up_files)

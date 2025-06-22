@@ -48,29 +48,35 @@ def create_app(config_class=Config):
     mail.init_app(app) # Add this
 
     with app.app_context():
-        # NFR-02 & NFR-04: Initialize databases with reliability and backup features
-        from app.services.database_service import DatabaseService
-        from app.services.admin_auth_service import AdminAuthService # Import AdminAuthService
-        from app.business.admin_auth import AdminRole # Import AdminRole
+        # Check if database initialization should be skipped (for testing)
+        skip_db_init = app.config.get('SKIP_DATABASE_INITIALIZATION', False)
+        
+        if not skip_db_init:
+            # NFR-02 & NFR-04: Initialize databases with reliability and backup features
+            from app.services.database_service import DatabaseService
+            from app.services.admin_auth_service import AdminAuthService # Import AdminAuthService
+            from app.business.admin_auth import AdminRole # Import AdminRole
 
-        app.logger.info("🗄️ Starting database initialization...")
-        
-        # Step 1: Initialize databases and create tables
-        # NFR-02: Reliability - Includes SQLite WAL mode configuration for crash safety
-        db_success, db_message = DatabaseService.initialize_databases()
-        
-        if db_success:
-            app.logger.info(f"✅ Database initialization successful: {db_message}")
+            app.logger.info("🗄️ Starting database initialization...")
             
-            # Step 2: Run post-initialization tasks (including backup checks)
-            try:
-                DatabaseService.post_initialization_tasks()
-                app.logger.info("✅ Post-initialization tasks completed")
-            except Exception as e:
-                app.logger.warning(f"⚠️ Post-initialization tasks failed: {str(e)}")
+            # Step 1: Initialize databases and create tables
+            # NFR-02: Reliability - Includes SQLite WAL mode configuration for crash safety
+            db_success, db_message = DatabaseService.initialize_databases()
+            
+            if db_success:
+                app.logger.info(f"✅ Database initialization successful: {db_message}")
+                
+                # Step 2: Run post-initialization tasks (including backup checks)
+                try:
+                    DatabaseService.post_initialization_tasks()
+                    app.logger.info("✅ Post-initialization tasks completed")
+                except Exception as e:
+                    app.logger.warning(f"⚠️ Post-initialization tasks failed: {str(e)}")
+            else:
+                app.logger.error(f"❌ Database initialization failed: {db_message}")
+                # Continue anyway - some functionality may still work
         else:
-            app.logger.error(f"❌ Database initialization failed: {db_message}")
-            # Continue anyway - some functionality may still work
+            app.logger.info("⚠️ Database initialization skipped (test mode)")
         
         # Legacy create_all() call as fallback (should be redundant now with DatabaseService)
         # try:

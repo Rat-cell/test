@@ -1,0 +1,18 @@
+{
+  "metadata": {
+    "description": "Demo: Additional Lockers for Campus Extension",
+    "version": "1.0",
+    "location": "Campus Extension Building",
+    "total_count": 3,
+    "size_distribution": {
+      "small": 1,
+      "medium": 1,
+      "large": 1
+    }
+  },
+  "lockers": [
+    {"id": 20, "location": "Extension Locker 20", "size": "small", "status": "free"},
+    {"id": 21, "location": "Extension Locker 21", "size": "medium", "status": "free"},
+    {"id": 22, "location": "Extension Locker 22", "size": "large", "status": "free"}
+  ]
+}
