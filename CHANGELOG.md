@@ -1,6 +1,6 @@
 # 📋 Campus Locker System - Changelog
 
-## [2.2.2] - 2025-01-04
+## [2.2.2] - 2025-06-01
 
 ### 📊 Diagram Organization Enhancement & Swimlane Flow Structure
 
@@ -66,7 +66,7 @@ docs/diagrams/
 
 ---
 
-## [2.2.1] - 2025-01-04
+## [2.2.1] - 2025-06-01
 
 ### 📚 Documentation Excellence & Architecture Visualization Modernization
 

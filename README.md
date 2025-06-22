@@ -101,7 +101,7 @@ test/                               # 🏠 Root Project Directory
 
 ---
 
-## 📋 **Latest Changes - Version 2.2.2** *(2025-01-04)*
+## 📋 **Latest Changes - Version 2.2.2** *(2025-06-01)*
 
 ### 📊 Diagram Organization Enhancement & Swimlane Flow Structure
 
@@ -123,7 +123,7 @@ test/                               # 🏠 Root Project Directory
 - Complete file inventory reflecting new organizational structure
 - Enhanced navigation experience for different types of process flows
 
-*Previous Version 2.2.1 (2025-01-04):*
+*Previous Version 2.2.1 (2025-06-01):*
 ### 📚 Documentation Excellence & Architecture Visualization Modernization
 
 **🏗️ Architecture Documentation Revolution**
