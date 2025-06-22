@@ -1,12 +1,12 @@
-# 🚀 Campus Locker System - Development Guide
+#  Campus Locker System - Development Guide
 
-**For initial setup and to get the system running quickly, please see the [🚀 Quick Start Guide](QUICK_START.md).**
+**For initial setup and to get the system running quickly, please see the [ Quick Start Guide](QUICK_START.md).**
 
 This comprehensive guide covers everything else you need to know for development, deployment, and collaboration for the **Campus Locker System v2.1.1**.
 
 ---
 
-## 🐳 Docker Deployment
+##  Docker Deployment
 
 ### Architecture Overview
 The system uses a multi-container Docker setup:
@@ -53,7 +53,7 @@ PIN_EXPIRY_HOURS=24
 
 ---
 
-## 🛠️ Development Workflow
+##  Development Workflow
 
 ### Available Make Commands
 ```bash
@@ -107,7 +107,7 @@ git push origin feature/your-feature-name
 
 ---
 
-## 🧪 Testing
+##  Testing
 
 ### Running Tests
 ```bash
@@ -142,7 +142,7 @@ docker-compose exec app pytest
 
 ---
 
-## 🔧 Configuration
+##  Configuration
 
 ### Application Settings
 Key settings in `app/config.py`:
@@ -167,7 +167,7 @@ MAIL_DEFAULT_SENDER = 'noreply@campuslocker.local'
 
 ---
 
-## 📊 Monitoring & Logging
+##  Monitoring & Logging
 
 ### Health Checks
 - **Endpoint**: `/health`
@@ -187,7 +187,7 @@ MAIL_DEFAULT_SENDER = 'noreply@campuslocker.local'
 
 ---
 
-## 🚨 Troubleshooting
+##  Troubleshooting
 
 ### Common Issues
 
@@ -234,7 +234,7 @@ make up
 
 ---
 
-## 🔄 Deployment Updates
+##  Deployment Updates
 
 ### Updating the Application
 ```bash
@@ -270,7 +270,7 @@ make up
 
 ---
 
-## 📚 Additional Resources
+##  Additional Resources
 
 ### Architecture Documentation
 - `[Database Documentation](../specifications/DATABASE_DOCUMENTATION.md)` - Complete database architecture & operations guide

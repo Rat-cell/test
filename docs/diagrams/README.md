@@ -2,19 +2,19 @@
 
 This directory contains all architectural and design diagrams for the Campus Locker System, organized by diagram type for better maintainability and navigation.
 
-## 📁 Directory Structure
+##  Directory Structure
 
 ```
 docs/diagrams/
-├── README.md                    # This documentation file
-├── c4_model/                   # C4 Model Architecture Diagrams
-├── activity_diagrams/          # Process Flow Diagrams
-│   └── swimlane_flows/         # Activity Diagrams with Swimlanes
-├── class_diagrams/             # Object-Oriented Design Diagrams
-└── database_schemas/           # Database Schema Definitions
+ README.md                    # This documentation file
+ c4_model/                   # C4 Model Architecture Diagrams
+ activity_diagrams/          # Process Flow Diagrams
+    swimlane_flows/         # Activity Diagrams with Swimlanes
+ class_diagrams/             # Object-Oriented Design Diagrams
+ database_schemas/           # Database Schema Definitions
 ```
 
-## 🏗️ C4 Model (`c4_model/`)
+##  C4 Model (`c4_model/`)
 
 Contains architectural diagrams following the official C4 model methodology:
 
@@ -39,7 +39,7 @@ Contains architectural diagrams following the official C4 model methodology:
 - **C3 - Components**: Internal component structure and relationships
 - **C4 - Code**: Detailed class diagrams and implementation structure
 
-## 🔄 Activity Diagrams (`activity_diagrams/`)
+##  Activity Diagrams (`activity_diagrams/`)
 
 Process flow diagrams showing user journeys and system workflows:
 
@@ -105,14 +105,14 @@ Detailed process flows with swimlanes showing cross-functional interactions:
   - Advanced search functionality
 
 ### Swimlane Features:
-- ✅ Cross-functional process visualization
-- ✅ Clear responsibility boundaries between services
-- ✅ Detailed error handling and exception flows
-- ✅ Security and validation checkpoints
-- ✅ Real-time monitoring and audit logging
-- ✅ Hardware integration touchpoints
+-  Cross-functional process visualization
+-  Clear responsibility boundaries between services
+-  Detailed error handling and exception flows
+-  Security and validation checkpoints
+-  Real-time monitoring and audit logging
+-  Hardware integration touchpoints
 
-## 🏛️ Class Diagrams (`class_diagrams/`)
+##  Class Diagrams (`class_diagrams/`)
 
 Object-oriented design diagrams showing system structure:
 
@@ -131,7 +131,7 @@ Object-oriented design diagrams showing system structure:
 - **DTO Pattern**: Data transfer objects for API boundaries
 - **Value Object Pattern**: Immutable data containers
 
-## 🗄️ Database Schemas (`database_schemas/`)
+##  Database Schemas (`database_schemas/`)
 
 Database design and schema definitions:
 
@@ -152,7 +152,7 @@ Database design and schema definitions:
 - **VS Code**: Database Markup Language (DBML) extension
 - **CLI**: DBML CLI tools for export to SQL
 
-## 🛠️ Tools and Rendering
+##  Tools and Rendering
 
 ### PlantUML Files (`.puml`)
 - **Online**: [PlantUML Online Server](http://www.plantuml.com/plantuml/)
@@ -170,14 +170,14 @@ Database design and schema definitions:
 - **VS Code**: DBML extension
 - **CLI**: DBML CLI tools
 
-## 📋 Diagram Standards
+##  Diagram Standards
 
 ### Style Guidelines:
-- ✅ Clean white background for readability
-- ✅ Consistent color coding across diagrams
-- ✅ Proper UML relationship notation
-- ✅ Comprehensive notes and documentation
-- ✅ Professional layout and organization
+-  Clean white background for readability
+-  Consistent color coding across diagrams
+-  Proper UML relationship notation
+-  Comprehensive notes and documentation
+-  Professional layout and organization
 
 ### Relationship Notation:
 - `||--o{` : One-to-many association
@@ -188,7 +188,7 @@ Database design and schema definitions:
 - `..>` : Implementation/Interface usage
 - `<|--` : Inheritance/Extension
 
-## 🔄 Maintenance
+##  Maintenance
 
 ### Adding New Diagrams:
 1. Place in appropriate subfolder based on diagram type
@@ -207,33 +207,33 @@ Database design and schema definitions:
 - **`class_diagrams/`**: Object-oriented design diagrams (.puml)
 - **`database_schemas/`**: Database schema definitions (.dbml)
 
-## 📊 Current File Inventory
+##  Current File Inventory
 
 ```
 docs/diagrams/
-├── README.md
-├── activity_diagrams/
-│   ├── swimlane_flows/
-│   │   ├── activity_deposit_flow_with_lanes.puml
-│   │   ├── activity_pickup_flow_with_lanes.puml
-│   │   ├── admin_audit_logs_flow_with_lanes.puml
-│   │   ├── admin_login_flow_with_lanes.puml
-│   │   ├── admin_manage_parcels_flow_with_lanes.puml
-│   │   └── admin_system_status_flow_with_lanes.puml
-│   ├── activity_admin_flows.puml
-│   └── activity_parcel_flows.puml
-├── c4_model/
-│   ├── C4_LEVEL4_README.md
-│   ├── campus_locker_architecture.dsl
-│   └── campus_locker_code_level.puml
-├── class_diagrams/
-│   └── deposit_flow_class_diagram.puml
-└── database_schemas/
-    ├── audit_database_schema.dbml
-    └── main_database_schema.dbml
+ README.md
+ activity_diagrams/
+    swimlane_flows/
+       activity_deposit_flow_with_lanes.puml
+       activity_pickup_flow_with_lanes.puml
+       admin_audit_logs_flow_with_lanes.puml
+       admin_login_flow_with_lanes.puml
+       admin_manage_parcels_flow_with_lanes.puml
+       admin_system_status_flow_with_lanes.puml
+    activity_admin_flows.puml
+    activity_parcel_flows.puml
+ c4_model/
+    C4_LEVEL4_README.md
+    campus_locker_architecture.dsl
+    campus_locker_code_level.puml
+ class_diagrams/
+    deposit_flow_class_diagram.puml
+ database_schemas/
+     audit_database_schema.dbml
+     main_database_schema.dbml
 ```
 
-## 📚 Related Documentation
+##  Related Documentation
 
 - **Main README**: `../../README.md`
 - **Architecture Overview**: `../README.md`

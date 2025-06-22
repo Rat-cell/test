@@ -1,15 +1,15 @@
 # C4 Level 4: Code Diagrams - Campus Locker System
 
-## 📋 Overview
+##  Overview
 
 This document provides **C4 Level 4 (Code) diagrams** for the Campus Locker System using **UML Class Diagrams**. These diagrams show the implementation details of the components defined in our C3 diagrams, representing the actual Python classes that would implement the architecture.
 
-## 📁 Files
+##  Files
 
 - **`campus_locker_code_level.puml`** - PlantUML file with complete class diagrams
 - **`C4_LEVEL4_README.md`** - This documentation file
 
-## 🏗️ Architecture Mapping
+##  Architecture Mapping
 
 ### **C3 → C4 Mapping**
 
@@ -21,7 +21,7 @@ The Level 4 diagrams implement the components from our Level 3 diagrams:
 | **Parcel Service Components** | `ParcelController`, `ParcelOrchestrator`, `ParcelValidator`, `ParcelEventHandler`, `NotificationTrigger` |
 | **Auth Service Components** | `AuthController`, `SessionManager`, `PasswordValidator`, `LoginAttemptTracker`, `AuthorizationEngine` |
 
-## 🎯 Key Design Patterns Demonstrated
+##  Key Design Patterns Demonstrated
 
 ### **1. Hexagonal Architecture**
 - **Clean dependency flow**: Outer layers depend on inner layers
@@ -43,7 +43,7 @@ The Level 4 diagrams implement the components from our Level 3 diagrams:
 - **Entities**: `Parcel`, `AdminUser`, `Locker`
 - **Enums**: `ParcelStatus`, `LockerSize`
 
-## 🚀 How to Use
+##  How to Use
 
 ### **Option 1: Online PlantUML Editor**
 1. Visit [PlantUML Online](http://www.plantuml.com/plantuml/uml/)
@@ -85,7 +85,7 @@ with open('campus_locker_code_level.puml', 'r') as f:
     diagram = server.processes(f.read())
 ```
 
-## 📊 Diagram Structure
+##  Diagram Structure
 
 ### **Package Organization**
 
@@ -103,7 +103,7 @@ Each class includes:
 - **Relationships**: Dependencies, inheritance, and associations
 - **Types**: Python-specific type hints (str, bool, datetime, etc.)
 
-## 🔗 Relationships Explained
+##  Relationships Explained
 
 ### **Dependency Direction (Hexagonal Architecture)**
 ```
@@ -119,7 +119,7 @@ Interface  Controller  Models   Access
 - **Association**: Entities reference value objects
 - **Dependency**: Services depend on repositories
 
-## 🎓 Implementation Insights
+##  Implementation Insights
 
 ### **Real Python Implementation**
 
@@ -152,7 +152,7 @@ class ParcelController:
 - **Validation**: WTForms (form validation)
 - **Logging**: Python logging (audit trails)
 
-## 📈 Scalability Considerations
+##  Scalability Considerations
 
 ### **Design Decisions**
 1. **Microservice Ready**: Service layer can be extracted to separate services
@@ -167,7 +167,7 @@ class ParcelController:
 - **Async Events**: Event handlers for non-blocking notifications
 - **Connection Pooling**: Database session management
 
-## 🧪 Testing Strategy
+##  Testing Strategy
 
 ### **Unit Testing**
 Each class can be unit tested independently:
@@ -193,7 +193,7 @@ def test_parcel_deposit_flow():
     assert response.tracking_id is not None
 ```
 
-## 🔍 Comparison with C3 Level
+##  Comparison with C3 Level
 
 | **Aspect** | **C3 (Component)** | **C4 (Code)** |
 |------------|-------------------|---------------|
@@ -202,7 +202,7 @@ def test_parcel_deposit_flow():
 | **Stability** | Changes with architecture | Changes with implementation |
 | **Purpose** | Design communication | Implementation guidance |
 
-## 📚 Further Reading
+##  Further Reading
 
 ### **Design Patterns**
 - [Repository Pattern](https://martinfowler.com/eaaCatalog/repository.html)
@@ -217,9 +217,9 @@ def test_parcel_deposit_flow():
 
 ---
 
-**💡 Pro Tip**: Use this Level 4 diagram as a **coding guide** when implementing the actual Python classes. The detailed method signatures and relationships provide a clear roadmap for development!
+** Pro Tip**: Use this Level 4 diagram as a **coding guide** when implementing the actual Python classes. The detailed method signatures and relationships provide a clear roadmap for development!
 
-## 🎯 Next Steps
+##  Next Steps
 
 1. **Review the PlantUML diagram** to understand class structure
 2. **Generate visual diagrams** using your preferred tool

@@ -1,6 +1,6 @@
-# 🗄️ Database Documentation
+#  Database Documentation
 
-## 📋 **Overview**
+##  **Overview**
 
 The Campus Locker System uses a **dual-database architecture** for data separation and audit trail maintenance:
 
@@ -9,40 +9,40 @@ The Campus Locker System uses a **dual-database architecture** for data separati
 
 Both databases are **SQLite** and stored in the persistent `databases/` directory to survive deployments.
 
-## 🏗️ **Database Architecture**
+##  **Database Architecture**
 
 ### **Persistent Storage Location**
 ```
 databases/
-├── campus_locker.db              # Main business database
-├── campus_locker_audit.db        # Audit trail database  
-├── lockers-hwr.json              # Locker configuration (15 HWR lockers)
-└── campus_locker_backup_*.db     # Automatic safety backups
+ campus_locker.db              # Main business database
+ campus_locker_audit.db        # Audit trail database  
+ lockers-hwr.json              # Locker configuration (15 HWR lockers)
+ campus_locker_backup_*.db     # Automatic safety backups
 ```
 
-## 🗂️ **Main Database Schema (campus_locker.db)**
+##  **Main Database Schema (campus_locker.db)**
 
 ### **Entity Relationship Diagram (ERD)**
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│     LOCKER      │    │     PARCEL      │    │   ADMIN_USER    │
-├─────────────────┤    ├─────────────────┤    ├─────────────────┤
-│ id (PK)         │◄──┐│ id (PK)         │    │ id (PK)         │
-│ location        │   ││ locker_id (FK)  │    │ username        │
-│ size            │   ││ pin_hash        │    │ password_hash   │
-│ status          │   ││ otp_expiry      │    │ last_login      │
-└─────────────────┘   ││ recipient_email │    └─────────────────┘
-                      ││ status          │
-┌─────────────────┐   ││ deposited_at    │
-│ LOCKER_SENSOR   │   ││ picked_up_at    │
-│     _DATA       │   ││ pin_generation_*│
-├─────────────────┤   │└─────────────────┘
-│ id (PK)         │   │
-│ locker_id (FK)  │◄──┘
-│ timestamp       │
-│ has_contents    │
-└─────────────────┘
+        
+     LOCKER               PARCEL             ADMIN_USER    
+        
+ id (PK)          id (PK)              id (PK)         
+ location            locker_id (FK)       username        
+ size                pin_hash             password_hash   
+ status              otp_expiry           last_login      
+    recipient_email     
+                       status          
+    deposited_at    
+ LOCKER_SENSOR       picked_up_at    
+     _DATA           pin_generation_*
+   
+ id (PK)            
+ locker_id (FK)  
+ timestamp       
+ has_contents    
+
 ```
 
 ### **Table Definitions**
@@ -115,7 +115,7 @@ CREATE TABLE locker_sensor_data (
    - No direct foreign key relationships
    - Links to audit trail via admin_id in audit database
 
-## 🔍 **Audit Database Schema (campus_locker_audit.db)**
+##  **Audit Database Schema (campus_locker_audit.db)**
 
 ### **AUDIT_LOG Table**
 ```sql
@@ -135,7 +135,7 @@ CREATE TABLE audit_log (
 - **System Changes**: Database modifications, locker management
 - **Cross-Database Link**: `admin_id` references `admin_user.id` in main database
 
-## 📊 **Data Flow & Relationships**
+##  **Data Flow & Relationships**
 
 ### **Core Business Flow**
 ```
@@ -159,7 +159,7 @@ CREATE TABLE audit_log (
 4. AUDIT_LOG (results recorded)
 ```
 
-## 🔧 **Database Management**
+##  **Database Management**
 
 ### **Configuration-Driven Setup**
 - **Locker creation**: From `databases/lockers-hwr.json`
@@ -189,7 +189,7 @@ CREATE TABLE audit_log (
 - **Add-Only Mode**: Safely add new lockers without affecting existing
 - **Audit Trail**: All administrative actions logged
 
-## 🔍 **Database Queries**
+##  **Database Queries**
 
 This section provides examples of raw SQL queries for understanding data relationships and for direct database inspection. Within the application, similar data retrieval and manipulation logic is encapsulated within methods in the repository classes (`app/persistence/repositories/`).
 
@@ -242,7 +242,7 @@ ORDER BY a.timestamp DESC
 LIMIT 50;
 ```
 
-## 📈 **Performance Considerations**
+##  **Performance Considerations**
 
 ### **Indexes (Automatic via SQLAlchemy)**
 - Primary keys on all tables
@@ -254,7 +254,7 @@ LIMIT 50;
 - **Audit Log**: Regular cleanup of old audit entries
 - **Parcel History**: Archive completed parcels after pickup
 
-## 🛡️ **Data Integrity**
+##  **Data Integrity**
 
 ### **Constraints**
 - **Foreign Keys**: Enforce referential integrity
@@ -269,17 +269,17 @@ LIMIT 50;
 - PIN expiry: Must be future timestamp
 - Email format: Validated via application logic
 
-## 🚀 **Deployment & Maintenance**
+##  **Deployment & Maintenance**
 
 ### **Database Files in Production**
 ```
 /app/databases/              # Container persistent volume
-├── campus_locker.db         # Main database
-├── campus_locker_audit.db   # Audit database
-├── lockers-hwr.json         # Configuration
-└── backups/                 # Automatic backups
-    ├── campus_locker_backup_20241129_143022.db
-    └── ...
+ campus_locker.db         # Main database
+ campus_locker_audit.db   # Audit database
+ lockers-hwr.json         # Configuration
+ backups/                 # Automatic backups
+     campus_locker_backup_20241129_143022.db
+     ...
 ```
 
 ### **Backup Strategy**
